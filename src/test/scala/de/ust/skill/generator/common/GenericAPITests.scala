@@ -5,18 +5,15 @@
 \*                                                                            */
 package de.ust.skill.generator.common
 
-import java.io.File
+import java.io.{File, PrintWriter}
 
-import scala.collection.mutable.HashMap
-
+import de.ust.skill.ir.TypeContext
 import de.ust.skill.parser.Parser
-import org.json.JSONTokener
-import scala.io.Source
-import java.io.PrintWriter
-import org.json.JSONObject
+import org.json.{JSONObject, JSONTokener}
 
 import scala.collection.JavaConversions._
-import de.ust.skill.ir.TypeContext
+import scala.collection.mutable.HashMap
+import scala.io.Source
 
 /**
  * Common implementation of generic tests
@@ -48,7 +45,7 @@ abstract class GenericAPITests extends GenericTests {
   def closeTestFile(out : java.io.PrintWriter) : Unit;
 
   def makeSkipTest(out : PrintWriter, kind : String, name : String, testName : String, accept : Boolean);
-  
+
   def makeRegularTest(out : PrintWriter, kind : String, name : String, testName : String, accept : Boolean, tc : TypeContext, obj : JSONObject);
 
   final override def makeTests(name : String) {

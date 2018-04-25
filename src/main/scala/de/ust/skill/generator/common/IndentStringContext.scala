@@ -1,0 +1,57 @@
+
+package de.ust.skill.generator.common
+
+// Adapted from https://stackoverflow.com/a/11426477
+class IndentStringContext(sc: StringContext) {
+  def e(args: Any*): String = {
+    val sb = new StringBuilder()
+
+    for ((s, a) <- sc.parts.zip(args)) {
+      sb.append(s)
+
+      val ind = getIndent(sb, s)
+      if (ind.length > 0) {
+        sb.append(a.toString.replaceAll("\n", "\n" + ind))
+      } else {
+        sb.append(a.toString)
+      }
+    }
+    if (sc.parts.size > args.size)
+      sb.append(sc.parts.last)
+
+    sb.toString()
+  }
+
+  // get white indent after the last new line, if any
+  def getIndent(sb: StringBuilder, str: String): String = {
+    val lastnl = str.lastIndexOf("\n")
+
+    if (lastnl == -1) {
+      val lastnl = sb.lastIndexOf("\n")
+
+      if (lastnl == -1) {
+        ""
+      } else {
+        extractIndent(sb.substring(lastnl + 1).stripMargin)
+      }
+    } else {
+      extractIndent(str.substring(lastnl + 1).stripMargin)
+    }
+  }
+
+  def extractIndent(str: String): String = {
+    if (str.trim.isEmpty) str // ind is all whitespace. Use this
+    else {
+      val pattern = "^(\\s*).*".r
+      str match {
+        case pattern(ind) ⇒ ind
+        case _            ⇒ ""
+      }
+    }
+  }
+}
+
+object Indenter {
+  // top level implicit defs allowed only in 2.10 and above
+  implicit def toISC(sc: StringContext): IndentStringContext = new IndentStringContext(sc)
+}
