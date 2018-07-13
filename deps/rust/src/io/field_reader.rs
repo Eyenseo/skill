@@ -58,18 +58,18 @@ pub struct ContinuationFieldChunk {
 
 #[derive(Debug, Clone)]
 pub enum FieldChunk {
-    declaration(DeclarationFieldChunk),
-    continuation(ContinuationFieldChunk),
+    Declaration(DeclarationFieldChunk),
+    Continuation(ContinuationFieldChunk),
 }
 
 impl From<ContinuationFieldChunk> for FieldChunk {
     fn from(val: ContinuationFieldChunk) -> FieldChunk {
-        FieldChunk::continuation(val)
+        FieldChunk::Continuation(val)
     }
 }
 impl From<DeclarationFieldChunk> for FieldChunk {
     fn from(val: DeclarationFieldChunk) -> FieldChunk {
-        FieldChunk::declaration(val)
+        FieldChunk::Declaration(val)
     }
 }
 

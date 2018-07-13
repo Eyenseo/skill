@@ -639,7 +639,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |
        |        for chunk in self.chunks.iter() {
        |            match chunk {
-       |                FieldChunk::declaration(chunk) => {
+       |                FieldChunk::Declaration(chunk) => {
        |                    block_index += chunk.appearance; // TODO check -1
        |
        |                    if chunk.count > 0 {
@@ -655,7 +655,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |                        }
        |                    }
        |                },
-       |                FieldChunk::continuation(chunk) => {
+       |                FieldChunk::Continuation(chunk) => {
        |                    if chunk.count > 0 {
        |                        let b = blocks[block_index.block].block.block;
        |                        block_index += 1;
