@@ -36,8 +36,6 @@ pub trait InstancePool {
     fn set_type_name_index(&mut self, id: usize);
     fn get_type_name_index(&self) -> usize;
 
-    fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillError>;
-
     fn get_local_static_count(&self) -> usize;
     fn set_local_static_count(&mut self, count: usize);
 
@@ -50,10 +48,13 @@ pub trait InstancePool {
     fn get_global_cached_count(&self) -> usize;
     fn set_global_cached_count(&mut self, count: usize);
 
+    fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillError>;
+
     fn make_state(
         &mut self,
         file_reader: &Vec<FileReader>,
         string_block: &StringBlock,
+        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<(), SkillError>;
 
     fn initialize(&mut self);

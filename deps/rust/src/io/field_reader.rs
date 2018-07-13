@@ -3,7 +3,9 @@ use common::io::{FileReader, Offset};
 use common::SkillError;
 use common::StringBlock;
 
+use std::cell::RefCell;
 use std::ops::{Add, AddAssign};
+use std::rc::Rc;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct BlockIndex {
@@ -79,6 +81,7 @@ pub trait FieldReader<T> {
         file_reader: &Vec<FileReader>,
         string_block: &StringBlock,
         blocks: &Vec<Block>,
+        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
         instances: &mut Vec<T>,
     ) -> Result<(), SkillError>;
     fn add_chunk(&mut self, chunk: FieldChunk);

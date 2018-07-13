@@ -162,6 +162,7 @@ impl InstancePool for UndefinedPool {
         &mut self,
         file_reader: &Vec<FileReader>,
         string_block: &StringBlock,
+        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<(), SkillError> {
         for mut f in &mut self.fields {
             // f.read(&mut self.instances)?;

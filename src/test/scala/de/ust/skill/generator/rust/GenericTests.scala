@@ -23,34 +23,34 @@ class GenericTests extends common.GenericTests {
 
   // FIXME remove
   var skipTestCases  = Array(
-                              "age",
-                              "age16",
-                              "ageUnrestricted",
-                              "aircraft",
-                              "annotationNull",
-                              "annotationString",
-                              "annotationTest",
-                              "coloredNodes",
-                              "container",
-                              "crossNodes",
-                              "date",
-                              "duplicateDefinition",
-                              "duplicateDefinitionMixed",
-                              "duplicateDefinitionSecondBlock",
-                              "emptyBlocks",
-                              "fourColoredNodes",
-                              "illegalStringPoolOffsets",
-                              "illegalTypeID",
-                              "localBasePoolOffset",
-                              "missingUserType",
-                              "noFieldRegressionTest",
-                              "nodeFirstBlockOnly",
-                              "nullAsFieldName",
-                              "partial", // TODO - is this really successful?
-                              "trivialType",
-                              "twoNodeBlocks",
-                              "twoTypes",
-                              "unicode_reference",
+                              // "age",
+                              // "age16",
+                              // "ageUnrestricted",
+                              // "aircraft",
+                              // "annotationNull",
+                              // "annotationString",
+                              // "annotationTest",
+                              // "coloredNodes",
+                              // "container",
+                              // "crossNodes",
+                              // "date",
+                              // "duplicateDefinition",
+                              // "duplicateDefinitionMixed",
+                              // "duplicateDefinitionSecondBlock",
+                              // "emptyBlocks",
+                              // "fourColoredNodes",
+                              // "illegalStringPoolOffsets",
+                              // "illegalTypeID",
+                              // "localBasePoolOffset",
+                              // "missingUserType",
+                              // "noFieldRegressionTest",
+                              // "nodeFirstBlockOnly",
+                              // "nullAsFieldName",
+                              // "partial", // TODO - is this really successful?
+                              // "trivialType",
+                              // "twoNodeBlocks",
+                              // "twoTypes",
+                              // "unicode_reference",
 
                               "emptyFile",
                               "restrictionsAll",
@@ -62,10 +62,10 @@ class GenericTests extends common.GenericTests {
                               // "age",
                               "annotation", // FIXME Broken generator
                               "auto", // FIXME Broken generator
-                              "basicTypes", // FIXME Broken generator
-//                              "constants",
-//                              "container",
-//                              "custom",
+                              // "basicTypes",
+                              // "constants",
+                              // "container",
+                              // "custom",
                               "empty", // FIXME Broken generator
                               "enums", // FIXME Broken generator
                               "escaping", // FIXME Broken generator
@@ -75,13 +75,13 @@ class GenericTests extends common.GenericTests {
                               "graphInterface", // FIXME Broken generator
                               "hintsAll", // FIXME Broken generator
                               "map3", // FIXME Broken generator
-//                              "number",
+                              // "number",
                               "restrictionsAll", // FIXME Broken generator
                               "restrictionsCore", // FIXME Broken generator
                               "subtypes", // FIXME Broken generator
-//                              "unicode",
+                              // "unicode",
                               "unknown", // FIXME Broken generator
-//                              "user"
+                              // "user"
                             )
 
 
@@ -92,20 +92,20 @@ class GenericTests extends common.GenericTests {
     Directory(new File("testsuites/rust/", out)).deleteRecursively
   }
 
-  override def callMainFor(name                                                : String,
-                           source                                              : String,
-                           options                                             : Seq[String]) {
+  override def callMainFor(name: String,
+                           source: String,
+                           options: Seq[String]) {
     // TODO remove / extend
     if (skipGeneration.contains(name)) {
       println("Generic Skip: " + name)
       return
     }
     CommandLine.main(Array[String](source,
-                                   "--debug-header",
-                                   "-L", "rust",
-                                   "-p", name,
-                                   "-Orust:revealSkillID=true",
-                                   "-o", "testsuites/rust/" + name) ++ options)
+                                    "--debug-header",
+                                    "-L", "rust",
+                                    "-p", name,
+                                    "-Orust:revealSkillID=true",
+                                    "-o", "testsuites/rust/" + name) ++ options)
   }
 
   override def finalizeTests() {
@@ -140,12 +140,12 @@ class GenericTests extends common.GenericTests {
     text.drop(1).foldLeft(
                            text.headOption.map(_.toLower + "")
                            getOrElse "") {
-                                           case (acc, c) if c.isUpper => acc + "_" + c.toLower
-                                           case (acc, c)              => acc + c
-                                         }
+      case (acc, c) if c.isUpper => acc + "_" + c.toLower
+      case (acc, c)              => acc + c
+    }
   }
 
-  def newTestFile(packagePath                            : String, name: String): PrintWriter = {
+  def newTestFile(packagePath: String, name: String): PrintWriter = {
     val packageName = packagePath.split("/").map(EscapeFunction.apply).mkString("::")
 
     generatedTests :+= new Test(packagePath, s"$packagePath/tests/generic${name}Test.rs")
@@ -220,16 +220,16 @@ class GenericTests extends common.GenericTests {
 
     // generate read tests
     locally {
-              val out = newTestFile(name, "Read")
+      val out = newTestFile(name, "Read")
 
-              for (f ← accept) {
-                out.write(testString(name, f, false))
-              }
+      for (f ← accept) {
+        out.write(testString(name, f, false))
+      }
 
-              for (f ← reject) {
-                out.write(testString(name, f, true))
-              }
-              closeTestFile(out)
-            }
+      for (f ← reject) {
+        out.write(testString(name, f, true))
+      }
+      closeTestFile(out)
+    }
   }
 }

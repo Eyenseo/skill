@@ -26,6 +26,7 @@ impl<T> FieldReader<T> for LazyFieldReader {
         file_reader: &Vec<FileReader>,
         string_block: &StringBlock,
         blocks: &Vec<Block>,
+        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
         instances: &mut Vec<T>,
     ) -> Result<(), SkillError> {
         unimplemented!();

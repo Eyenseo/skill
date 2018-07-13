@@ -251,8 +251,12 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |        file_reader: &Vec<FileReader>,
        |        string_block: &StringBlock,
        |    ) -> Result<(), SkillError> {
-       |        for ref pool in type_pools {
-       |            pool.borrow_mut().make_state(file_reader, string_block);
+       |        for ref pool in type_pools {${
+      // FIXME THIS MIGHT KILL ME
+      ""
+    }
+       |            // FIXME THIS MIGHT KILL ME
+       |            pool.borrow_mut().make_state(file_reader, string_block, type_pools);
        |        }
        |        Ok(())
        |    }

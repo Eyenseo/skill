@@ -19,14 +19,14 @@ abstract class FakeMain extends GeneralOutputMaker {
 }
 
 final class Main extends FakeMain
-                         // with FieldDeclarationsMaker
-                         with SkillFileMaker
-                         // with StringKeeperMaker
-                         with PoolsMaker
-                         with LibMaker
-                         // with TypesMaker
-                         with PtrMaker
-                         with DependenciesMaker {
+                 // with FieldDeclarationsMaker
+                 with SkillFileMaker
+                 // with StringKeeperMaker
+                 with PoolsMaker
+                 with LibMaker
+                 // with TypesMaker
+                 with PtrMaker
+                 with DependenciesMaker {
   lineLength = 100
 
   /**
@@ -59,18 +59,19 @@ final class Main extends FakeMain
       case "f64" ⇒ "f64"
 
       case "string" ⇒ "Ptr<String>"
+      case "annotation" ⇒ "Option<Ptr<SkillObject>>"
 
       case _ ⇒ throw new GeneratorException(s"Unhandled type $t")
     }
 
-    // TODO add container
+    // TODO remove ptr
     case t: ConstantLengthArrayType ⇒ s"Ptr<Vec<${mapType(t.getBaseType)}>>"
     case t: VariableLengthArrayType ⇒ s"Ptr<Vec<${mapType(t.getBaseType)}>>"
     case t: ListType                ⇒ s"Ptr<LinkedList<${mapType(t.getBaseType)}>>"
     case t: SetType                 ⇒ s"Ptr<HashSet<${mapType(t.getBaseType)}>>"
     case t: MapType                 ⇒ t.getBaseTypes.map(mapType).reduceRight((k, v) ⇒ s"Ptr<HashMap<$k, $v>>")
 
-    case t: UserType ⇒ s"Ptr<${t.getName.capital()}T>" // TODO are we able to infer Struct vs Type?
+    case t: UserType ⇒ s"Option<Ptr<${t.getName.capital()}T>>" // TODO are we able to infer Struct vs Type?
 
     case _ ⇒ throw new GeneratorException(s"Unknown type $t")
   }
@@ -125,15 +126,17 @@ final class Main extends FakeMain
     * creates argument list of a constructor call, not including potential skillID or braces
     */
   override protected def makeConstructorArguments(t: UserType): String =
-    (
-    for (f ← t.getAllFields if !(f.isConstant || f.isIgnored)) yield
+    (for (f ← t.getAllFields if !(f.isConstant || f.isIgnored)) yield {
       s"${escaped(f.getName.camel)} : ${mapType(f.getType)}"
-    ).mkString(", ")
+    }).mkString(", ")
 
   override protected def appendConstructorArguments(t: UserType): String = {
     val r = t.getAllFields.filterNot { f ⇒ f.isConstant || f.isIgnored }
-    if (r.isEmpty) ""
-    else r.map({ f ⇒ s"${escaped(f.getName.camel)} : ${mapType(f.getType)}" }).mkString(", ", ", ", "")
+    if (r.isEmpty) {
+      ""
+    } else {
+      r.map({ f ⇒ s"${escaped(f.getName.camel)} : ${mapType(f.getType)}" }).mkString(", ", ", ", "")
+    }
   }
 
   /**
@@ -147,18 +150,19 @@ final class Main extends FakeMain
         case "i8" | "i16" | "i32" | "i64" | "v64" ⇒ "0"
         case "f32" | "f64"                        ⇒ "0.0"
         case "bool"                               ⇒ "false"
-        case "string"                             ⇒ "Ptr::default()"
+        case "string"                             ⇒ "Ptr::default()" // FIXME string
+        case "annotation"                         ⇒ "None"
         case _                                    ⇒ throw new GeneratorException(s"Unhandled type $t")
       }
 
 
-      case _: ConstantLengthArrayType ⇒ "Ptr::default()"
-      case _: VariableLengthArrayType ⇒ "Ptr::default()"
-      case _: ListType                ⇒ "Ptr::default()"
-      case _: SetType                 ⇒ "Ptr::default()"
-      case _: MapType                 ⇒ "Ptr::default()"
+      case _: ConstantLengthArrayType ⇒ "Ptr::default()" // TODO Ptr not needed here
+      case _: VariableLengthArrayType ⇒ "Ptr::default()" // TODO Ptr not needed here
+      case _: ListType                ⇒ "Ptr::default()" // TODO Ptr not needed here
+      case _: SetType                 ⇒ "Ptr::default()" // TODO Ptr not needed here
+      case _: MapType                 ⇒ "Ptr::default()" // TODO Ptr not needed here
 
-      case _: UserType ⇒ "Ptr::default()"
+      case _: UserType ⇒ "None"
 
       case t ⇒ throw new GeneratorException(s"Unknown type $t")
     }
