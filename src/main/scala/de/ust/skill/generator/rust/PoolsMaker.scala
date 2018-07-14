@@ -246,9 +246,9 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
     e"""#[derive(Default)]
        |pub struct ${cap_base}Pool {
        |    string_block: Rc<RefCell<StringBlock>>,
-       |    instances: Vec<Ptr<${cap_base}T>>,
+       |    instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
        |    // TODO needed after construction?
-       |    fields: Vec<Box<FieldReader<Ptr<${cap_base}T>>>>,
+       |    fields: Vec<Box<FieldReader>>,
        |    type_name_index: usize,
        |    type_id: usize,
        |    blocks: Vec<Block>,
@@ -268,7 +268,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |    ) -> ${cap_base}Pool {
        |        ${cap_base}Pool {
        |            string_block,
-       |            instances: Vec::new(),
+       |            instances: Rc::default(),
        |            fields: Vec::new(),
        |            type_name_index: 0,
        |            type_id: 0,
@@ -281,8 +281,11 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |    }
        |
        |    pub fn get(&self, index: usize) -> Result<WeakPtr<${cap_base}T>, SkillError> {
-       |        match self.instances.get(index) {
-       |            Some(node) => Ok(node.downgrade()),
+       |        match self.instances.borrow().get(index) {
+       |            Some(obj) => match obj.nucast::<${cap_base}T>() {
+       |                Some(obj) => Ok(obj.downgrade()),
+       |                None => panic!("Bad cast"),
+       |            },
        |            None => Err(SkillError::BadSkillObjectID),
        |        }
        |    }
@@ -306,20 +309,22 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
        |    ) -> Result<(), SkillError> {
        |        for mut f in &mut self.fields {
-       |            f.read(file_reader, string_block, &self.blocks, type_pools, &mut self.instances)?;
+       |            let mut instances = self.instances.borrow_mut();
+       |            f.read(file_reader, string_block, &self.blocks, type_pools, instances.deref_mut())?;
        |        }
        |        Ok(())
        |    }
        |
        |    fn initialize(&mut self) {
+       |        let mut vec = self.instances.borrow_mut();
        |        if self.is_base() {
-       |            self.instances.reserve(self.dynamic_count); // FIXME check if dynamic count is the correct one
+       |            vec.reserve(self.dynamic_count); // FIXME check if dynamic count is the correct one
        |        }
        |
        |        info!(target:"SkillParsing", "Initialize {} objects", self.dynamic_count);
        |
        |        for _ in 0..self.static_count {
-       |            self.instances.push(Ptr::new($cap_base::new()));
+       |            vec.push(Ptr::new($cap_base::new()));
        |        }
        |    }
        |    fn has_field(&self, name_id: usize) -> bool {
@@ -358,6 +363,10 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |        self.type_name_index
        |    }
        |
+       |    fn get_base_vec(&self) -> Rc<RefCell<Vec<Ptr<SkillObject>>>> {
+       |        self.instances.clone()
+       |    }
+       |
        |    fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillError> {
        |        error!(target:"SkillParsing", "Tried to get user instance: {}", index);
        |        unimplemented!();
@@ -366,7 +375,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |    fn add_block(&mut self, block: Block) {
        |        self.blocks.push(block);
        |    }
-       |    fn blocks(&mut self, block: Block) -> &mut Vec<Block> {
+       |    fn blocks(&mut self) -> &mut Vec<Block> {
        |        &mut self.blocks
        |    }
        |
@@ -376,6 +385,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |        } else {
        |            self.base_pool = pool.borrow().get_base(); // TODO check?
        |        }
+       |        self.instances = self.base_pool.as_ref().unwrap().borrow().get_base_vec();
        |        self.super_pool = Some(pool);
        |    }
        |    fn get_super(&self) -> Option<Rc<RefCell<InstancePool>>> {
@@ -454,7 +464,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
     }
        |        _ => {
        |            let mut reader = Box::new(LazyFieldReader::new(name_id));
-       |            (reader.as_mut() as &mut FieldReader<i8>).add_chunk(chunk);
+       |            reader.as_mut().add_chunk(chunk);
        |            self.fields.push(reader);
        |        },
        |    }
@@ -644,46 +654,58 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
 
     // TODO implement container reader
 
-    e"""impl FieldReader<Ptr<${cap_base}T>> for ${cap_name}FieldReader {
+    e"""impl FieldReader for ${cap_name}FieldReader {
        |    fn read(
        |        &mut self,
        |        file_reader: &Vec<FileReader>,
        |        string_block: &StringBlock,
        |        blocks: &Vec<Block>,
        |        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
-       |        instances: &mut Vec<Ptr<${cap_base}T>>,
+       |        instances: &mut [Ptr<SkillObject>],
        |    ) -> Result<(), SkillError> {
        |        let mut block_index = BlockIndex::from(0);
        |
        |        for chunk in self.chunks.iter() {
        |            match chunk {
        |                FieldChunk::Declaration(chunk) => {
-       |                    block_index += chunk.appearance; // TODO check -1
+       |                    block_index += chunk.appearance - 1;
+       |
+       |                    let mut reader = file_reader[blocks[block_index.block].block.block].clone();
+       |                    block_index += 1;
        |
        |                    if chunk.count > 0 {
-       |                        let b = blocks[block_index.block].block.block;
-       |                        block_index += 1;
-       |
-       |                        let mut reader = file_reader[b].clone();
-       |
-       |                        for mut i in instances.iter() {
-       |                            i.borrow_mut().set_$low_field(${
+       |                        for block in blocks.iter().take(chunk.appearance.block) {
+       |                            for obj in instances.iter()
+       |                                .skip(block.bpo + 1)
+       |                                .take(block.dynamic_count)
+       |                            {
+       |                                match obj.nucast::<${cap_base}T>() {
+       |                                    Some(obj) =>
+       |                                        obj.borrow_mut().set_$low_field(${
       genFieldReaderImplFieldReaderRead(field.getType, user)
-    });
+    }),
+       |                                    None => panic!("Casting error"), // FIXME
+       |                                }
+       |                            }
        |                        }
        |                    }
        |                },
        |                FieldChunk::Continuation(chunk) => {
+       |                    let mut reader = file_reader[blocks[block_index.block].block.block].clone();
+       |                    block_index += 1;
+       |
        |                    if chunk.count > 0 {
-       |                        let b = blocks[block_index.block].block.block;
-       |                        block_index += 1;
-       |
-       |                        let mut reader = file_reader[b].clone();
-       |
-       |                        for mut i in instances.iter() {
-       |                            i.borrow_mut().set_$low_field(${
+       |                        for obj in instances.iter()
+       |                            .skip(chunk.bpo + 1)
+       |                            .take(chunk.count)
+       |                        {
+       |                            match obj.nucast::<${cap_base}T>() {
+       |                                Some(obj) =>
+       |                                    obj.borrow_mut().set_$low_field(${
       genFieldReaderImplFieldReaderRead(field.getType, user)
-    });
+    }),
+       |                                None => panic!("Casting error"), // FIXME
+       |                            }
        |                        }
        |                    }
        |                }

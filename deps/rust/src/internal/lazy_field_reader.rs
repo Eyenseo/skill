@@ -1,5 +1,7 @@
 use common::internal::InstancePool;
+use common::internal::SkillObject;
 use common::io::{Block, FieldChunk, FieldReader, FileReader};
+use common::Ptr;
 use common::SkillError;
 use common::StringBlock;
 
@@ -20,14 +22,14 @@ impl LazyFieldReader {
     }
 }
 
-impl<T> FieldReader<T> for LazyFieldReader {
+impl FieldReader for LazyFieldReader {
     fn read(
         &mut self,
         file_reader: &Vec<FileReader>,
         string_block: &StringBlock,
         blocks: &Vec<Block>,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
-        instances: &mut Vec<T>,
+        instances: &mut [Ptr<SkillObject>],
     ) -> Result<(), SkillError> {
         unimplemented!();
         // TODO - do more?

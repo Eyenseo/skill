@@ -60,28 +60,29 @@ class GenericTests extends common.GenericTests {
 
   val skipGeneration = Array(
                               // "age",
-                              "annotation", // FIXME Broken generator
-                              "auto", // FIXME Broken generator
+                              // "annotation",
                               // "basicTypes",
                               // "constants",
                               // "container",
                               // "custom",
+                              // "floats",
+                              // "hintsAll", // TODO - is this really successful?
+                              // "number",
+                              // "unicode",
+                              // "user",
+
+                              "auto", // FIXME Broken generator
                               "empty", // FIXME Broken generator
                               "enums", // FIXME Broken generator
                               "escaping", // FIXME Broken generator
                               "fancy", // FIXME Broken generator
-                              "floats", // FIXME Broken generator
                               "graph", // FIXME Broken generator
                               "graphInterface", // FIXME Broken generator
-                              "hintsAll", // FIXME Broken generator
                               "map3", // FIXME Broken generator
-                              // "number",
                               "restrictionsAll", // FIXME Broken generator
                               "restrictionsCore", // FIXME Broken generator
                               "subtypes", // FIXME Broken generator
-                              // "unicode",
                               "unknown", // FIXME Broken generator
-                              // "user"
                             )
 
 

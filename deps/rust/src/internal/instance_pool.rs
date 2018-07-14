@@ -22,7 +22,7 @@ pub trait InstancePool {
     fn field_amount(&self) -> usize;
 
     fn add_block(&mut self, block: Block);
-    fn blocks(&mut self, block: Block) -> &mut Vec<Block>;
+    fn blocks(&mut self) -> &mut Vec<Block>;
 
     fn set_super(&mut self, pool: Rc<RefCell<InstancePool>>);
     fn get_super(&self) -> Option<Rc<RefCell<InstancePool>>>;
@@ -48,6 +48,7 @@ pub trait InstancePool {
     fn get_global_cached_count(&self) -> usize;
     fn set_global_cached_count(&mut self, count: usize);
 
+    fn get_base_vec(&self) -> Rc<RefCell<Vec<Ptr<SkillObject>>>>;
     fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillError>;
 
     fn make_state(

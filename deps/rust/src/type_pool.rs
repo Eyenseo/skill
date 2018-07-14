@@ -445,7 +445,8 @@ impl TypeBlock {
                     );
                     {
                         let mut pool = pool.borrow_mut();
-                        let tmp = pool.get_global_cached_count();
+                        let tmp_count = pool.get_global_cached_count();
+                        let tmp_blocks = pool.blocks().len();
                         pool.add_field(
                             field_id as usize,
                             &field_name.borrow(),
@@ -453,8 +454,8 @@ impl TypeBlock {
                             FieldChunk::from(DeclarationFieldChunk {
                                 offset_start: data_start,
                                 offset_end: data_end,
-                                count: tmp,
-                                appearance: BlockIndex::from(block),
+                                count: tmp_count,
+                                appearance: BlockIndex::from(tmp_blocks),
                             }),
                         );
                     }

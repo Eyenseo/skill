@@ -1,10 +1,12 @@
 use common::internal::InstancePool;
+use common::internal::SkillObject;
 use common::io::{FileReader, Offset};
+use common::Ptr;
 use common::SkillError;
 use common::StringBlock;
 
 use std::cell::RefCell;
-use std::ops::{Add, AddAssign};
+use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::rc::Rc;
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -26,6 +28,18 @@ impl Add<usize> for BlockIndex {
 impl AddAssign<usize> for BlockIndex {
     fn add_assign(&mut self, other: usize) {
         self.block += other;
+    }
+}
+impl Sub<usize> for BlockIndex {
+    type Output = Self;
+    fn sub(mut self, other: usize) -> Self::Output {
+        self.block -= other;
+        self
+    }
+}
+impl SubAssign<usize> for BlockIndex {
+    fn sub_assign(&mut self, other: usize) {
+        self.block -= other;
     }
 }
 impl AddAssign<BlockIndex> for BlockIndex {
@@ -75,14 +89,14 @@ impl From<DeclarationFieldChunk> for FieldChunk {
     }
 }
 
-pub trait FieldReader<T> {
+pub trait FieldReader {
     fn read(
         &mut self,
         file_reader: &Vec<FileReader>,
         string_block: &StringBlock,
         blocks: &Vec<Block>,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
-        instances: &mut Vec<T>,
+        instances: &mut [Ptr<SkillObject>],
     ) -> Result<(), SkillError>;
     fn add_chunk(&mut self, chunk: FieldChunk);
     fn name_id(&self) -> usize;

@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 pub struct UndefinedPool {
     string_block: Rc<RefCell<StringBlock>>,
-    instances: Vec<Rc<RefCell<UndefinedObject>>>,
+    instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
     fields: Vec<Box<LazyFieldReader>>,
     type_name_index: usize,
     type_id: usize,
@@ -24,7 +24,7 @@ impl UndefinedPool {
     pub fn new(string_block: Rc<RefCell<StringBlock>>) -> UndefinedPool {
         UndefinedPool {
             string_block,
-            instances: Vec::new(),
+            instances: Rc::default(),
             fields: Vec::new(),
             type_name_index: 0,
             type_id: 0,
@@ -46,12 +46,12 @@ impl InstancePool for UndefinedPool {
         chunk: FieldChunk,
     ) {
         let mut reader = Box::new(LazyFieldReader::new(name_id));
-        (reader.as_mut() as &mut FieldReader<i8>).add_chunk(chunk);
+        reader.as_mut().add_chunk(chunk);
         self.fields.push(reader);
     }
     fn has_field(&self, name_id: usize) -> bool {
         for f in &self.fields {
-            let f = f.as_ref() as &FieldReader<i8>;
+            let f = f.as_ref();
             if f.name_id() == name_id {
                 return true;
             }
@@ -63,7 +63,7 @@ impl InstancePool for UndefinedPool {
     }
     fn add_chunk_to(&mut self, name_id: usize, chunk: FieldChunk) {
         for f in &mut self.fields {
-            let f = f.as_mut() as &mut FieldReader<i8>;
+            let f = f.as_mut();
             if f.name_id() == name_id {
                 f.add_chunk(chunk);
                 return;
@@ -86,14 +86,10 @@ impl InstancePool for UndefinedPool {
         self.type_name_index
     }
 
-    fn read_object(&self, _index: usize) -> Result<Ptr<SkillObject>, SkillError> {
-        unimplemented!();
-    }
-
     fn add_block(&mut self, block: Block) {
         self.blocks.push(block);
     }
-    fn blocks(&mut self, block: Block) -> &mut Vec<Block> {
+    fn blocks(&mut self) -> &mut Vec<Block> {
         &mut self.blocks
     }
 
@@ -103,6 +99,7 @@ impl InstancePool for UndefinedPool {
         } else {
             self.base_pool = pool.borrow().get_base(); // TODO check?
         }
+        self.instances = self.base_pool.as_ref().unwrap().borrow().get_base_vec();
         self.super_pool = Some(pool);
     }
     fn get_super(&self) -> Option<Rc<RefCell<InstancePool>>> {
@@ -158,6 +155,13 @@ impl InstancePool for UndefinedPool {
         self.dynamic_count = count;
     }
 
+    fn get_base_vec(&self) -> Rc<RefCell<Vec<Ptr<SkillObject>>>> {
+        self.instances.clone()
+    }
+    fn read_object(&self, _index: usize) -> Result<Ptr<SkillObject>, SkillError> {
+        unimplemented!();
+    }
+
     fn make_state(
         &mut self,
         file_reader: &Vec<FileReader>,
@@ -171,13 +175,13 @@ impl InstancePool for UndefinedPool {
     }
 
     fn initialize(&mut self) {
+        let mut vec = self.instances.borrow_mut();
         if self.is_base() {
-            self.instances.reserve(self.dynamic_count); // FIXME check if dynamic count is the correct one
+            vec.reserve(self.dynamic_count); // FIXME check if dynamic count is the correct one
         }
 
         for _ in 0..self.static_count {
-            self.instances
-                .push(Rc::new(RefCell::new(UndefinedObject::new())));
+            vec.push(Ptr::new(UndefinedObject::new()));
         }
     }
 }
