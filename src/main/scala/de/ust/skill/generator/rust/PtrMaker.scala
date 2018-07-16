@@ -13,6 +13,17 @@ import scala.collection.JavaConverters._
 
 
 trait PtrMaker extends GeneralOutputMaker {
+
+  // TODO move somewhere else / Main?
+  private final def getAllSuperTypes(t: UserType): List[Type] = {
+    if (t.getSuperType != null) {
+      getAllSuperTypes(t.getSuperType) ::: List[UserType](t)
+    } else {
+      List[UserType](t)
+    }
+  }.distinct
+
+
   abstract override def make: Unit = {
     super.make
 
@@ -69,12 +80,11 @@ trait PtrMaker extends GeneralOutputMaker {
        |);
        |
        |${
-      (for (base ← IR) yield
+      (for (base ← IR) yield {
         e"""${genNucast(base)}
-           |${genToCasts(base, baseIsStruct = true)}
-           |${genAsCasts(base, baseIsStruct = true)}
            |
-         |""".stripMargin
+           |""".stripMargin
+      }
       ).mkString.trim
     }
        |""".stripMargin.trim
@@ -90,7 +100,7 @@ trait PtrMaker extends GeneralOutputMaker {
     e"""ptr_cast_able!(${base.getName.camel()} = {
        |    SkillObject,
        |    ${
-      (for (sub ← base.getAllSuperTypes.asScala :+ base) yield {
+      (for (sub ← getAllSuperTypes(base)) yield {
         e"""${sub.getName.camel()}T,
            |""".stripMargin
       }).mkString.trim
@@ -102,7 +112,7 @@ trait PtrMaker extends GeneralOutputMaker {
   def genNucastTrait(base: UserType): String = {
     e"""ptr_cast_able!(${base.getName.camel()}T =
        |    ${
-      (for (t ← (base.getAllSuperTypes.asScala.toList :+ base) ::: base.getSubTypes.asScala.toList) yield {
+      (for (t ← getAllSuperTypes(base) ::: base.getSubTypes.asScala.toList) yield {
         genNucastTraitInner(t)
       }).mkString.trim
     }
@@ -120,12 +130,13 @@ trait PtrMaker extends GeneralOutputMaker {
     }
 
     e"""${base.getName.camel()}: {
+       |    SkillObject,
        |    ${
-      (for (base ← (t.getAllSuperTypes.asScala.toList ::: t.getSubTypes.asScala.toList) :+ t) yield {
+      (for (base ← getAllSuperTypes(t)) yield {
         e"""${base.getName.camel()}T,
            |""".stripMargin
-      }).mkString
-    }SkillObject,
+      }).mkString.trim
+    }
        |},
        |""".stripMargin
   }
@@ -190,10 +201,11 @@ trait PtrMaker extends GeneralOutputMaker {
       ret.append(
                   e"""pub fn as_${low_as}_t(from: &Ptr<$cap_base>) -> Option<Ptr<${cap_as}T>> {
                      |    ${
-                    (for (t ← base.getSubTypes.asScala) yield
+                    (for (t ← base.getSubTypes.asScala) yield {
                       e"""if from.type_id() == TypeId::of::<${t.getName.camel()}>() {
                          |    Some(self.cast::<${t.getName.capital()}>())
-                         |} else """.stripMargin).mkString
+                         |} else """.stripMargin
+                    }).mkString
                   }{
                      |        None
                      |    }
@@ -203,10 +215,11 @@ trait PtrMaker extends GeneralOutputMaker {
       ret.append(
                   e"""pub fn as_${low_as}_t(from: &Ptr<${cap_base}T>) -> Option<Ptr<${cap_as}T>> {
                      |    ${
-                    (for (t ← base.getSubTypes.asScala) yield
+                    (for (t ← base.getSubTypes.asScala) yield {
                       e"""if from.type_id() == TypeId::of::<${t.getName.camel()}>() {
                          |    Some(self.cast::<${t.getName.capital()}>())
-                         |} else """.stripMargin).mkString
+                         |} else """.stripMargin
+                    }).mkString
                   }{
                      |        None
                      |    }

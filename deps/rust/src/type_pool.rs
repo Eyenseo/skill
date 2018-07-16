@@ -159,7 +159,7 @@ impl TypeBlock {
         block: BlockIndex,
         reader: &mut FileReader,
         pool_maker: &mut PoolMaker,
-        string_pool: &StringBlock,
+        string_pool: &Rc<RefCell<StringBlock>>,
         type_pools: &mut Vec<Rc<RefCell<InstancePool>>>,
         field_data: &mut Vec<FileReader>,
     ) -> Result<(), SkillError> {
@@ -175,15 +175,14 @@ impl TypeBlock {
         info!(target: "SkillParsing", "~TypeData~");
         for _ in 0..type_amount {
             let type_name_index = reader.read_v64()? as u64;
-            info!(target: "SkillParsing", "~~TypeID: {:?}", type_pools.len() + 32);
             if seen_types.contains(&type_name_index) {
                 // TODO This has to use a separate list for each block
                 return Err(SkillError::RedefinitionOfType);
             }
             seen_types.push(type_name_index);
 
-            let type_name = string_pool.get(type_name_index as usize);
-            info!(target: "SkillParsing", "~~TypeName: {}", type_name.borrow());
+            let type_name = string_pool.borrow().get(type_name_index as usize);
+            info!(target: "SkillParsing", "~~TypeName: {}", type_name);
             let instances = reader.read_v64()? as usize; // amount of instances
             info!(target: "SkillParsing", "~~TypeInstances: {:?}", instances);
 
@@ -192,7 +191,7 @@ impl TypeBlock {
             } else {
                 let type_id = type_pools.len() + 32;
 
-                info!(target: "SkillParsing", "~~New Type");
+                info!(target: "SkillParsing", "~~New Type:{:?}", type_pools.len() + 32);
                 let type_restrictions = reader.read_v64()?; // restrictions ?
                 for _ in 0..type_restrictions {
                     let restriction = reader.read_v64()?;
@@ -210,12 +209,12 @@ impl TypeBlock {
                 self.add(type_name_index); // FIXME this has to be 'improved'
 
                 let super_type = reader.read_v64()?; // super type index? id?
-                let super_pool = if super_type > type_pools.len() as i64 {
+                let super_pool = if super_type as usize > type_pools.len() {
                     panic!("Unknown Supertype."); // TODO improve message
                 } else if super_type != 0 {
                     info!(
                         target: "SkillParsing",
-                        "~~Add Super Type: {:?} for:{:?}",
+                        "~~Add Super Type:{:?} for:{:?}",
                         type_pools[(super_type - 1) as usize].borrow().get_type_id(),
                         type_id
                     );
@@ -227,7 +226,7 @@ impl TypeBlock {
 
                 let type_pool = pool_maker.make_pool(
                     type_name_index as usize,
-                    &type_name.borrow(),
+                    &type_name.clone(),
                     type_id as usize,
                     super_pool,
                 );
@@ -247,12 +246,16 @@ impl TypeBlock {
                         type_pool.get_type_id()
                     );
                 }
-
-                let mut local_bpo = if let Some(base_pool) = type_pool.get_base() {
+            }
+            {
+                let mut local_bpo = if let Some(base_pool) = type_pool.borrow().get_base() {
                     base_pool.borrow().get_global_cached_count()
                 } else {
-                    type_pool.get_global_cached_count()
+                    type_pool.borrow().get_global_cached_count()
                 };
+                // NOTE order prevents borrow panic
+                let mut type_pool = type_pool.borrow_mut();
+
                 if let Some(super_pool) = type_pool.get_super() {
                     let super_pool = super_pool.borrow();
 
@@ -318,11 +321,13 @@ impl TypeBlock {
         for (pool, field_count) in block_local_pools {
             let mut field_id_limit = 1 + pool.borrow().field_amount();
 
-            let type_name = string_pool.get((pool.borrow().get_type_id() - 31) as usize);
+            let type_name = string_pool
+                .borrow()
+                .get((pool.borrow().get_type_id() - 31) as usize);
             info!(
                 target: "SkillParsing",
                 "~~FieldMetaData for type: {} ID:{:?} Fields:{:?} Limit:{:?}",
-                type_name.borrow(),
+                type_name,
                 pool.borrow().get_type_id(),
                 field_count,
                 field_id_limit,
@@ -342,8 +347,8 @@ impl TypeBlock {
                     info!(target: "SkillParsing", "~~~Field index: {:?}", field_id);
                     info!(target: "SkillParsing", "~~~Field id: {:?}", field_name_index);
 
-                    let field_name = string_pool.get(field_name_index);
-                    info!(target: "SkillParsing", "~~~Field name: {}", field_name.borrow());
+                    let field_name = string_pool.borrow().get(field_name_index);
+                    info!(target: "SkillParsing", "~~~Field name: {}", field_name);
 
                     //TODO add from for the enum and use that to match and throw an error?
                     let field_type = self.read_field_type(reader, type_pools)?;
@@ -418,7 +423,7 @@ impl TypeBlock {
                                     0x5 => {
                                         //Coding
                                         let coding_str_index = reader.read_v64()?;
-                                        string_pool.get(coding_str_index as usize);
+                                        string_pool.borrow().get(coding_str_index as usize);
                                     }
                                     0x7 => (), // Constant LengthPointer
                                     0x9 => {
@@ -439,7 +444,7 @@ impl TypeBlock {
 
                     info!(
                         target: "SkillParsing", "~~~Add Field:{} start:{:?} end:{:?}",
-                        field_name.borrow(),
+                        field_name.clone(),
                         data_start,
                         data_end
                     );
@@ -449,11 +454,11 @@ impl TypeBlock {
                         let tmp_blocks = pool.blocks().len();
                         pool.add_field(
                             field_id as usize,
-                            &field_name.borrow(),
+                            &field_name.clone(),
                             field_type,
                             FieldChunk::from(DeclarationFieldChunk {
-                                offset_start: data_start,
-                                offset_end: data_end,
+                                begin: data_start,
+                                end: data_end,
                                 count: tmp_count,
                                 appearance: BlockIndex::from(tmp_blocks),
                             }),
@@ -476,8 +481,8 @@ impl TypeBlock {
                         pool.add_chunk_to(
                             field_id as usize,
                             FieldChunk::from(ContinuationFieldChunk {
-                                offset_start: data_start,
-                                offset_end: data_end,
+                                begin: data_start,
+                                end: data_end,
                                 count: tmp_count,
                                 bpo: tmp_bpo,
                             }),

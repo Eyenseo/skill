@@ -72,12 +72,12 @@ trait LibMaker extends GeneralOutputMaker {
     val out = files.openRaw("Cargo.toml")
     out.write(
                e"""[package]
-                  |name = "skill-$packageName-tests"
+                  |name = "skill-${snakeCase(packageName)}-tests"
                   |version = "0.1.0"
                   |publish = false
                   |
                   |[lib]
-                  |name = "$packageName"
+                  |name = "${snakeCase(packageName)}"
                   |test = true
                   |doctest = false
                   |

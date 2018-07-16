@@ -24,12 +24,12 @@ impl LazyFieldReader {
 
 impl FieldReader for LazyFieldReader {
     fn read(
-        &mut self,
+        &self,
         file_reader: &Vec<FileReader>,
         string_block: &StringBlock,
         blocks: &Vec<Block>,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
-        instances: &mut [Ptr<SkillObject>],
+        instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillError> {
         unimplemented!();
         // TODO - do more?

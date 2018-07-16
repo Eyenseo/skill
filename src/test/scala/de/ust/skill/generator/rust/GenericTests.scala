@@ -68,6 +68,7 @@ class GenericTests extends common.GenericTests {
                               // "floats",
                               // "hintsAll", // TODO - is this really successful?
                               // "number",
+                              // "subtypes",
                               // "unicode",
                               // "user",
 
@@ -81,7 +82,6 @@ class GenericTests extends common.GenericTests {
                               "map3", // FIXME Broken generator
                               "restrictionsAll", // FIXME Broken generator
                               "restrictionsCore", // FIXME Broken generator
-                              "subtypes", // FIXME Broken generator
                               "unknown", // FIXME Broken generator
                             )
 
@@ -162,7 +162,7 @@ class GenericTests extends common.GenericTests {
     rval.write(
                 e"""#![feature(test)]
                    |
-                   |extern crate $packageName;
+                   |extern crate ${snakeCase(packageName)};
                    |
                    |#[cfg(test)]
                    |#[allow(non_snake_case)]
@@ -170,9 +170,9 @@ class GenericTests extends common.GenericTests {
                    |mod tests {
                    |    extern crate env_logger;
                    |
-                   |    use $packageName::common::SkillFile as SkillFileTrait;
+                   |    use ${snakeCase(packageName)}::common::SkillFile as SkillFileTrait;
                    |
-                   |    use $packageName::skill_file::SkillFile;""".stripMargin
+                   |    use ${snakeCase(packageName)}::skill_file::SkillFile;""".stripMargin
               )
     rval
   }

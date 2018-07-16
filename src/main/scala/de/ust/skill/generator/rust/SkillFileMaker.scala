@@ -112,7 +112,6 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |        let mut data_chunk_reader = Vec::new();
        |        let mut block_index = BlockIndex::from(0);
        |        {
-       |            let mut string_block = string_block.borrow_mut();
        |            let mut reader = FileReader::from(rmmap.clone());
        |
        |            loop {
@@ -123,7 +122,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |                );
        |
        |                // TODO implement blocks
-       |                string_block.read_string_block(&mut reader)?;
+       |                string_block.borrow_mut().read_string_block(&mut reader)?;
        |                type_pool.read_type_block(
        |                    block_index,
        |                    &mut reader,
@@ -138,8 +137,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |                block_index += 1;
        |            }
        |        }
-       |        file_builder.initialize(&mut type_pools);
-       |        file_builder.make_state(
+       |        file_builder.allocate(&mut type_pools);
+       |        file_builder.initialize(
        |            &type_pools,
        |            &data_chunk_reader,
        |            &string_block.borrow(),
@@ -211,25 +210,20 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |        }
        |    }
        |
-       |    fn initialize(&mut self, type_pools: &mut Vec<Rc<RefCell<InstancePool>>>) {
+       |    fn allocate(&mut self, type_pools: &mut Vec<Rc<RefCell<InstancePool>>>) {
        |        ${
       (for (base ← IR) yield {
         e"""if self.${base.getName.lower()}.is_none() {
            |    let pool = Rc::new(RefCell::new(
            |        ${base.getName.camel()}Pool::new(self.string_block.clone())
            |    ));${
-          var ret = ""
           if (base.getSuperType != null) {
-            ret +=
             e"""
-               |pool.set_super(self.${base.getSuperType.getName.lower()}.as_ref().unwarp().clone());""".stripMargin
+               |self.${base.getSuperType.getName.lower()}.as_ref().unwrap().borrow_mut().add_sub(pool.clone());
+               |pool.borrow_mut().set_super(self.${base.getSuperType.getName.lower()}.as_ref().unwrap().clone());""".stripMargin
+          } else {
+            ""
           }
-          if (base.getBaseType != base) {
-            ret +=
-            e"""
-               |pool.set_base_pool(self.${base.getBaseType.getName.lower()}.as_ref().unwarp().clone());""".stripMargin
-          }
-          ret
         }
            |    self.${base.getName.lower()} = Some(pool.clone());
            |    type_pools.push(pool);
@@ -239,24 +233,20 @@ trait SkillFileMaker extends GeneralOutputMaker {
     }
        |        ${
       (for (base ← IR) yield {
-        e"""self.${base.getName.lower()}.as_ref().unwrap().borrow_mut().initialize();
+        e"""self.${base.getName.lower()}.as_ref().unwrap().borrow_mut().allocate(type_pools);
            |""".stripMargin
       }).mkString.trim
     }
        |    }
        |
-       |    fn make_state(
+       |    fn initialize(
        |        &mut self,
        |        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
        |        file_reader: &Vec<FileReader>,
        |        string_block: &StringBlock,
        |    ) -> Result<(), SkillError> {
-       |        for ref pool in type_pools {${
-      // FIXME THIS MIGHT KILL ME
-      ""
-    }
-       |            // FIXME THIS MIGHT KILL ME
-       |            pool.borrow_mut().make_state(file_reader, string_block, type_pools);
+       |        for ref pool in type_pools {
+       |            pool.borrow().initialize(file_reader, string_block, type_pools);
        |        }
        |        Ok(())
        |    }
@@ -282,7 +272,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
            |        )));
            |
            |        if let Some(super_pool) = super_pool {
-           |            let super_name = self.string_block.borrow().get(super_pool.borrow().get_type_name_index()) ;
+           |            let idx = super_pool.borrow().get_type_name_index();
+           |            let super_name = self.string_block.borrow().get(idx);
            |            ${
           if (base.getSuperType == null) {
             e"""panic!(
@@ -291,15 +282,16 @@ trait SkillFileMaker extends GeneralOutputMaker {
                |);
                |""".stripMargin.trim
           } else {
-            e"""if super_name != "${base.getName.camel()}" {
+            e"""if super_name.as_str() != "${base.getSuperType.getName.lower()}" {
                |    panic!(
                |        "Wrong super type for '${base.getName.camel()}' expect:${
-              base.getSuperType.getName.camel()
+              base.getSuperType.getName.lower()
             } found:{}",
                |        super_name
                |    );
                |} else {
-               |    self.${base.getName.lower()}.as_ref.unwrap().set_super(super_pool);
+               |    super_pool.borrow_mut().add_sub(self.${base.getName.lower()}.as_ref().unwrap().clone());
+               |    self.${base.getName.lower()}.as_ref().unwrap().borrow_mut().set_super(super_pool);
                |}
                |""".stripMargin.trim
           }
@@ -338,9 +330,10 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |                    let mut pool = pool.borrow_mut();
        |                    pool.set_type_id(type_id);
        |                    pool.set_type_name_index(type_name_index);
-       |                    if let Some(super_pool) = super_pool {
-       |                        pool.set_super(super_pool);
-       |                    }
+       |                }
+       |                if let Some(super_pool) = super_pool {
+       |                    super_pool.borrow_mut().add_sub(pool.clone());
+       |                    pool.borrow_mut().set_super(super_pool);
        |                }
        |                self.undefined_pools.push(pool.clone());
        |                pool

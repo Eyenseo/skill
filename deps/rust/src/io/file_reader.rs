@@ -37,6 +37,14 @@ impl FileReader {
         reader
     }
 
+    pub fn rel_view(&self, from: Offset, len: Offset) -> FileReader {
+        FileReader {
+            position: self.position + from,
+            end: self.position + len,
+            mmap: self.mmap.clone(),
+        }
+    }
+
     pub fn pos(&self) -> Offset {
         self.position
     }

@@ -45,18 +45,22 @@ pub trait InstancePool {
     fn get_global_static_count(&self) -> usize;
     fn set_global_static_count(&mut self, count: usize);
 
+    fn set_invariant(&mut self, invariant: bool);
     fn get_global_cached_count(&self) -> usize;
     fn set_global_cached_count(&mut self, count: usize);
+
+    fn size(&self) -> usize;
 
     fn get_base_vec(&self) -> Rc<RefCell<Vec<Ptr<SkillObject>>>>;
     fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillError>;
 
-    fn make_state(
-        &mut self,
+    fn add_sub(&mut self, pool: Rc<RefCell<InstancePool>>);
+
+    fn allocate(&mut self, type_pools: &Vec<Rc<RefCell<InstancePool>>>);
+    fn initialize(
+        &self,
         file_reader: &Vec<FileReader>,
         string_block: &StringBlock,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<(), SkillError>;
-
-    fn initialize(&mut self);
 }

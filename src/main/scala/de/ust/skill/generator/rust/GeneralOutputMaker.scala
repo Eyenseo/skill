@@ -14,8 +14,6 @@ import scala.collection.mutable
 
 trait GeneralOutputMaker extends Generator {
   /**
-    * TODO remove duplicates
-    *
     * Takes a camel cased identifier name and returns an underscore separated
     * name
     *

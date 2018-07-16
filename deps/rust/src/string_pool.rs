@@ -1,10 +1,11 @@
 use common::error::SkillError;
 use common::io::FileReader;
-use common::ptr::Ptr;
+
+use std::rc::Rc;
 
 #[derive(Default, Debug)]
 pub struct StringBlock {
-    pool: Vec<Ptr<String>>, // TODO add set to filter dupliates -> Box the string
+    pool: Vec<Rc<String>>, // TODO add set to filter dupliates -> Box the string
 }
 
 impl StringBlock {
@@ -24,11 +25,11 @@ impl StringBlock {
         self.reserve(reserve + size);
     }
     pub fn add(&mut self, s: &str) -> usize {
-        self.pool.push(Ptr::new(String::from(s)));
+        self.pool.push(Rc::new(String::from(s)));
         self.pool.len()
     }
     // TODO replace with Rc -- beter suited for the job
-    pub fn get(&self, i: usize) -> Ptr<String> {
+    pub fn get(&self, i: usize) -> Rc<String> {
         if i == 0 {
             panic!("StringBlock index starts at 1 not 0");
         }

@@ -58,16 +58,16 @@ pub struct Block {
 
 #[derive(Default, Debug, Clone)]
 pub struct DeclarationFieldChunk {
-    pub offset_start: Offset,
-    pub offset_end: Offset,
+    pub begin: Offset,
+    pub end: Offset,
     pub count: usize,
     pub appearance: BlockIndex,
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct ContinuationFieldChunk {
-    pub offset_start: Offset,
-    pub offset_end: Offset,
+    pub begin: Offset,
+    pub end: Offset,
     pub count: usize,
     pub bpo: usize, // TODO strongly type
 }
@@ -91,12 +91,12 @@ impl From<DeclarationFieldChunk> for FieldChunk {
 
 pub trait FieldReader {
     fn read(
-        &mut self,
+        &self,
         file_reader: &Vec<FileReader>,
         string_block: &StringBlock,
         blocks: &Vec<Block>,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
-        instances: &mut [Ptr<SkillObject>],
+        instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillError>;
     fn add_chunk(&mut self, chunk: FieldChunk);
     fn name_id(&self) -> usize;

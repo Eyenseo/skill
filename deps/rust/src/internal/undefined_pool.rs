@@ -10,14 +10,20 @@ use std::rc::Rc;
 pub struct UndefinedPool {
     string_block: Rc<RefCell<StringBlock>>,
     instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
+    book_static: Vec<Ptr<SkillObject>>,
+    book_dynamic: Vec<Ptr<SkillObject>>,
     fields: Vec<Box<LazyFieldReader>>,
     type_name_index: usize,
     type_id: usize,
     blocks: Vec<Block>,
     super_pool: Option<Rc<RefCell<InstancePool>>>,
+    sub_pools: Vec<Rc<RefCell<InstancePool>>>,
     base_pool: Option<Rc<RefCell<InstancePool>>>,
     static_count: usize,
     dynamic_count: usize,
+    cached_count: usize,
+    deleted_count: usize,
+    invariant: bool,
 }
 
 impl UndefinedPool {
@@ -25,14 +31,20 @@ impl UndefinedPool {
         UndefinedPool {
             string_block,
             instances: Rc::default(),
+            book_static: Vec::new(),
+            book_dynamic: Vec::new(),
             fields: Vec::new(),
             type_name_index: 0,
             type_id: 0,
             blocks: Vec::new(),
             super_pool: None,
+            sub_pools: Vec::new(),
             base_pool: None,
             static_count: 0,
             dynamic_count: 0,
+            cached_count: 0,
+            deleted_count: 0,
+            invariant: false,
         }
     }
 }
@@ -106,6 +118,10 @@ impl InstancePool for UndefinedPool {
         self.super_pool.clone()
     }
 
+    fn add_sub(&mut self, pool: Rc<RefCell<InstancePool>>) {
+        self.sub_pools.push(pool);
+    }
+
     fn get_base(&self) -> Option<Rc<RefCell<InstancePool>>> {
         self.base_pool.clone()
     }
@@ -141,6 +157,38 @@ impl InstancePool for UndefinedPool {
         panic!();
     }
 
+    fn set_invariant(&mut self, invariant: bool) {
+        if self.invariant != invariant {
+            self.invariant = invariant;
+            if invariant {
+                self.cached_count = self.static_count - self.deleted_count;
+                for s in self.sub_pools.iter() {
+                    let mut s = s.borrow_mut();
+                    s.set_invariant(true);
+                    self.cached_count += s.get_global_cached_count();
+                }
+            } else if self.super_pool.is_some() {
+                self.super_pool
+                    .as_ref()
+                    .unwrap()
+                    .borrow_mut()
+                    .set_invariant(false);
+            }
+        }
+    }
+
+    fn size(&self) -> usize {
+        if self.invariant {
+            self.cached_count
+        } else {
+            let mut ret = self.static_count;
+            for s in self.sub_pools.iter() {
+                ret += s.borrow().size();
+            }
+            ret
+        }
+    }
+
     fn get_global_static_count(&self) -> usize {
         self.static_count
     }
@@ -149,10 +197,10 @@ impl InstancePool for UndefinedPool {
     }
 
     fn get_global_cached_count(&self) -> usize {
-        self.dynamic_count
+        self.cached_count
     }
     fn set_global_cached_count(&mut self, count: usize) {
-        self.dynamic_count = count;
+        self.cached_count = count;
     }
 
     fn get_base_vec(&self) -> Rc<RefCell<Vec<Ptr<SkillObject>>>> {
@@ -162,26 +210,49 @@ impl InstancePool for UndefinedPool {
         unimplemented!();
     }
 
-    fn make_state(
-        &mut self,
+    fn initialize(
+        &self,
         file_reader: &Vec<FileReader>,
         string_block: &StringBlock,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<(), SkillError> {
-        for mut f in &mut self.fields {
+        for mut f in self.fields.iter() {
             // f.read(&mut self.instances)?;
         }
         Ok(())
     }
 
-    fn initialize(&mut self) {
+    fn allocate(&mut self, type_pools: &Vec<Rc<RefCell<InstancePool>>>) {
         let mut vec = self.instances.borrow_mut();
         if self.is_base() {
-            vec.reserve(self.dynamic_count); // FIXME check if dynamic count is the correct one
+            info!(
+                target:"SkillParsing",
+                "Allocate space for:UndefinedObject amount:{}",
+                self.get_global_cached_count(),
+            );
+            vec.reserve(self.get_global_cached_count()); // FIXME check if dynamic count is the correct one
+                                                         // TODO figure out a better way - set_len doesn't wrk as dtor will be called on garbage data
+            let tmp = Ptr::new(UndefinedObject::new());
+            for _ in 0..self.get_global_cached_count() {
+                vec.push(tmp.clone());
+            }
         }
+        self.book_static.reserve(self.static_count);
 
-        for _ in 0..self.static_count {
-            vec.push(Ptr::new(UndefinedObject::new()));
+        for block in self.blocks.iter() {
+            let begin = block.bpo + 1;
+            let end = begin + block.static_count;
+            for id in begin..end {
+                info!(
+                    target:"SkillParsing",
+                    "Initialize UndefinedObject id:{} block:{:?}",
+                    id,
+                    block,
+                );
+
+                self.book_static.push(Ptr::new(UndefinedObject::new()));
+                vec[id - 1] = self.book_static.last().unwrap().clone();
+            }
         }
     }
 }

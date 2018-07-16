@@ -9,7 +9,6 @@ import de.ust.skill.generator.common.Indenter._
 import de.ust.skill.ir._
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 
 trait PoolsMaker extends GeneralOutputMaker {
   abstract override def make {
@@ -45,6 +44,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        |use common::internal::LazyFieldReader;
        |use common::internal::ObjectReader;
        |use common::internal::SkillObject;
+       |use common::internal::UndefinedObject;
        |use common::io::{Block, BlockIndex, FileReader, FieldReader, FieldChunk, BuildInType, FieldType};
        |use common::StringBlock;
        |use common::SkillError;
@@ -52,32 +52,22 @@ trait PoolsMaker extends GeneralOutputMaker {
        |
        |use skill_file::SkillFileBuilder;
        |
-       |${getUsageStd(base)}
+       |${getUsageStd()}
        |
        |${getUsageUser(base)}
        |""".stripMargin
   }
 
   private final def getUsageUser(base: UserType): String = {
-    // TODO just collect all user types ...
-    val usedTypes = new mutable.HashSet[UserType]()
-
-    for (f ← base.getAllFields.asScala) {
-      f.getType match {
-        case t: SingleBaseTypeContainer ⇒ t.getBaseType match {
-          case t: UserType ⇒ usedTypes += t
-          case _           ⇒
-        }
-        case t: MapType                 ⇒ usedTypes ++= t.getBaseTypes.asScala.collect { case t: UserType ⇒ t }
-        case t: UserType                ⇒ usedTypes += t
-        case _                          ⇒
-      }
-    }
-
-    usedTypes.toArray.map(t ⇒ s"use ${snakeCase(storagePool(t))}::*;\n").sorted.mkString
+    IR
+    .filterNot(t ⇒ t.equals(base))
+    .toArray
+    .map(t ⇒ s"use ${snakeCase(storagePool(t))}::*;\n")
+    .sorted
+    .mkString
   }
 
-  private final def getUsageStd(base: UserType): String = {
+  private final def getUsageStd(): String = {
     e"""
        |use std::cell::RefCell;
        |use std::collections::HashMap;
@@ -122,7 +112,7 @@ trait PoolsMaker extends GeneralOutputMaker {
     var superTrait = ""
 
     if (base.getSuperType != null) {
-      superTrait = base.getSuperType.getName.capital() + "T + " + superTrait
+      superTrait = base.getSuperType.getName.capital() + "T"
     }
 
     e"""pub trait ${cap_base}T : $superTrait {
@@ -193,31 +183,36 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |
        |${
       // Impl super
-      (for (parent ← base.getAllSuperTypes.asScala) yield {
-        e"""${genTypeImplSuper(base, parent)}
-           |
-           |""".stripMargin
-      }).mkString.trim
+      var parent = base.getSuperType
+      var ret = new StringBuilder()
+
+      while (parent != null) {
+        ret.append(
+                    e"""${genTypeImplSuper(base, parent)}
+                       |
+                       |""".stripMargin
+                  )
+        parent = parent.getSuperType
+      }
+      ret.mkString.trim
     }
+       |
        |impl SkillObject for $cap_base {}
        |""".stripMargin.trim
   }
 
   private final def genTypeImplSuper(base: UserType,
-                                     parent: Declaration): String = {
-    val fields = IR.filter(x ⇒ x.equals(parent)).head.getAllFields.asScala
-
+                                     parent: UserType): String = {
     val cap_parent = parent.getName.capital()
     val cap_base = base.getName.capital()
 
     e"""impl ${cap_parent}T for $cap_base {
        |    ${
-      (for (f ← fields) yield {
+      (for (f ← parent.getFields.asScala) yield {
         e"""${genGetSetImpl(f)}
            |
            |""".stripMargin
-      }
-      ).mkString.trim
+      }).mkString.trim
     }
        |}""".stripMargin
   }
@@ -247,15 +242,23 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |pub struct ${cap_base}Pool {
        |    string_block: Rc<RefCell<StringBlock>>,
        |    instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
+       |    book_static: Vec<Ptr<SkillObject>>,
+       |    book_dynamic: Vec<Ptr<SkillObject>>,${
+      "" // TODO Implement the rest of book / freelist for the one "page"
+    }
        |    // TODO needed after construction?
        |    fields: Vec<Box<FieldReader>>,
        |    type_name_index: usize,
        |    type_id: usize,
        |    blocks: Vec<Block>,
        |    super_pool: Option<Rc<RefCell<InstancePool>>>,
+       |    sub_pools: Vec<Rc<RefCell<InstancePool>>>,
        |    base_pool: Option<Rc<RefCell<InstancePool>>>,
        |    static_count: usize,
        |    dynamic_count: usize,
+       |    cached_count: usize,
+       |    deleted_count: usize,
+       |    invariant: bool,
        |}""".stripMargin
   }
 
@@ -269,14 +272,20 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |        ${cap_base}Pool {
        |            string_block,
        |            instances: Rc::default(),
+       |            book_static: Vec::new(),
+       |            book_dynamic: Vec::new(),
        |            fields: Vec::new(),
        |            type_name_index: 0,
        |            type_id: 0,
        |            blocks: Vec::new(),
        |            super_pool: None,
        |            base_pool: None,
+       |            sub_pools: Vec::new(),
        |            static_count: 0,
        |            dynamic_count: 0,
+       |            cached_count: 0,
+       |            deleted_count: 0,
+       |            invariant: false,
        |        }
        |    }
        |
@@ -302,29 +311,50 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
     e"""impl InstancePool for ${cap_base}Pool {
        |    ${genPoolImplInstancePoolAddField(base)}
        |
-       |    fn make_state(
-       |        &mut self,
+       |    fn initialize(
+       |        &self,
        |        file_reader: &Vec<FileReader>,
        |        string_block: &StringBlock,
        |        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
        |    ) -> Result<(), SkillError> {
-       |        for mut f in &mut self.fields {
-       |            let mut instances = self.instances.borrow_mut();
-       |            f.read(file_reader, string_block, &self.blocks, type_pools, instances.deref_mut())?;
+       |        for f in self.fields.iter() {
+       |            let instances = self.instances.borrow();
+       |            f.read(file_reader, string_block, &self.blocks, type_pools, &instances)?;
        |        }
        |        Ok(())
        |    }
        |
-       |    fn initialize(&mut self) {
+       |    fn allocate(&mut self, type_pools: &Vec<Rc<RefCell<InstancePool>>>) {
        |        let mut vec = self.instances.borrow_mut();
        |        if self.is_base() {
-       |            vec.reserve(self.dynamic_count); // FIXME check if dynamic count is the correct one
+       |            info!(
+       |                target:"SkillParsing",
+       |                "Allocate space for:$cap_base amount:{}",
+       |                self.get_global_cached_count()
+       |            );
+       |            vec.reserve(self.get_global_cached_count()); // FIXME check if dynamic count is the correct one
+       |            // TODO figure out a better way - set_len doesn't wrk as dtor will be called on garbage data
+       |            let tmp = Ptr::new(UndefinedObject::new());
+       |            for _ in 0..self.get_global_cached_count() {
+       |                vec.push(tmp.clone());
+       |            }
        |        }
+       |        self.book_static.reserve(self.static_count);
        |
-       |        info!(target:"SkillParsing", "Initialize {} objects", self.dynamic_count);
+       |        for block in self.blocks.iter() {
+       |            let begin = block.bpo + 1;
+       |            let end = begin + block.static_count;
+       |            for id in begin..end {
+       |                info!(
+       |                    target:"SkillParsing",
+       |                    "Initialize $cap_base id:{} block:{:?}",
+       |                    id,
+       |                    block,
+       |                );
        |
-       |        for _ in 0..self.static_count {
-       |            vec.push(Ptr::new($cap_base::new()));
+       |                self.book_static.push(Ptr::new($cap_base::new()));
+       |                vec[id - 1] = self.book_static.last().unwrap().clone();
+       |            }
        |        }
        |    }
        |    fn has_field(&self, name_id: usize) -> bool {
@@ -368,8 +398,14 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |    }
        |
        |    fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillError> {
-       |        error!(target:"SkillParsing", "Tried to get user instance: {}", index);
-       |        unimplemented!();
+       |        assert!(index >= 1);
+       |        info!(
+       |            target:"SkillParsing",
+       |            "read user instance:{} from:{}",
+       |            index,
+       |            self.instances.borrow().len(),
+       |        );
+       |        Ok(self.instances.borrow()[index - 1].clone())
        |    }
        |
        |    fn add_block(&mut self, block: Block) {
@@ -377,6 +413,10 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |    }
        |    fn blocks(&mut self) -> &mut Vec<Block> {
        |        &mut self.blocks
+       |    }
+       |
+       |    fn add_sub(&mut self, pool: Rc<RefCell<InstancePool>>) {
+       |        self.sub_pools.push(pool);
        |    }
        |
        |    fn set_super(&mut self, pool: Rc<RefCell<InstancePool>>) {
@@ -427,6 +467,38 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |        panic!();
        |    }
        |
+       |    fn set_invariant(&mut self, invariant: bool) {
+       |        if self.invariant != invariant {
+       |            self.invariant = invariant;
+       |            if invariant {
+       |                self.cached_count = self.static_count - self.deleted_count;
+       |                for s in self.sub_pools.iter() {
+       |                    let mut s = s.borrow_mut();
+       |                    s.set_invariant(true);
+       |                    self.cached_count += s.get_global_cached_count();
+       |                }
+       |            } else if self.super_pool.is_some() {
+       |                self.super_pool
+       |                    .as_ref()
+       |                    .unwrap()
+       |                    .borrow_mut()
+       |                    .set_invariant(false);
+       |            }
+       |        }
+       |    }
+       |
+       |    fn size(&self) -> usize {
+       |        if self.invariant {
+       |            self.cached_count
+       |        } else {
+       |            let mut ret = self.static_count;
+       |            for s in self.sub_pools.iter() {
+       |                ret += s.borrow().size();
+       |            }
+       |            ret
+       |        }
+       |    }
+       |
        |    fn get_global_static_count(&self) -> usize {
        |        self.static_count
        |    }
@@ -435,10 +507,10 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |    }
        |
        |    fn get_global_cached_count(&self) -> usize {
-       |        self.dynamic_count
+       |        self.cached_count
        |    }
        |    fn set_global_cached_count(&mut self, count: usize) {
-       |        self.dynamic_count = count;
+       |         self.cached_count = count;
        |    }
        |
        |}""".stripMargin
@@ -587,7 +659,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
                      |
                      |${genFieldReaderImpl(base, field)}
                      |
-                     |${genFieldReaderImplFieldReader(base, field, Stream.iterate(0)(_ + 1).iterator)}
+                     |${genFieldReaderImplFieldReader(base, field)}
                      |
                      |""".stripMargin
                 )
@@ -646,22 +718,19 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
   }
 
   private final def genFieldReaderImplFieldReader(base: UserType,
-                                                  field: Field,
-                                                  user: Iterator[Int]): String = {
+                                                  field: Field): String = {
     val cap_base = base.getName.capital()
     val cap_name = cap_base + field.getName.capital()
     val low_field = field.getName.lower()
 
-    // TODO implement container reader
-
     e"""impl FieldReader for ${cap_name}FieldReader {
        |    fn read(
-       |        &mut self,
+       |        &self,
        |        file_reader: &Vec<FileReader>,
        |        string_block: &StringBlock,
        |        blocks: &Vec<Block>,
        |        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
-       |        instances: &mut [Ptr<SkillObject>],
+       |        instances: &[Ptr<SkillObject>],
        |    ) -> Result<(), SkillError> {
        |        let mut block_index = BlockIndex::from(0);
        |
@@ -670,19 +739,35 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |                FieldChunk::Declaration(chunk) => {
        |                    block_index += chunk.appearance - 1;
        |
-       |                    let mut reader = file_reader[blocks[block_index.block].block.block].clone();
+       |                    let block = &blocks[block_index.block];
+       |                    let mut reader = file_reader[block.block.block].rel_view(chunk.begin, chunk.end);
        |                    block_index += 1;
        |
+       |                    debug!(
+       |                        target:"SkillParsing",
+       |                        "Chunk:{:?} Ins:{:?}",
+       |                        chunk,
+       |                        instances.len(),
+       |                    );
        |                    if chunk.count > 0 {
        |                        for block in blocks.iter().take(chunk.appearance.block) {
+       |                            let mut o = 0;
+       |
        |                            for obj in instances.iter()
-       |                                .skip(block.bpo + 1)
+       |                                .skip(block.bpo)
        |                                .take(block.dynamic_count)
        |                            {
+       |                                debug!(
+       |                                    target:"SkillParsing",
+       |                                    "Block:{:?} Object:{}",
+       |                                    block,
+       |                                    o + block.bpo,
+       |                                );
+       |                                o += 1;
        |                                match obj.nucast::<${cap_base}T>() {
        |                                    Some(obj) =>
        |                                        obj.borrow_mut().set_$low_field(${
-      genFieldReaderImplFieldReaderRead(field.getType, user)
+      genFieldReaderImplFieldReaderRead(field.getType, Stream.iterate(0)(_ + 1).iterator)
     }),
        |                                    None => panic!("Casting error"), // FIXME
        |                                }
@@ -691,18 +776,28 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |                    }
        |                },
        |                FieldChunk::Continuation(chunk) => {
-       |                    let mut reader = file_reader[blocks[block_index.block].block.block].clone();
+       |                    let block = &blocks[block_index.block];
+       |                    let mut reader = file_reader[block.block.block].rel_view(chunk.begin, chunk.end);
        |                    block_index += 1;
        |
        |                    if chunk.count > 0 {
+       |                        let mut o = 0;
        |                        for obj in instances.iter()
-       |                            .skip(chunk.bpo + 1)
+       |                            .skip(chunk.bpo )
        |                            .take(chunk.count)
        |                        {
+       |                            debug!(
+       |                                target:"SkillParsing",
+       |                                "Block:{:?} Object:{}",
+       |                                block,
+       |                                o + chunk.bpo,
+       |                            );
+       |                            o += 1;
+       |
        |                            match obj.nucast::<${cap_base}T>() {
        |                                Some(obj) =>
        |                                    obj.borrow_mut().set_$low_field(${
-      genFieldReaderImplFieldReaderRead(field.getType, user)
+      genFieldReaderImplFieldReaderRead(field.getType, Stream.iterate(0)(_ + 1).iterator)
     }),
        |                                None => panic!("Casting error"), // FIXME
        |                            }
@@ -736,7 +831,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
            |    let pool = reader.read_v64()? as usize;
            |    let object = reader.read_v64()? as usize;
            |    if pool != 0 && object != 0 {
-           |        if let Some(object) = type_pools[pool + 1]
+           |        if let Some(object) = type_pools[pool - 1]
            |            .borrow()
            |            .read_object(object)?
            |            .nucast::<SkillObject>()
@@ -803,7 +898,10 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
         e"""{
            |    let object = reader.read_v64()? as usize;
            |    if object != 0 {
-           |        if let Some(object) = self.object_reader[${user.next()}]
+           |        if let Some(object) = self.object_reader[${
+          // FIXME this is probably wrong
+          user.next()
+        }]
            |            .borrow()
            |            .read_object(object)?
            |            .nucast::<${t.getName.camel()}T>()

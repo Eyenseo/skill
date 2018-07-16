@@ -58,7 +58,7 @@ final class Main extends FakeMain
       case "f32" ⇒ "f32"
       case "f64" ⇒ "f64"
 
-      case "string" ⇒ "Ptr<String>"
+      case "string" ⇒ "Rc<String>"
       case "annotation" ⇒ "Option<Ptr<SkillObject>>"
 
       case _ ⇒ throw new GeneratorException(s"Unhandled type $t")
@@ -150,7 +150,7 @@ final class Main extends FakeMain
         case "i8" | "i16" | "i32" | "i64" | "v64" ⇒ "0"
         case "f32" | "f64"                        ⇒ "0.0"
         case "bool"                               ⇒ "false"
-        case "string"                             ⇒ "Ptr::default()" // FIXME string
+        case "string"                             ⇒ "Rc::default()" // FIXME string
         case "annotation"                         ⇒ "None"
         case _                                    ⇒ throw new GeneratorException(s"Unhandled type $t")
       }
