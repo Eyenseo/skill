@@ -31,6 +31,8 @@ trait LibMaker extends GeneralOutputMaker {
                   |#![feature(unsize)]
                   |#![feature(box_into_raw_non_null)]
                   |#![feature(specialization)]
+                  |#![feature(core_intrinsics)]
+                  |#![feature(extern_prelude)]
                   |
                   |#[macro_use]
                   |extern crate log;

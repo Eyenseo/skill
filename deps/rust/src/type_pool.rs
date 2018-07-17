@@ -302,13 +302,14 @@ impl TypeBlock {
                 if let Some(super_pool) = pool.get_super() {
                     let mut super_pool = super_pool.borrow_mut();
 
-                    let dela = pool.get_local_static_count() as i64
+                    let delta = super_pool.get_local_static_count() as i64
                         - (pool.get_local_bpo() as i64 - super_pool.get_local_bpo() as i64);
 
-                    if dela > 0 {
-                        let tmp = super_pool.get_global_static_count() - dela as usize;
+                    info!(target: "SkillParsing", "~~Resize delta:{}", delta);
+                    if delta > 0 {
+                        let tmp = super_pool.get_global_static_count() - delta as usize;
                         super_pool.set_global_static_count(tmp);
-                        let tmp = super_pool.get_local_static_count() - dela as usize;
+                        let tmp = super_pool.get_local_static_count() - delta as usize;
                         super_pool.set_local_static_count(tmp);
                     }
                 }

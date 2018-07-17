@@ -236,6 +236,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
            |""".stripMargin
       }).mkString.trim
     }
+       |        for pool in self.undefined_pools.iter() {
+       |            pool.borrow_mut().allocate(type_pools);
+       |        }
        |    }
        |
        |    fn initialize(

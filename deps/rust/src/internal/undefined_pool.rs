@@ -223,8 +223,15 @@ impl InstancePool for UndefinedPool {
         string_block: &StringBlock,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<(), SkillError> {
-        for mut f in self.fields.iter() {
-            // f.read(&mut self.instances)?;
+        for f in self.fields.iter() {
+            let instances = self.instances.borrow();
+            f.read(
+                file_reader,
+                string_block,
+                &self.blocks,
+                type_pools,
+                &instances,
+            )?;
         }
         Ok(())
     }
@@ -232,34 +239,68 @@ impl InstancePool for UndefinedPool {
     fn allocate(&mut self, type_pools: &Vec<Rc<RefCell<InstancePool>>>) {
         let mut vec = self.instances.borrow_mut();
         if self.is_base() {
+            let tmp = Ptr::new(UndefinedObject::new());
             info!(
                 target:"SkillParsing",
-                "Allocate space for:UndefinedObject amount:{}",
+                "Allocate space for:UndefinedPool amount:{}",
                 self.get_global_cached_count(),
+            );
+            trace!(
+                target:"SkillParsing",
+                "Allocate space for:UndefinedPool with:{:?}",
+                tmp,
             );
             vec.reserve(self.get_global_cached_count()); // FIXME check if dynamic count is the correct one
                                                          // TODO figure out a better way - set_len doesn't wrk as dtor will be called on garbage data
-            let tmp = Ptr::new(UndefinedObject::new());
             for _ in 0..self.get_global_cached_count() {
                 vec.push(tmp.clone());
             }
         }
         self.book_static.reserve(self.static_count);
 
+        info!(
+            target:"SkillParsing",
+            "Initialize UndefinedPool id:{}",
+            self.get_type_id(),
+        );
+
         for block in self.blocks.iter() {
             let begin = block.bpo + 1;
             let end = begin + block.static_count;
             for id in begin..end {
-                info!(
-                    target:"SkillParsing",
-                    "Initialize UndefinedObject id:{} block:{:?}",
-                    id,
-                    block,
-                );
-
-                self.book_static.push(Ptr::new(UndefinedObject::new()));
+                if self.super_pool.is_some() {
+                    let pool = self.super_pool.as_ref().unwrap().borrow();
+                    trace!(
+                        target:"SkillParsing",
+                        "UndefinedObject id:{} super:{:?} block:{:?}",
+                        id,
+                        pool.get_type_id(),
+                        block,
+                    );
+                    self.book_static.push(pool.make_instance());
+                } else {
+                    trace!(
+                        target:"SkillParsing",
+                        "UndefinedObject id:{} block:{:?}",
+                        id,
+                        block,
+                    );
+                    let tmp = self.make_instance();
+                    self.book_static.push(tmp);
+                }
                 vec[id - 1] = self.book_static.last().unwrap().clone();
             }
         }
+    }
+
+    fn make_instance(&self) -> Ptr<SkillObject> {
+        if let Some(pool) = self.super_pool.as_ref() {
+            return pool.borrow().make_instance();
+        }
+        trace!(
+            target:"SkillParsing",
+            "Create new UndefinedObject",
+        );
+        Ptr::new(UndefinedObject {})
     }
 }

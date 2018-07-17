@@ -304,7 +304,13 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
        |    ) -> Result<(), SkillError> {
        |        for f in self.fields.iter() {
        |            let instances = self.instances.borrow();
-       |            f.read(file_reader, string_block, &self.blocks, type_pools, &instances)?;
+       |            f.read(
+       |                file_reader,
+       |                string_block,
+       |                &self.blocks,
+       |                type_pools,
+       |                &instances
+       |            )?;
        |        }
        |        Ok(())
        |    }
@@ -312,27 +318,40 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
        |    fn allocate(&mut self, type_pools: &Vec<Rc<RefCell<InstancePool>>>) {
        |        let mut vec = self.instances.borrow_mut();
        |        if self.is_base() {
+       |            let tmp = Ptr::new(UndefinedObject::new());
        |            info!(
        |                target:"SkillParsing",
        |                "Allocate space for:${base.getName} aka ${name(base)} amount:{}",
-       |                self.get_global_cached_count()
+       |                self.get_global_cached_count(),
        |            );
+       |            trace!(
+       |                target:"SkillParsing",
+       |                "Allocate space for:${name(base)} with:{:?}",
+       |                tmp,
+       |            );
+       |
        |            vec.reserve(self.get_global_cached_count()); // FIXME check if dynamic count is the correct one
        |            // TODO figure out a better way - set_len doesn't wrk as dtor will be called on garbage data
-       |            let tmp = Ptr::new(UndefinedObject::new());
+       |
        |            for _ in 0..self.get_global_cached_count() {
        |                vec.push(tmp.clone());
        |            }
        |        }
        |        self.book_static.reserve(self.static_count);
        |
+       |        info!(
+       |            target:"SkillParsing",
+       |            "Initialize ${base.getName} aka ${name(base)} id:{}",
+       |            self.get_type_id(),
+       |        );
+       |
        |        for block in self.blocks.iter() {
        |            let begin = block.bpo + 1;
        |            let end = begin + block.static_count;
        |            for id in begin..end {
-       |                info!(
+       |                trace!(
        |                    target:"SkillParsing",
-       |                    "Initialize ${base.getName} aka ${name(base)} id:{} block:{:?}",
+       |                    "${name(base)} id:{} block:{:?}",
        |                    id,
        |                    block,
        |                );
@@ -496,6 +515,14 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
        |    }
        |    fn set_global_cached_count(&mut self, count: usize) {
        |         self.cached_count = count;
+       |    }
+       |
+       |    fn make_instance(&self) -> Ptr<SkillObject> {
+       |        trace!(
+       |            target:"SkillParsing",
+       |            "Create new ${name(base)}",
+       |        );
+       |        Ptr::new(${name(base)}::new())
        |    }
        |
        |}""".stripMargin
@@ -708,12 +735,6 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
        |                    let mut reader = file_reader[block.block.block].rel_view(chunk.begin, chunk.end);
        |                    block_index += 1;
        |
-       |                    debug!(
-       |                        target:"SkillParsing",
-       |                        "Chunk:{:?} Ins:{:?}",
-       |                        chunk,
-       |                        instances.len(),
-       |                    );
        |                    if chunk.count > 0 {
        |                        for block in blocks.iter().take(chunk.appearance.block) {
        |                            let mut o = 0;
@@ -748,7 +769,7 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
        |                    if chunk.count > 0 {
        |                        let mut o = 0;
        |                        for obj in instances.iter()
-       |                            .skip(chunk.bpo )
+       |                            .skip(chunk.bpo)
        |                            .take(chunk.count)
        |                        {
        |                            debug!(

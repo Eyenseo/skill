@@ -266,6 +266,7 @@ type BorrowFlag = usize;
 const UNUSED: BorrowFlag = 0;
 const WRITING: BorrowFlag = !0;
 
+#[derive(Debug)]
 struct MetaData {
     type_id: TypeId, // TODO replace with generated ID?
     strong: Cell<usize>,
@@ -771,20 +772,28 @@ impl<T: ?Sized> Hash for Ptr<T> {
 
 impl<T: ?Sized + fmt::Debug> fmt::Debug for Ptr<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.value.fmt(f)
-    }
-}
-
-impl<T: ?Sized + fmt::Display> fmt::Display for Ptr<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.value.fmt(f)
+        unsafe { self.meta.as_ref() }.fmt(f)?;
+        unsafe { self.value.as_ref() }.fmt(f)?;
+        Ok(())
     }
 }
 
 impl<T: ?Sized> fmt::Debug for Ptr<T> {
     default fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // FIXME convert T to string
-        f.write_str("T")
+        unsafe { self.meta.as_ref() }.fmt(f)?;
+        f.write_str("value: { ")?;
+        unsafe {
+            f.write_str(std::intrinsics::type_name::<T>())?;
+        }
+        f.write_str(" }")?;
+        Ok(())
+    }
+}
+
+impl<T: ?Sized + fmt::Display> fmt::Display for Ptr<T> {
+    default fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        unsafe { self.value.as_ref().fmt(f)? }
+        Ok(())
     }
 }
 

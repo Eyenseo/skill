@@ -1,5 +1,6 @@
 use common::internal::SkillObject;
 
+#[derive(Default, Copy, Clone, Debug)]
 pub struct UndefinedObject {}
 
 impl UndefinedObject {

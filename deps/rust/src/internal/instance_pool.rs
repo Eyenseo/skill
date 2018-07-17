@@ -63,4 +63,6 @@ pub trait InstancePool {
         string_block: &StringBlock,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<(), SkillError>;
+
+    fn make_instance(&self) -> Ptr<SkillObject>;
 }

@@ -55,6 +55,7 @@ class GenericTests extends common.GenericTests {
                               "emptyFile",
                               "restrictionsAll",
                               "nullInNonNullNode",
+                              "",
                             )
   var generatedTests = new Array[Test](0)
 
@@ -80,9 +81,9 @@ class GenericTests extends common.GenericTests {
                               // "restrictionsCore", // TODO - is this really successful?
                               // "subtypes",
                               // "unicode",
+                              // "unknown",
                               // "user",
-
-                              "unknown", // FIXME Broken generator
+                              "",
                             )
 
 
