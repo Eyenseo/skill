@@ -70,7 +70,7 @@ final class Main extends FakeMain
     case t: SetType                 ⇒ s"HashSet<${mapType(t.getBaseType)}>"
     case t: MapType                 ⇒ t.getBaseTypes.map(mapType).reduceRight((k, v) ⇒ s"HashMap<$k, $v>")
 
-    case t: UserType ⇒ s"Option<Ptr<${t.getName.capital()}T>>" // TODO are we able to infer Struct vs Type?
+    case t: UserType ⇒ s"Option<Ptr<${traitName(t)}>>" // TODO are we able to infer Struct vs Type?
 
     case _ ⇒ throw new GeneratorException(s"Unknown type $t")
   }
@@ -256,24 +256,36 @@ final class Main extends FakeMain
 
 object EscapeFunction {
   def apply(target: String): String = target match {
-    //keywords get a suffix "_", because that way at least auto-completion will work as expected
-    case "auto" | "const" | "double" | "float" | "int" | "short" | "struct" | "unsigned" | "break" | "continue"
-         | "else" | "for" | "long" | "signed" | "switch" | "void" | "case" | "default" | "enum" | "goto" | "register"
-         | "sizeof" | "typedef" | "volatile" | "char" | "do" | "extern" | "if" | "return" | "static" | "union" | "while"
-         | "asm" | "dynamic_cast" | "namespace" | "reinterpret_cast" | "try" | "bool" | "explicit" | "new" |
-         "static_cast"
-         | "typeid" | "catch" | "false" | "operator" | "template" | "typename" | "class" | "friend" | "private" | "this"
-         | "using" | "const_cast" | "inline" | "public" | "throw" | "virtual" | "delete" | "mutable" | "protected"
-         | "true" | "wchar_t" | "and" | "bitand" | "compl" | "not_eq" | "or_eq" | "xor_eq" | "and_eq" | "bitor" | "not"
-         | "or" | "xor" | "cin" | "endl" | "INT_MIN" | "iomanip" | "main" | "npos" | "std" | "cout" | "include"
-         | "INT_MAX" | "iostream" | "MAX_RAND" | "NULL" | "string" ⇒ s"_$target"
-
-    case t if t.forall(c ⇒ '_' == c || Character.isLetterOrDigit(c)) ⇒ t
-
-    case _ ⇒ target.map {
-      case 'Z'                                           ⇒ "ZZ"
-      case c if '_' == c || Character.isLetterOrDigit(c) ⇒ "" + c
-      case c                                             ⇒ "Z" + c.formatted("%04X")
+    // keywords get a suffix "Z_" -- just "_" doens't work in rust as that will cause a warning
+    // for bad snake case -- because that way at least auto-completion will work almost as expected
+    case
+      // Used throughout the generator
+      "Ptr" | "Rc" | "RefCell"
+      // Prelude
+      // https://doc.rust-lang.org/std/prelude/
+      | "AsMut" | "AsRef" | "Box" | "Clone" | "Copy" | "Default" | "DoubleEndedIterator" | "Drop"
+      | "Eq" | "ExactSizeIterator" | "Extend" | "Fn" | "FnMut" | "FnOnce" | "From" | "Into"
+      | "IntoIterator" | "Iterator" | "Option" | "Ord" | "PartialEq" | "PartialOrd" | "Result"
+      | "Send" | "Sized" | "SliceConcatExt" | "String" | "Sync" | "ToOwned" | "ToString" | "Vec"
+      | "clone" | "drop"
+      // Data types
+      // https://doc.rust-lang.org/book/second-edition/ch03-02-data-types.html
+      | "bool" | "char" | "f32" | "f64" | "i16" | "i32" | "i64" | "i8" | "isize" | "str" | "u16"
+      | "u32" | "u64" | "u8" | "usize"
+      // Keywords + reserved
+      // https://doc.rust-lang.org/beta/reference/keywords.html
+      // https://doc.rust-lang.org/book/second-edition/appendix-01-keywords.html
+      | "Self" | "abstract" | "alignof" | "as" | "become" | "box" | "break" | "const" | "continue"
+      | "crate" | "do" | "else" | "enum" | "extern" | "false" | "final" | "fn" | "for" | "if"
+      | "impl" | "in" | "let" | "loop" | "macro" | "match" | "mod" | "move" | "mut" | "offsetof"
+      | "override" | "priv" | "proc" | "pub" | "pure" | "ref" | "return" | "self" | "sizeof"
+      | "static" | "struct" | "super" | "trait" | "true" | "type" | "typeof" | "unsafe" | "unsized"
+      | "use" | "virtual" | "where" | "while" | "yield"  ⇒ s"Z_$target"
+    case t if t.forall(c ⇒ Character.isLetterOrDigit(c)) ⇒ t
+    case _                                               ⇒ target.map {
+      case 'Z'           ⇒ "ZZ"
+      case c if '_' == c ⇒ "Z" + c
+      case c             ⇒ f"Z$c%04X"
     }.mkString
   }
 }

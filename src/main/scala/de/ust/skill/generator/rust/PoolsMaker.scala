@@ -83,7 +83,7 @@ trait PoolsMaker extends GeneralOutputMaker {
   //----------------------------------------
   private final def genType(base: UserType): String = {
     e"""//----------------------------------------
-       |// ${base.getName.capital()}
+       |// ${base.getName} aka ${name(base)}
        |//----------------------------------------
        |${genTypeStruct(base)}
        |
@@ -94,13 +94,11 @@ trait PoolsMaker extends GeneralOutputMaker {
   }
 
   private final def genTypeStruct(base: UserType): String = {
-    val cap_base = base.getName.capital()
-
     e"""#[derive(Default, Debug,  PartialEq)]
-       |pub struct $cap_base {
+       |pub struct ${name(base)} {
        |    ${
       (for (f ← base.getAllFields.asScala) yield {
-        e"""${f.getName.lower()}: ${mapType(f.getType)},
+        e"""${name(f)}: ${mapType(f.getType)},
            |""".stripMargin
       }).mkString.trim
     }
@@ -108,35 +106,31 @@ trait PoolsMaker extends GeneralOutputMaker {
   }
 
   private final def genTypeTrait(base: UserType): String = {
-    val cap_base = base.getName.capital()
-    var superTrait = ""
-
-    if (base.getSuperType != null) {
-      superTrait = base.getSuperType.getName.capital() + "T"
-    }
-
-    e"""pub trait ${cap_base}T : $superTrait {
+    e"""pub trait ${traitName(base)} : ${
+      if (base.getSuperType != null) {
+        traitName(base.getSuperType)
+      } else {
+        "SkillObject"
+      }
+    } {
        |    ${
       (for (f ← base.getFields.asScala) yield {
-        e"""fn get_${f.getName.lower()}(&self) -> ${
+        e"""fn get_${name(f)}(&self) -> ${
           if (returnByRef(f.getType)) {
             "&" + mapType(f.getType)
           } else {
             mapType(f.getType)
           }
         };
-fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType)});
+fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
 """.stripMargin
-      }
-      ).mkString.trim
+      }).mkString.trim
     }
        |}""".stripMargin
   }
 
   private final def genGetSetImpl(field: Field): String = {
-    val low_field = field.getName.lower()
-
-    e"""fn get_$low_field(&self) -> ${
+    e"""fn get_${name(field)}(&self) -> ${
       if (returnByRef(field.getType)) {
         "&" + mapType(field.getType)
       } else {
@@ -145,45 +139,41 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
     } {
        |    ${
       if (returnByRef(field.getType)) {
-        e"&self.$low_field"
+        e"&self.${name(field)}"
       } else {
-        e"self.$low_field"
+        e"self.${name(field)}"
       }
     }
        |}
        |
-       |fn set_$low_field(&mut self, value: ${mapType(field.getType)}) {
-       |    self.$low_field = value;
+       |fn set_${name(field)}(&mut self, value: ${mapType(field.getType)}) {
+       |    self.${name(field)} = value;
        |}""".stripMargin
   }
 
   private final def genTypeImpl(base: UserType): String = {
-    val cap_base = base.getName.capital()
-
     // gen New
-    e"""impl $cap_base {
-       |    pub fn new() -> $cap_base {
+    e"""impl ${name(base)} {
+       |    pub fn new() -> ${name(base)} {
        |        // TODO optimize for small / single field objects?
-       |        $cap_base {
+       |        ${name(base)} {
        |            ${
       (for (f ← base.getAllFields.asScala) yield {
-        e"""${f.getName.lower()}: ${defaultValue(f)},
+        e"""${name(f)}: ${defaultValue(f)},
            |""".stripMargin
-      }
-      ).mkString.trim
+      }).mkString.trim
     }
        |        }
        |    }
        |}
        |
-       |impl ${cap_base}T for $cap_base {
+       |impl ${traitName(base)} for ${name(base)} {
        |    ${ // Impl base
       (for (f ← base.getFields.asScala) yield {
         e"""${genGetSetImpl(f)}
            |
            |""".stripMargin
-      }
-      ).mkString.trim
+      }).mkString.trim
     }
        |}
        |
@@ -203,16 +193,13 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
       ret.mkString.trim
     }
        |
-       |impl SkillObject for $cap_base {}
+       |impl SkillObject for ${name(base)} {}
        |""".stripMargin.trim
   }
 
   private final def genTypeImplSuper(base: UserType,
                                      parent: UserType): String = {
-    val cap_parent = parent.getName.capital()
-    val cap_base = base.getName.capital()
-
-    e"""impl ${cap_parent}T for $cap_base {
+    e"""impl ${traitName(parent)} for ${name(base)} {
        |    ${
       (for (f ← parent.getFields.asScala) yield {
         e"""${genGetSetImpl(f)}
@@ -228,10 +215,8 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
   // TypePool
   //----------------------------------------
   private final def genPool(base: UserType): String = {
-    val cap_base = base.getName.capital()
-
     e"""//----------------------------------------
-       |// ${cap_base}Pool
+       |// ${base.getName}Pool aka ${storagePool(base)}
        |//----------------------------------------
        |${genPoolStruct(base)}
        |
@@ -242,10 +227,8 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
   }
 
   private final def genPoolStruct(base: UserType): String = {
-    val cap_base = base.getName.capital()
-
     e"""#[derive(Default)]
-       |pub struct ${cap_base}Pool {
+       |pub struct ${storagePool(base)} {
        |    string_block: Rc<RefCell<StringBlock>>,
        |    instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
        |    book_static: Vec<Ptr<SkillObject>>,
@@ -269,13 +252,11 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
   }
 
   private final def genPoolImpl(base: UserType): String = {
-    val cap_base = base.getName.capital()
-
-    e"""impl ${cap_base}Pool {
+    e"""impl ${storagePool(base)} {
        |    pub fn new(
        |        string_block: Rc<RefCell<StringBlock>>,
-       |    ) -> ${cap_base}Pool {
-       |        ${cap_base}Pool {
+       |    ) -> ${storagePool(base)} {
+       |        ${storagePool(base)} {
        |            string_block,
        |            instances: Rc::default(),
        |            book_static: Vec::new(),
@@ -295,9 +276,9 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |        }
        |    }
        |
-       |    pub fn get(&self, index: usize) -> Result<WeakPtr<${cap_base}T>, SkillError> {
+       |    pub fn get(&self, index: usize) -> Result<WeakPtr<${traitName(base)}>, SkillError> {
        |        match self.instances.borrow().get(index) {
-       |            Some(obj) => match obj.nucast::<${cap_base}T>() {
+       |            Some(obj) => match obj.nucast::<${traitName(base)}>() {
        |                Some(obj) => Ok(obj.downgrade()),
        |                None => panic!("Bad cast"),
        |            },
@@ -312,9 +293,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
   }
 
   private final def genPoolImplInstancePool(base: UserType): String = {
-    val cap_base = base.getName.capital()
-
-    e"""impl InstancePool for ${cap_base}Pool {
+    e"""impl InstancePool for ${storagePool(base)} {
        |    ${genPoolImplInstancePoolAddField(base)}
        |
        |    fn initialize(
@@ -335,7 +314,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |        if self.is_base() {
        |            info!(
        |                target:"SkillParsing",
-       |                "Allocate space for:$cap_base amount:{}",
+       |                "Allocate space for:${base.getName} aka ${name(base)} amount:{}",
        |                self.get_global_cached_count()
        |            );
        |            vec.reserve(self.get_global_cached_count()); // FIXME check if dynamic count is the correct one
@@ -353,12 +332,12 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |            for id in begin..end {
        |                info!(
        |                    target:"SkillParsing",
-       |                    "Initialize $cap_base id:{} block:{:?}",
+       |                    "Initialize ${base.getName} aka ${name(base)} id:{} block:{:?}",
        |                    id,
        |                    block,
        |                );
        |
-       |                self.book_static.push(Ptr::new($cap_base::new()));
+       |                self.book_static.push(Ptr::new(${name(base)}::new()));
        |                vec[id - 1] = self.book_static.last().unwrap().clone();
        |            }
        |        }
@@ -523,8 +502,6 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
   }
 
   private final def genPoolImplInstancePoolAddField(base: UserType): String = {
-    val cap_base = base.getName.capital()
-
     e"""// TODO is the field type important for something? apparent from the restrictions?
        |fn add_field(
        |    &mut self,
@@ -536,9 +513,8 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |    match field_name {
        |        ${
       (for (f ← base.getAllFields.asScala) yield {
-        genPoolImplInstancePoolAddFieldField(cap_base, f)
-      }
-      ).mkString.trim
+        genPoolImplInstancePoolAddFieldField(base, f)
+      }).mkString.trim
     }
        |        _ => {
        |            let mut reader = Box::new(LazyFieldReader::new(name_id));
@@ -551,47 +527,39 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
   }
 
   // TODO do something about these stupid names
-  private final def genPoolImplInstancePoolAddFieldField(cap_base: String,
+  private final def genPoolImplInstancePoolAddFieldField(base: UserType,
                                                          field: Field): String = {
-    // TODO fix snake_case
-    // TODO extract to class for better names?
-    val low_field = field.getName.lower()
-    val reader = cap_base + field.getName.capital() + "FieldReader"
-
-    e""""$low_field" => match field_type {
-       |    ${genPoolImplInstancePoolAddFieldFieldUnwrap(reader, field.getType)}
+    e""""${field.getName.lower()}" => match field_type {
+       |    ${
+      field.getType match {
+        case t@(_: SingleBaseTypeContainer | _: MapType) ⇒
+          e"""${mapTypeToMagicMatch(t)} => {
+             |    let mut object_readers: Vec<Rc<RefCell<InstancePool>>> = Vec::new();
+             |    // TODO reserve size
+             |    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(t)}
+             |    let mut reader = Box::new(${fieldReader(base, field)}::new(name_id, object_readers));
+             |    reader.add_chunk(chunk);;
+             |    self.fields.push(reader);
+             |}""".stripMargin
+        case t: GroundType                               ⇒
+          e"""|${mapTypeToMagicMatch(t)} => {
+              |   let mut reader = Box::new(${fieldReader(base, field)}::new(name_id));
+              |   reader.add_chunk(chunk);
+              |   self.fields.push(reader);
+              |},""".stripMargin
+        case t: UserType                                 ⇒
+          e"""|${mapTypeToMagicMatch(t)} => {
+              |   let mut reader = Box::new(${fieldReader(base, field)}::new(name_id, vec!(pool)));
+              |   reader.add_chunk(chunk);
+              |   self.fields.push(reader);
+              |},""".stripMargin
+        case _                                           ⇒
+          throw new GeneratorException("Unexpected field type")
+      }
+    }
        |    _ => panic!("Expected: ${mapTypeToUser(field.getType)} Found: {}", field_type)
        |},
        |""".stripMargin
-  }
-
-  private final def genPoolImplInstancePoolAddFieldFieldUnwrap(reader: String,
-                                                               tt: Type): String = {
-    tt match {
-      case t@(_: SingleBaseTypeContainer | _: MapType) ⇒
-        e"""${mapTypeToMagicMatch(t)} => {
-           |    let mut object_readers: Vec<Rc<RefCell<InstancePool>>> = Vec::new();
-           |    // TODO reserve size
-           |    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(t)}
-           |    let mut reader = Box::new($reader::new(name_id, object_readers));
-           |    reader.add_chunk(chunk);;
-           |    self.fields.push(reader);
-           |}""".stripMargin
-      case t: GroundType                               ⇒
-        e"""|${mapTypeToMagicMatch(t)} => {
-            |   let mut reader = Box::new($reader::new(name_id));
-            |   reader.add_chunk(chunk);
-            |   self.fields.push(reader);
-            |},""".stripMargin
-      case t: UserType                                 ⇒
-        e"""|${mapTypeToMagicMatch(t)} => {
-            |   let mut reader = Box::new($reader::new(name_id, vec!(pool)));
-            |   reader.add_chunk(chunk);
-            |   self.fields.push(reader);
-            |},""".stripMargin
-      case _                                           ⇒
-        throw new GeneratorException("Unexpected field type")
-    }
   }
 
   // FIXME We need the user provided pool to access the objects - validation cant be a separate step
@@ -621,7 +589,8 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
       case _: UserType                ⇒
         e"""|FieldType::User(object_reader, _) => object_readers.push(object_reader.clone()),
             |""".stripMargin
-      case _                          ⇒ throw new GeneratorException("Unexpected field type")
+      case _                          ⇒
+        throw new GeneratorException("Unexpected field type")
     }
   }.trim
 
@@ -652,14 +621,11 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
   //----------------------------------------
   private final def genFieldReader(base: UserType): String = {
     val ret = new StringBuilder()
-    val cap_base = base.getName.capital()
 
     for (field ← base.getAllFields.asScala) {
-      val cap_name = cap_base + field.getName.capital()
-
       ret.append(
                   e"""//----------------------------------------
-                     |// ${cap_name}FieldReader
+                     |// ${base.getName.camel()}${field.getName.capital()}FieldReader aka ${fieldReader(base, field)}
                      |//----------------------------------------
                      |${genFieldReaderType(base, field)}
                      |
@@ -675,8 +641,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
 
   private final def genFieldReaderType(base: UserType,
                                        field: Field): String = {
-    val cap_name = base.getName.capital() + field.getName.capital()
-    e"""struct ${cap_name}FieldReader {
+    e"""struct ${fieldReader(base, field)} {
        |    name_id: usize,
        |    chunks: Vec<FieldChunk>,${
       field.getType match {
@@ -692,28 +657,26 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
 
   private final def genFieldReaderImpl(base: UserType,
                                        field: Field): String = {
-    val cap_name = base.getName.capital() + field.getName.capital()
-
     // TODO really check if an object has to be read (e.g. map<int,int> doesn't need to)
     field.getType match {
       case _: GroundType ⇒
-        e"""impl ${cap_name}FieldReader {
+        e"""impl ${fieldReader(base, field)} {
            |    fn new(
            |        name_id: usize,
-           |    ) -> ${cap_name}FieldReader {
-           |        ${cap_name}FieldReader {
+           |    ) -> ${fieldReader(base, field)} {
+           |        ${fieldReader(base, field)} {
            |            name_id,
            |            chunks: Vec::new(),
            |        }
            |    }
            |}""".stripMargin
       case _             ⇒
-        e"""impl ${cap_name}FieldReader {
+        e"""impl ${fieldReader(base, field)} {
            |    fn new(
            |        name_id: usize,
            |        object_reader: Vec<Rc<RefCell<InstancePool>>>
-           |    ) -> ${cap_name}FieldReader {
-           |        ${cap_name}FieldReader {
+           |    ) -> ${fieldReader(base, field)} {
+           |        ${fieldReader(base, field)} {
            |            name_id,
            |            chunks: Vec::new(),
            |            object_reader,
@@ -725,11 +688,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
 
   private final def genFieldReaderImplFieldReader(base: UserType,
                                                   field: Field): String = {
-    val cap_base = base.getName.capital()
-    val cap_name = cap_base + field.getName.capital()
-    val low_field = field.getName.lower()
-
-    e"""impl FieldReader for ${cap_name}FieldReader {
+    e"""impl FieldReader for ${fieldReader(base, field)} {
        |    fn read(
        |        &self,
        |        file_reader: &Vec<FileReader>,
@@ -770,9 +729,9 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |                                    o + block.bpo,
        |                                );
        |                                o += 1;
-       |                                match obj.nucast::<${cap_base}T>() {
+       |                                match obj.nucast::<${traitName(base)}>() {
        |                                    Some(obj) =>
-       |                                        obj.borrow_mut().set_$low_field(${
+       |                                        obj.borrow_mut().set_${name(field)}(${
       genFieldReaderImplFieldReaderRead(field.getType, Stream.iterate(0)(_ + 1).iterator)
     }),
        |                                    None => panic!("Casting error"), // FIXME
@@ -800,9 +759,9 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |                            );
        |                            o += 1;
        |
-       |                            match obj.nucast::<${cap_base}T>() {
+       |                            match obj.nucast::<${traitName(base)}>() {
        |                                Some(obj) =>
-       |                                    obj.borrow_mut().set_$low_field(${
+       |                                    obj.borrow_mut().set_${name(field)}(${
       genFieldReaderImplFieldReaderRead(field.getType, Stream.iterate(0)(_ + 1).iterator)
     }),
        |                                None => panic!("Casting error"), // FIXME
@@ -826,7 +785,6 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
   private final def genFieldReaderImplFieldReaderRead(base: Type,
                                                       user: Iterator[Int]): String = {
     base match {
-      // FIXME Strings have to be obtained from the string pool
       case t: GroundType
         if t.getName.lower().equals("string")     ⇒
         e"""string_block.get(reader.read_v64()? as usize)
@@ -904,17 +862,14 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
         e"""{
            |    let object = reader.read_v64()? as usize;
            |    if object != 0 {
-           |        if let Some(object) = self.object_reader[${
-          // FIXME this is probably wrong
-          user.next()
-        }]
+           |        if let Some(object) = self.object_reader[${user.next()}]
            |            .borrow()
            |            .read_object(object)?
-           |            .nucast::<${t.getName.camel()}T>()
+           |            .nucast::<${traitName(t)}>()
            |        {
            |            Some(object)
            |        } else {
-           |            panic!("Failed to cast object to:${t.getName.camel()}T")
+           |            panic!("Failed to cast object to:${t.getName} aka ${traitName(t)}")
            |        }
            |    } else {
            |        None

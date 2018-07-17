@@ -26,9 +26,9 @@ trait GeneralOutputMaker extends Generator {
     text.drop(1).foldLeft(
                            text.headOption.map(_.toLower + "")
                            getOrElse "") {
-                                           case (acc, c) if c.isUpper => acc + "_" + c.toLower
-                                           case (acc, c)              => acc + c
-                                         }
+      case (acc, c) if c.isUpper => acc + "_" + c.toLower
+      case (acc, c)              => acc + c
+    }
   }
 
   final protected val endGuard    : String                     =
@@ -136,7 +136,7 @@ trait GeneralOutputMaker extends Generator {
 
   protected def subPool(t: Type): String = escaped(t.getName.capital + "SubPool")
 
-  protected def name(f: Field): String = escaped(f.getName.camel)
+  protected def name(f: Field): String = snakeCase(escaped(f.getName.camel)).toLowerCase
 
   protected def internalName(f: Field): String = escaped("_" + f.getName.camel())
 
@@ -160,6 +160,13 @@ trait GeneralOutputMaker extends Generator {
     * Translation of a type to its representation in the source code
     */
   protected def name(t: Type): String = escaped(t.getName.capital)
+
+  protected def field(t: Type): String = snakeCase(escaped(t.getName.camel()).toLowerCase)
+
+  protected def traitName(t: Type): String = escaped(t.getName.capital) + "T"
+
+  protected def fieldReader(t: Type, f: Field): String = escaped(t.getName.capital + f.getName.capital()) +
+                                                         "FieldReader"
 
   final protected def beginGuard(word: String): String = ""
 }

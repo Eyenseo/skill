@@ -57,8 +57,8 @@ trait PtrMaker extends GeneralOutputMaker {
       val mod = snakeCase(storagePool(base))
 
       ret.append(
-                  e"""use $mod::${base.getName.capital()};
-                     |use $mod::${base.getName.capital()}T;
+                  e"""use $mod::${name(base)};
+                     |use $mod::${traitName(base)};
                      |""".stripMargin
                 )
     }
@@ -97,11 +97,11 @@ trait PtrMaker extends GeneralOutputMaker {
   }
 
   def genNucastStruct(base: UserType): String = {
-    e"""ptr_cast_able!(${base.getName.camel()} = {
+    e"""ptr_cast_able!(${name(base)} = {
        |    SkillObject,
        |    ${
       (for (sub ← getAllSuperTypes(base)) yield {
-        e"""${sub.getName.camel()}T,
+        e"""${traitName(sub)},
            |""".stripMargin
       }).mkString.trim
     }
@@ -110,7 +110,7 @@ trait PtrMaker extends GeneralOutputMaker {
   }
 
   def genNucastTrait(base: UserType): String = {
-    e"""ptr_cast_able!(${base.getName.camel()}T =
+    e"""ptr_cast_able!(${traitName(base)} =
        |    ${
       (for (t ← getAllSuperTypes(base) ::: base.getSubTypes.asScala.toList) yield {
         genNucastTraitInner(t)
@@ -124,16 +124,16 @@ trait PtrMaker extends GeneralOutputMaker {
     val t = {
       val t = IR.filter(u ⇒ u == base)
       if (t.size != 1) {
-        throw new GeneratorException("Didn't find unique user type: " + base.getName)
+        throw new GeneratorException(s"Didn't find unique user type: ${base.getName} aka: ${name(base)}")
       }
       t.head
     }
 
-    e"""${base.getName.camel()}: {
+    e"""${name(base)}: {
        |    SkillObject,
        |    ${
       (for (base ← getAllSuperTypes(t)) yield {
-        e"""${base.getName.camel()}T,
+        e"""${traitName(base)},
            |""".stripMargin
       }).mkString.trim
     }

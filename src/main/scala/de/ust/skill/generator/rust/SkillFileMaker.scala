@@ -56,13 +56,12 @@ trait SkillFileMaker extends GeneralOutputMaker {
               )
 
     for (base ← IR) {
-      val cap_base = base.getName.capital()
       val mod = snakeCase(storagePool(base))
 
       ret.append(
-                  e"""use $mod::${cap_base}Pool;
-                     |use $mod::${cap_base}T;
-                     |use $mod::$cap_base;
+                  e"""use $mod::${storagePool(base)};
+                     |use $mod::${traitName(base)};
+                     |use $mod::${name(base)};
                      |""".stripMargin
                 )
     }
@@ -186,7 +185,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |pub struct SkillFileBuilder {
        |    ${
       (for (base ← IR) yield {
-        e"""pub ${base.getName.lower()}: Option<Rc<RefCell<${base.getName.capital()}Pool>>>,
+        e"""pub ${field(base)}: Option<Rc<RefCell<${storagePool(base)}>>>,
            |""".stripMargin
       }).mkString.trim
     }
@@ -201,7 +200,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |        SkillFileBuilder {
        |            ${
       (for (base ← IR) yield {
-        e"""${base.getName.lower()}: None,
+        e"""${field(base)}: None,
            |""".stripMargin
       }).mkString.trim
     }
@@ -213,19 +212,19 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |    fn allocate(&mut self, type_pools: &mut Vec<Rc<RefCell<InstancePool>>>) {
        |        ${
       (for (base ← IR) yield {
-        e"""if self.${base.getName.lower()}.is_none() {
+        e"""if self.${field(base)}.is_none() {
            |    let pool = Rc::new(RefCell::new(
-           |        ${base.getName.camel()}Pool::new(self.string_block.clone())
+           |        ${storagePool(base)}::new(self.string_block.clone())
            |    ));${
           if (base.getSuperType != null) {
             e"""
-               |self.${base.getSuperType.getName.lower()}.as_ref().unwrap().borrow_mut().add_sub(pool.clone());
-               |pool.borrow_mut().set_super(self.${base.getSuperType.getName.lower()}.as_ref().unwrap().clone());""".stripMargin
+               |self.${field(base.getSuperType)}.as_ref().unwrap().borrow_mut().add_sub(pool.clone());
+               |pool.borrow_mut().set_super(self.${field(base.getSuperType)}.as_ref().unwrap().clone());""".stripMargin
           } else {
             ""
           }
         }
-           |    self.${base.getName.lower()} = Some(pool.clone());
+           |    self.${field(base)} = Some(pool.clone());
            |    type_pools.push(pool);
            |}
            |""".stripMargin
@@ -233,7 +232,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
     }
        |        ${
       (for (base ← IR) yield {
-        e"""self.${base.getName.lower()}.as_ref().unwrap().borrow_mut().allocate(type_pools);
+        e"""self.${field(base)}.as_ref().unwrap().borrow_mut().allocate(type_pools);
            |""".stripMargin
       }).mkString.trim
     }
@@ -265,10 +264,10 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |        match type_name.as_ref() {
        |            ${
       (for (base ← IR) yield {
-        e""""${base.getName.lower()}" => {
-           |    if self.${base.getName.lower()}.is_none() {
-           |        self.${base.getName.lower()} = Some(Rc::new(RefCell::new(
-           |            ${base.getName.camel()}Pool::new(self.string_block.clone())
+        e""""${field(base)}" => {
+           |    if self.${field(base)}.is_none() {
+           |        self.${field(base)} = Some(Rc::new(RefCell::new(
+           |            ${storagePool(base)}::new(self.string_block.clone())
            |        )));
            |
            |        if let Some(super_pool) = super_pool {
@@ -277,21 +276,21 @@ trait SkillFileMaker extends GeneralOutputMaker {
            |            ${
           if (base.getSuperType == null) {
             e"""panic!(
-               |    "The type '${base.getName.camel()}' does not expect a super type. Found:{}",
+               |    "The type '${base.getName.camel()}' aka '${name(base)}' does not expect a super type. Found:{}",
                |    super_name
                |);
                |""".stripMargin.trim
           } else {
-            e"""if super_name.as_str() != "${base.getSuperType.getName.lower()}" {
+            e"""if super_name.as_str() != "${field(base.getSuperType)}" {
                |    panic!(
-               |        "Wrong super type for '${base.getName.camel()}' expect:${
-              base.getSuperType.getName.lower()
+               |        "Wrong super type for '${base.getName.camel()}' aka '${name(base)}' expect:${
+              field(base.getSuperType)
             } found:{}",
                |        super_name
                |    );
                |} else {
-               |    super_pool.borrow_mut().add_sub(self.${base.getName.lower()}.as_ref().unwrap().clone());
-               |    self.${base.getName.lower()}.as_ref().unwrap().borrow_mut().set_super(super_pool);
+               |    super_pool.borrow_mut().add_sub(self.${field(base)}.as_ref().unwrap().clone());
+               |    self.${field(base)}.as_ref().unwrap().borrow_mut().set_super(super_pool);
                |}
                |""".stripMargin.trim
           }
@@ -299,7 +298,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
            |        } ${
           if (base.getSuperType != null) {
             e"""else {
-               |            panic!("The type '${base.getName.camel()}' expects a supertype.");
+               |            panic!("The type '${base.getName.camel()}' aka '${name(base)}' expects a supertype.");
                |        }
                |""".stripMargin.trim
           } else {
@@ -309,10 +308,10 @@ trait SkillFileMaker extends GeneralOutputMaker {
            |    } else {
            |        panic!("Double creation of pool");
            |    }
-           |    let mut ${base.getName.lower()} = self.${base.getName.lower()}.as_ref().unwrap().borrow_mut();
-           |    ${base.getName.lower()}.set_type_id(type_id);
-           |    ${base.getName.lower()}.set_type_name_index(type_name_index);
-           |    self.${base.getName.lower()}.as_ref().unwrap().clone()
+           |    let mut ${field(base)} = self.${field(base)}.as_ref().unwrap().borrow_mut();
+           |    ${field(base)}.set_type_id(type_id);
+           |    ${field(base)}.set_type_name_index(type_name_index);
+           |    self.${field(base)}.as_ref().unwrap().clone()
            |},
            |""".stripMargin
       }).mkString.trim
@@ -344,10 +343,10 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |    fn get_pool(&self, type_name_index: usize) -> Option<Rc<RefCell<InstancePool>>> {
        |        ${
       (for (base ← IR) yield {
-        e"""if self.${base.getName.lower()}.is_some()
-           |    && type_name_index == self.${base.getName.lower()}.as_ref().unwrap().borrow().get_type_name_index()
+        e"""if self.${field(base)}.is_some()
+           |    && type_name_index == self.${field(base)}.as_ref().unwrap().borrow().get_type_name_index()
            |{
-           |    return Some(self.${base.getName.lower()}.as_ref().unwrap().clone());
+           |    return Some(self.${field(base)}.as_ref().unwrap().clone());
            |} else """.stripMargin
       }).mkString
     }{
