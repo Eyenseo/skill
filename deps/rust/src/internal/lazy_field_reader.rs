@@ -31,9 +31,8 @@ impl FieldReader for LazyFieldReader {
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
         instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillError> {
-        unimplemented!();
-        // TODO - do more?
-        // Ok(())
+        // FIXME
+        Ok(())
     }
     fn add_chunk(&mut self, chunk: FieldChunk) {
         self.chunks.push(chunk);

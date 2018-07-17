@@ -206,8 +206,15 @@ impl InstancePool for UndefinedPool {
     fn get_base_vec(&self) -> Rc<RefCell<Vec<Ptr<SkillObject>>>> {
         self.instances.clone()
     }
-    fn read_object(&self, _index: usize) -> Result<Ptr<SkillObject>, SkillError> {
-        unimplemented!();
+    fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillError> {
+        assert!(index >= 1);
+        info!(
+            target:"SkillParsing",
+            "read user instance:{} from:{}",
+            index,
+            self.instances.borrow().len(),
+        );
+        Ok(self.instances.borrow()[index - 1].clone())
     }
 
     fn initialize(

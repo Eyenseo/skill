@@ -71,6 +71,7 @@ class GenericTests extends common.GenericTests {
                               // "escaping",
                               // "fancy",
                               // "floats",
+                              // "graph",
                               // "graphInterface", // TODO - is this really successful?
                               // "hintsAll", // TODO - is this really successful?
                               // "map3",
@@ -81,7 +82,6 @@ class GenericTests extends common.GenericTests {
                               // "unicode",
                               // "user",
 
-                              "graph", // FIXME Broken generator
                               "unknown", // FIXME Broken generator
                             )
 
@@ -127,7 +127,7 @@ class GenericTests extends common.GenericTests {
   }
 
   /**
-    * TODO remove duplicates
+    * TODO remove duplicate from GeneralGenerator thingens dingens
     *
     * Takes a camel cased identifier name and returns an underscore separated
     * name
