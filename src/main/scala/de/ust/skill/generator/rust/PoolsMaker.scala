@@ -118,7 +118,13 @@ trait PoolsMaker extends GeneralOutputMaker {
     e"""pub trait ${cap_base}T : $superTrait {
        |    ${
       (for (f ← base.getFields.asScala) yield {
-        e"""fn get_${f.getName.lower()}(&self) -> ${mapType(f.getType)};
+        e"""fn get_${f.getName.lower()}(&self) -> ${
+          if (returnByRef(f.getType)) {
+            "&" + mapType(f.getType)
+          } else {
+            mapType(f.getType)
+          }
+        };
 fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType)});
 """.stripMargin
       }
@@ -130,18 +136,18 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
   private final def genGetSetImpl(field: Field): String = {
     val low_field = field.getName.lower()
 
-    e"""fn get_$low_field(&self) -> ${mapType(field.getType)} {
-       |    self.${
-      field.getType match {
-        case _: UserType                            ⇒
-          e"$low_field.clone()"
-        case t: GroundType
-          if t.getName.lower().equals("annotation") ⇒
-          e"$low_field.clone()"
-        case t if isPtr(t)                          ⇒
-          e"$low_field.clone()"
-        case _                                      ⇒
-          low_field
+    e"""fn get_$low_field(&self) -> ${
+      if (returnByRef(field.getType)) {
+        "&" + mapType(field.getType)
+      } else {
+        mapType(field.getType)
+      }
+    } {
+       |    ${
+      if (returnByRef(field.getType)) {
+        e"&self.$low_field"
+      } else {
+        e"self.$low_field"
       }
     }
        |}
@@ -184,7 +190,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
        |${
       // Impl super
       var parent = base.getSuperType
-      var ret = new StringBuilder()
+      val ret = new StringBuilder()
 
       while (parent != null) {
         ret.append(
@@ -857,7 +863,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
            |    for _ in 0..${t.getLength} {
            |        vec.push(${genFieldReaderImplFieldReaderRead(t.getBaseType, user)});
            |    }
-           |    Ptr::new(vec)
+           |    vec
            |}
            |""".stripMargin
       case t: VariableLengthArrayType             ⇒
@@ -868,7 +874,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
            |    for _ in 0..elements {
            |        vec.push(${genFieldReaderImplFieldReaderRead(t.getBaseType, user)});
            |    }
-           |    Ptr::new(vec)
+           |    vec
            |}
            |""".stripMargin
       case t: ListType                            ⇒
@@ -878,7 +884,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
            |    for _ in 0..elements {
            |        list.push_back(${genFieldReaderImplFieldReaderRead(t.getBaseType, user)});
            |    }
-           |    Ptr::new(list)
+           |    list
            |}
            |""".stripMargin
       case t: SetType                             ⇒
@@ -889,7 +895,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
            |    for _ in 0..elements {
            |        set.insert(${genFieldReaderImplFieldReaderRead(t.getBaseType, user)});
            |    }
-           |    Ptr::new(set)
+           |    set
            |}
            |""".stripMargin
       case t: MapType                             ⇒
@@ -935,7 +941,7 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
          |            ${genFieldReaderImplFieldReaderReadMap(remainder, user)}
          |        );
          |    }
-         |    Ptr::new(map)
+         |    map
          |}""".stripMargin
     } else {
       genFieldReaderImplFieldReaderRead(key.head, user)
@@ -985,11 +991,11 @@ fn set_${f.getName.lower()}(&mut self, ${f.getName.lower()}: ${mapType(f.getType
     }
   }
 
-
-  private final def isPtr(t: Type): Boolean = t match {
+  private final def returnByRef(t: Type): Boolean = t match {
     case t: GroundType ⇒ t.getSkillName match {
-      case "string" ⇒ true
-      case _        ⇒ false
+      case "string"     ⇒ true
+      case "annotation" ⇒ true
+      case _            ⇒ false
     }
 
     case _: ConstantLengthArrayType ⇒ true

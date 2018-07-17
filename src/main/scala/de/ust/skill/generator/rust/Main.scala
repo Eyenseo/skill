@@ -58,18 +58,17 @@ final class Main extends FakeMain
       case "f32" ⇒ "f32"
       case "f64" ⇒ "f64"
 
-      case "string" ⇒ "Rc<String>"
+      case "string"     ⇒ "Rc<String>"
       case "annotation" ⇒ "Option<Ptr<SkillObject>>"
 
       case _ ⇒ throw new GeneratorException(s"Unhandled type $t")
     }
 
-    // TODO remove ptr
-    case t: ConstantLengthArrayType ⇒ s"Ptr<Vec<${mapType(t.getBaseType)}>>"
-    case t: VariableLengthArrayType ⇒ s"Ptr<Vec<${mapType(t.getBaseType)}>>"
-    case t: ListType                ⇒ s"Ptr<LinkedList<${mapType(t.getBaseType)}>>"
-    case t: SetType                 ⇒ s"Ptr<HashSet<${mapType(t.getBaseType)}>>"
-    case t: MapType                 ⇒ t.getBaseTypes.map(mapType).reduceRight((k, v) ⇒ s"Ptr<HashMap<$k, $v>>")
+    case t: ConstantLengthArrayType ⇒ s"Vec<${mapType(t.getBaseType)}>"
+    case t: VariableLengthArrayType ⇒ s"Vec<${mapType(t.getBaseType)}>"
+    case t: ListType                ⇒ s"LinkedList<${mapType(t.getBaseType)}>"
+    case t: SetType                 ⇒ s"HashSet<${mapType(t.getBaseType)}>"
+    case t: MapType                 ⇒ t.getBaseTypes.map(mapType).reduceRight((k, v) ⇒ s"HashMap<$k, $v>")
 
     case t: UserType ⇒ s"Option<Ptr<${t.getName.capital()}T>>" // TODO are we able to infer Struct vs Type?
 
@@ -156,11 +155,11 @@ final class Main extends FakeMain
       }
 
 
-      case _: ConstantLengthArrayType ⇒ "Ptr::default()" // TODO Ptr not needed here
-      case _: VariableLengthArrayType ⇒ "Ptr::default()" // TODO Ptr not needed here
-      case _: ListType                ⇒ "Ptr::default()" // TODO Ptr not needed here
-      case _: SetType                 ⇒ "Ptr::default()" // TODO Ptr not needed here
-      case _: MapType                 ⇒ "Ptr::default()" // TODO Ptr not needed here
+      case _: ConstantLengthArrayType ⇒ "Vec::default()"
+      case _: VariableLengthArrayType ⇒ "Vec::default()"
+      case _: ListType                ⇒ "LinkedList::default()"
+      case _: SetType                 ⇒ "HashSet::default()"
+      case _: MapType                 ⇒ "HashMap::default()"
 
       case _: UserType ⇒ "None"
 
@@ -219,15 +218,15 @@ final class Main extends FakeMain
         })(i.$fName, dataChunk)"
 
         case t: MapType ⇒ locally {
-                                    s"for(i ← outData) ${
-                                      t.getBaseTypes.map {
-                                                           case t: Declaration ⇒ s"userRef[${mapType(t)}]"
-                                                           case b              ⇒ b.getSkillName
-                                                         }.reduceRight { (t, v) ⇒
-                                        s"writeMap($t, $v)"
-                                                                       }
-                                    }(i.$fName, dataChunk)"
-                                  }
+          s"for(i ← outData) ${
+            t.getBaseTypes.map {
+              case t: Declaration ⇒ s"userRef[${mapType(t)}]"
+              case b              ⇒ b.getSkillName
+            }.reduceRight { (t, v) ⇒
+              s"writeMap($t, $v)"
+            }
+          }(i.$fName, dataChunk)"
+        }
       }
     }
   }
@@ -272,9 +271,9 @@ object EscapeFunction {
     case t if t.forall(c ⇒ '_' == c || Character.isLetterOrDigit(c)) ⇒ t
 
     case _ ⇒ target.map {
-                          case 'Z'                                           ⇒ "ZZ"
-                          case c if '_' == c || Character.isLetterOrDigit(c) ⇒ "" + c
-                          case c                                             ⇒ "Z" + c.formatted("%04X")
-                        }.mkString
+      case 'Z'                                           ⇒ "ZZ"
+      case c if '_' == c || Character.isLetterOrDigit(c) ⇒ "" + c
+      case c                                             ⇒ "Z" + c.formatted("%04X")
+    }.mkString
   }
 }
