@@ -66,6 +66,7 @@ class GenericTests extends common.GenericTests {
                               // "constants",
                               // "container",
                               // "custom",
+                              // "empty",
                               // "enums", // TODO - is this really successful?
                               // "escaping",
                               // "fancy",
@@ -80,7 +81,6 @@ class GenericTests extends common.GenericTests {
                               // "unicode",
                               // "user",
 
-                              "empty", // FIXME Broken generator
                               "graph", // FIXME Broken generator
                               "unknown", // FIXME Broken generator
                             )

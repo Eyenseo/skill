@@ -261,7 +261,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |        type_id: usize,
        |        super_pool: Option<Rc<RefCell<InstancePool>>>,
        |    ) -> Rc<RefCell<InstancePool>> {
-       |        match type_name.as_ref() {
+       |        match type_name {
        |            ${
       (for (base ← IR) yield {
         e""""${field(base)}" => {
