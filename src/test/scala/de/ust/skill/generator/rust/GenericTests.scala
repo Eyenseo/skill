@@ -69,6 +69,7 @@ class GenericTests extends common.GenericTests {
                               // "fancy",
                               // "floats",
                               // "hintsAll", // TODO - is this really successful?
+                              // "map3",
                               // "number",
                               // "subtypes",
                               // "unicode",
@@ -79,7 +80,6 @@ class GenericTests extends common.GenericTests {
                               "enums", // FIXME Broken generator
                               "graph", // FIXME Broken generator
                               "graphInterface", // FIXME Broken generator
-                              "map3", // FIXME Broken generator
                               "restrictionsAll", // FIXME Broken generator
                               "restrictionsCore", // FIXME Broken generator
                               "unknown", // FIXME Broken generator

@@ -571,14 +571,14 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
           t.getLength
         })!", length);
            |}
-           |match *box_v {
+           |match **box_v {
            |  ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(t.getBaseType)}
-           |  _ => panic!("Expected: ${mapTypeToUser(t.getBaseType)} Found: {}", *box_v)
+           |  _ => panic!("Expected: ${mapTypeToUser(t.getBaseType)} Found: {}", **box_v)
            |}""".stripMargin
       case t: SingleBaseTypeContainer ⇒
-        e"""match *box_v {
+        e"""match **box_v {
            |    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(t.getBaseType)}
-           |    _ => panic!("Expected: ${mapTypeToUser(t.getBaseType)} Found: {}", *box_v)
+           |    _ => panic!("Expected: ${mapTypeToUser(t.getBaseType)} Found: {}", **box_v)
            |}""".stripMargin
       case t: MapType                 ⇒
         e"""${genPoolImplInstancePoolAddFieldFieldUnwrapValidateMap(t.getBaseTypes.asScala.toList)}
@@ -587,7 +587,7 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
         e"""|${mapTypeToMagicMatch(t)} => {},
             |""".stripMargin
       case _: UserType                ⇒
-        e"""|FieldType::User(ref mut object_reader, _) => object_readers.push(object_reader.clone()),
+        e"""|FieldType::User(ref object_reader, _) => object_readers.push(object_reader.clone()),
             |""".stripMargin
       case _                          ⇒
         throw new GeneratorException("Unexpected field type")
@@ -916,10 +916,10 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
   }
 
   private final def mapTypeToMagicMatch(t: Type): String = t match {
-    case _: ConstantLengthArrayType ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(length, mut box_v))"
-    case _: MapType                 ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(ref mut key_box_v, ref mut box_v))"
+    case _: ConstantLengthArrayType ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(length, ref box_v))"
+    case _: MapType                 ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(ref key_box_v, ref box_v))"
     case _@(_: VariableLengthArrayType | _: ListType | _: SetType)
-                                    ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(mut box_v))"
+                                    ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(ref box_v))"
     case _: UserType                ⇒ e"""FieldType::User(pool, type_id)"""
     case _                          ⇒ e"""FieldType::BuildIn(${mapTypeToMagic(t)})"""
   }
