@@ -507,7 +507,7 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
        |    &mut self,
        |    name_id: usize,
        |    field_name: &str,
-       |    field_type: FieldType,
+       |    mut field_type: FieldType,
        |    chunk: FieldChunk,
        |) {
        |    match field_name {
@@ -587,7 +587,7 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
         e"""|${mapTypeToMagicMatch(t)} => {},
             |""".stripMargin
       case _: UserType                ⇒
-        e"""|FieldType::User(object_reader, _) => object_readers.push(object_reader.clone()),
+        e"""|FieldType::User(ref mut object_reader, _) => object_readers.push(object_reader.clone()),
             |""".stripMargin
       case _                          ⇒
         throw new GeneratorException("Unexpected field type")
@@ -916,10 +916,10 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
   }
 
   private final def mapTypeToMagicMatch(t: Type): String = t match {
-    case _: ConstantLengthArrayType ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(length, box_v))"
-    case _: MapType                 ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(ref key_box_v, ref box_v))"
+    case _: ConstantLengthArrayType ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(length, mut box_v))"
+    case _: MapType                 ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(ref mut key_box_v, ref mut box_v))"
     case _@(_: VariableLengthArrayType | _: ListType | _: SetType)
-                                    ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(box_v))"
+                                    ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(mut box_v))"
     case _: UserType                ⇒ e"""FieldType::User(pool, type_id)"""
     case _                          ⇒ e"""FieldType::BuildIn(${mapTypeToMagic(t)})"""
   }
