@@ -9,6 +9,7 @@ import de.ust.skill.generator.common.Generator
 import de.ust.skill.ir._
 import de.ust.skill.ir.restriction.CodingRestriction
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
@@ -23,13 +24,19 @@ object GeneralOutputMaker {
     * https://gist.github.com/sidharthkuruvila/3154845
     */
   final def snakeCase(text: String): String = {
-    text.drop(1).foldLeft(
-                           text.headOption.map(_.toLower + "")
-                           getOrElse ""
-                         ) {
-      case (acc, c) if c.isUpper => acc + "_" + c.toLower
-      case (acc, c)              => acc + c
+    @tailrec
+    def go(accDone: List[Char], acc: List[Char]): List[Char] = acc match {
+      case Nil                                                        =>
+        accDone
+      case a :: b :: c :: tail if a.isUpper && b.isUpper && c.isLower =>
+        go(accDone ++ List(a, '_', b, c), tail)
+      case a :: b :: tail if a.isLower && b.isUpper                   =>
+        go(accDone ++ List(a, '_', b), tail)
+      case a :: tail                                                  =>
+        go(accDone :+ a, tail)
     }
+
+    go(Nil, text.toList).mkString.toLowerCase
   }
 }
 
@@ -126,7 +133,9 @@ trait GeneralOutputMaker extends Generator {
   }
 
   protected def literal_field(s: String): String = snakeCase(escaped(s).toLowerCase)
+
   protected def literal_field(t: Type): String = literal_field(t.getName.camel())
+
   protected def literal_field(f: Field): String = literal_field(f.getName.camel())
 
   protected def field(t: Type): String = snakeCase(escaped(t.getName.camel()).toLowerCase)
