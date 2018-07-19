@@ -44,7 +44,6 @@ class APITests extends common.GenericAPITests {
                                    "-c",
                                    "-L", "rust",
                                    "-p", name,
-                                   "-Orust:revealSkillID=true",
                                    "-o", "testsuites/rust/" + name) ++ options)
   }
 

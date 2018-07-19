@@ -97,7 +97,6 @@ class GenericTests extends common.GenericTests {
   override def callMainFor(name: String,
                            source: String,
                            options: Seq[String]) {
-    // TODO remove / extend
     if (skipGeneration.contains(name)) {
       println("Generic Skip: " + name)
       return
@@ -106,14 +105,12 @@ class GenericTests extends common.GenericTests {
                                     "--debug-header",
                                     "-L", "rust",
                                     "-p", name,
-                                    "-Orust:revealSkillID=true",
                                     "-o", "testsuites/rust/" + name) ++ options)
   }
 
   override def finalizeTests() {
     val pw = new PrintWriter(new File("testsuites/rust/Cargo.toml"))
     // FIXME hardcoded path
-    // TODO move to separate file and share with other tests
     pw.write(
               """[workspace]
                 |members = [""".stripMargin
@@ -127,25 +124,7 @@ class GenericTests extends common.GenericTests {
     pw.close()
   }
 
-  /**
-    * TODO remove duplicate from GeneralGenerator thingens dingens
-    *
-    * Takes a camel cased identifier name and returns an underscore separated
-    * name
-    *
-    * Example:
-    * camelToUnderscores("thisIsA1Test") == "this_is_a_1_test"
-    *
-    * https://gist.github.com/sidharthkuruvila/3154845
-    */
-  def snakeCase(text: String): String = {
-    text.drop(1).foldLeft(
-                           text.headOption.map(_.toLower + "")
-                           getOrElse "") {
-      case (acc, c) if c.isUpper => acc + "_" + c.toLower
-      case (acc, c)              => acc + c
-    }
-  }
+  def snakeCase(str: String): String = GeneralOutputMaker.snakeCase(str)
 
   def newTestFile(packagePath: String, name: String): PrintWriter = {
     val packageName = packagePath.split("/").map(EscapeFunction.apply).mkString("::")
@@ -212,11 +191,9 @@ class GenericTests extends common.GenericTests {
   }
 
   override def makeTests(name: String) {
-    // TODO remove / extend
     if (skipGeneration.contains(name)) {
       return
     }
-
 
     val (accept, reject) = collectBinaries(name)
 

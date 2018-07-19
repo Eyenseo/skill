@@ -11,7 +11,6 @@ trait SkillFileMaker extends GeneralOutputMaker {
   abstract override def make {
     super.make
 
-    // TODO add stuff
     makeSource()
   }
 

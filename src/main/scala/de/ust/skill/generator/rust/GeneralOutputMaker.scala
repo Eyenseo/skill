@@ -9,10 +9,10 @@ import de.ust.skill.generator.common.Generator
 import de.ust.skill.ir._
 import de.ust.skill.ir.restriction.CodingRestriction
 
-import scala.collection.JavaConversions.`deprecated asScalaBuffer`
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 
-trait GeneralOutputMaker extends Generator {
+object GeneralOutputMaker {
   /**
     * Takes a camel cased identifier name and returns an underscore separated
     * name
@@ -22,20 +22,21 @@ trait GeneralOutputMaker extends Generator {
     *
     * https://gist.github.com/sidharthkuruvila/3154845
     */
-  def snakeCase(text: String): String = {
+  final def snakeCase(text: String): String = {
     text.drop(1).foldLeft(
                            text.headOption.map(_.toLower + "")
-                           getOrElse "") {
+                           getOrElse ""
+                         ) {
       case (acc, c) if c.isUpper => acc + "_" + c.toLower
       case (acc, c)              => acc + c
     }
   }
+}
 
-  final protected val endGuard    : String                     =
-    """
-#endif"""
-  protected lazy  val packageParts: Array[String]              = packagePrefix().split("\\.").map(escaped)
-  protected lazy  val packageName : String                     = packageParts.mkString("_")
+trait GeneralOutputMaker extends Generator {
+
+  protected lazy val packageParts: Array[String]              = packagePrefix().split("\\.").map(escaped)
+  protected lazy val packageName : String                     = packageParts.mkString("_")
   /**
     * all string literals used in type and field names
     *
@@ -43,11 +44,15 @@ trait GeneralOutputMaker extends Generator {
     * @note second set are strings that will be created and unified by the skill
     *       file.
     */
-  protected lazy  val allStrings  : (Set[String], Set[String]) = {
+  protected lazy val allStrings  : (Set[String], Set[String]) = {
     val types = IR.map(_.getSkillName).toSet
     val fields =
-      IR.flatMap(_.getFields).map(_.getSkillName).toSet ++
-      IR.flatMap(_.getFields).flatMap(_.getRestrictions).collect { case f: CodingRestriction ⇒ f }.map(_.getValue)
+      IR.flatMap(_.getFields.asScala)
+      .map(_.getSkillName).toSet ++
+      IR.flatMap(_.getFields.asScala)
+      .flatMap(_.getRestrictions.asScala)
+      .collect { case f: CodingRestriction ⇒ f }
+      .map(_.getValue)
       .toSet --
       types
 
@@ -59,7 +64,7 @@ trait GeneralOutputMaker extends Generator {
     * @note the same interface can be sub and super, iff the type is a base type;
     *       in that case, super wins!
     */
-  protected       val interfaceCheckMethods                    = new mutable.HashMap[String, mutable.HashSet[String]]
+  protected      val interfaceCheckMethods                    = new mutable.HashMap[String, mutable.HashSet[String]]
 
   // options
   /**
@@ -72,10 +77,7 @@ trait GeneralOutputMaker extends Generator {
     * This flag is set iff the specification is too large to be passed as parameter list
     */
   var largeSpecificationMode = false
-  /**
-    * If set to true, the generated binding will reveal the values of skill IDs.
-    */
-  protected var revealSkillID   = false
+
   /**
     * If set to true, the generated API will contain is_interface methods.
     * These methods return true iff the type implements that interface.
@@ -87,86 +89,71 @@ trait GeneralOutputMaker extends Generator {
   // remove special stuff
   final def setTC(tc: TypeContext) {
     this.types = tc
-    this.IR = tc.removeSpecialDeclarations().getUsertypes.to
+    this.IR = tc.removeSpecialDeclarations().getUsertypes.asScala.to
     // set large specification mode; leave some spare parameters
     largeSpecificationMode = IR.size > 200
 
     // filter implemented interfaces from original IR
     if (interfaceChecks) {
-      filterIntarfacesFromIR()
+      filterInterfacesFromIR()
     }
   }
 
   override def getLanguageName: String = "rust"
 
-  protected def filterIntarfacesFromIR()
+  protected def filterInterfacesFromIR()
 
   /**
     * Assume the existence of a translation function for types.
     */
   protected def mapType(t: Type): String
 
-  /**
-    * Returns the selector required to turn a box into a useful type.
-    *
-    * @note does not include . or -> to allow usage in both cases
-    */
-  protected def unbox(t: Type): String
-
-  /**
-    * creates argument list of a constructor call, not including potential skillID or braces
-    */
-  protected def makeConstructorArguments(t: UserType): String
-
-  /**
-    * creates argument list of a constructor call, including a trailing comma for insertion into an argument list
-    */
-  protected def appendConstructorArguments(t: UserType): String
-
-  /**
-    * turns a declaration and a field into a string writing that field into an outStream
-    *
-    * @note the used iterator is "outData"
-    * @note the used target OutStream is "dataChunk"
-    */
-  protected def writeField(d: UserType, f: Field): String
-
-  // FIXME use this ...
   protected def storagePool(t: Type): String = escaped(t.getName.capital + "Pool")
 
-  protected def subPool(t: Type): String = escaped(t.getName.capital + "SubPool")
+  protected def fieldReader(t: Type, f: Field): String = escaped(t.getName.capital + f.getName.capital()) +
+                                                         "FieldReader"
 
-  protected def name(f: Field): String = snakeCase(escaped(f.getName.camel)).toLowerCase
+  protected def readName(t: Type): String = t match {
+    case t: GroundType ⇒ t.getName.lower
 
-  protected def internalName(f: Field): String = escaped("_" + f.getName.camel())
+    case _: ConstantLengthArrayType ⇒ "array"
+    case _: VariableLengthArrayType ⇒ "list"
+    case _: ListType                ⇒ "list"
+    case _: SetType                 ⇒ "set"
+    case _: MapType                 ⇒ "map"
 
-  protected def knownField(f: Field): String = escaped(s"KnownField_${f.getDeclaredIn.getName.capital()}_${
-    f.getName.camel()
-  }")
-
-  protected def name(f: LanguageCustomization): String = escaped(f.getName.camel)
-
-  /**
-    * Assume a package prefix provider.
-    */
-  protected def packagePrefix(): String
-
-  /**
-    * start a guard word for a file
-    */
-  final protected def beginGuard(t: Type): String = beginGuard(escaped(name(t)))
-
-  /**
-    * Translation of a type to its representation in the source code
-    */
-  protected def name(t: Type): String = escaped(t.getName.capital)
+    case _ ⇒ throw new GeneratorException(s"Type '$t' is not supported for reading")
+  }
 
   protected def field(t: Type): String = snakeCase(escaped(t.getName.camel()).toLowerCase)
 
   protected def traitName(t: Type): String = escaped(t.getName.capital) + "T"
 
-  protected def fieldReader(t: Type, f: Field): String = escaped(t.getName.capital + f.getName.capital()) +
-                                                         "FieldReader"
+  protected def name(t: Type): String = escaped(t.getName.capital)
 
-  final protected def beginGuard(word: String): String = ""
+  protected def name(f: Field): String = snakeCase(escaped(f.getName.camel)).toLowerCase
+
+  protected def name(f: LanguageCustomization): String = escaped(f.getName.camel)
+
+  // FIXME use this for the fields that clash with the users
+  protected def internalName(f: Field): String = escaped("_" + f.getName.camel())
+
+  protected final def snakeCase(str: String): String = GeneralOutputMaker.snakeCase(str)
+
+  /**
+    * @param t Type to get the list of super types for
+    * @return A list of all super types a given type t has
+    */
+  protected final def getAllSuperTypes(t: UserType): List[Type] = {
+    if (t.getSuperType != null) {
+      getAllSuperTypes(t.getSuperType) ::: List[UserType](t)
+    } else {
+      List[UserType](t)
+    }
+  }.distinct
+
+  /**
+    * Assume a package prefix provider.
+    */
+  protected def packagePrefix(): String
 }

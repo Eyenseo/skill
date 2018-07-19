@@ -8,7 +8,7 @@ package de.ust.skill.generator.rust
 import de.ust.skill.ir._
 import de.ust.skill.main.HeaderInfo
 
-import scala.collection.JavaConversions.asScalaBuffer
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 /**
@@ -19,12 +19,9 @@ abstract class FakeMain extends GeneralOutputMaker {
 }
 
 final class Main extends FakeMain
-                 // with FieldDeclarationsMaker
                  with SkillFileMaker
-                 // with StringKeeperMaker
                  with PoolsMaker
                  with LibMaker
-                 // with TypesMaker
                  with PtrMaker
                  with DependenciesMaker {
   lineLength = 100
@@ -68,9 +65,9 @@ final class Main extends FakeMain
     case t: VariableLengthArrayType ⇒ s"Vec<${mapType(t.getBaseType)}>"
     case t: ListType                ⇒ s"LinkedList<${mapType(t.getBaseType)}>"
     case t: SetType                 ⇒ s"HashSet<${mapType(t.getBaseType)}>"
-    case t: MapType                 ⇒ t.getBaseTypes.map(mapType).reduceRight((k, v) ⇒ s"HashMap<$k, $v>")
+    case t: MapType                 ⇒ t.getBaseTypes.asScala.map(mapType).reduceRight((k, v) ⇒ s"HashMap<$k, $v>")
 
-    case t: UserType ⇒ s"Option<Ptr<${traitName(t)}>>" // TODO are we able to infer Struct vs Type?
+    case t: UserType ⇒ s"Option<Ptr<${traitName(t)}>>"
 
     case _ ⇒ throw new GeneratorException(s"Unknown type $t")
   }
@@ -84,7 +81,6 @@ final class Main extends FakeMain
 
   override def setOption(option: String, value: String) {
     option match {
-      case "revealskillid"   ⇒ revealSkillID = "true".equals(value)
       case "interfacechecks" ⇒ interfaceChecks = "true".equals(value)
       case unknown           ⇒ throw new GeneratorException(s"unknown Argument: $unknown")
     }
@@ -92,7 +88,6 @@ final class Main extends FakeMain
 
   override def helpText: String =
     """
-      |revealSkillID     true/false  if set to true, the generated binding will reveal SKilL IDs in the API
       |interfaceChecks   true/false  if set to true, the generated API will contain is[[interface]] methods
       |""".stripMargin
 
@@ -107,37 +102,6 @@ final class Main extends FakeMain
     result
   })
 
-  override protected def unbox(t: Type): String = t match {
-    case t: GroundType ⇒ t.getName.lower
-
-    case _: ConstantLengthArrayType ⇒ "array"
-    case _: VariableLengthArrayType ⇒ "list"
-    case _: ListType                ⇒ "list"
-    case _: SetType                 ⇒ "set"
-    case _: MapType                 ⇒ "map"
-
-    //    case _: Declaration ⇒ "annotation"
-
-    case _ ⇒ throw new GeneratorException(s"Unknown type $t")
-  }
-
-  /**
-    * creates argument list of a constructor call, not including potential skillID or braces
-    */
-  override protected def makeConstructorArguments(t: UserType): String =
-    (for (f ← t.getAllFields if !(f.isConstant || f.isIgnored)) yield {
-      s"${escaped(f.getName.camel)} : ${mapType(f.getType)}"
-    }).mkString(", ")
-
-  override protected def appendConstructorArguments(t: UserType): String = {
-    val r = t.getAllFields.filterNot { f ⇒ f.isConstant || f.isIgnored }
-    if (r.isEmpty) {
-      ""
-    } else {
-      r.map({ f ⇒ s"${escaped(f.getName.camel)} : ${mapType(f.getType)}" }).mkString(", ", ", ", "")
-    }
-  }
-
   /**
     * provides the package prefix
     */
@@ -149,11 +113,10 @@ final class Main extends FakeMain
         case "i8" | "i16" | "i32" | "i64" | "v64" ⇒ "0"
         case "f32" | "f64"                        ⇒ "0.0"
         case "bool"                               ⇒ "false"
-        case "string"                             ⇒ "Rc::default()" // FIXME string
+        case "string"                             ⇒ "Rc::default()"
         case "annotation"                         ⇒ "None"
         case _                                    ⇒ throw new GeneratorException(s"Unhandled type $t")
       }
-
 
       case _: ConstantLengthArrayType ⇒ "Vec::default()"
       case _: VariableLengthArrayType ⇒ "Vec::default()"
@@ -166,68 +129,14 @@ final class Main extends FakeMain
       case t ⇒ throw new GeneratorException(s"Unknown type $t")
     }
 
-  protected def filterIntarfacesFromIR() {
+  protected def filterInterfacesFromIR() {
     // find implementers
     val ts = types.removeTypedefs()
-    for (t ← ts.getUsertypes) {
-      val is: mutable.HashSet[InterfaceType] = t.getSuperInterfaces
+    for (t ← ts.getUsertypes.asScala) {
+      val is: mutable.HashSet[InterfaceType] = t.getSuperInterfaces.asScala
                                                .flatMap(recursiveSuperInterfaces(_, new mutable.HashSet[InterfaceType]))
                                                .to
       interfaceCheckImplementations(t.getSkillName) = is.map(insertInterface(_, t))
-    }
-  }
-
-  protected def writeField(d: UserType, f: Field): String = {
-    val fName = escaped(f.getName.camel)
-
-    if (f.isConstant) {
-      "// constants do not write individual field data"
-    } else {
-      f.getType match {
-        case t: GroundType ⇒ t.getSkillName match {
-          case "annotation" | "string" ⇒ s"for(i ← outData) ${f.getType.getSkillName}(i.$fName, dataChunk)"
-          case _                       ⇒ s"for(i ← outData) dataChunk.${f.getType.getSkillName}(i.$fName)"
-
-        }
-
-        case _: Declaration ⇒ s"""for(i ← outData) userRef(i.$fName, dataChunk)"""
-
-        case t: ConstantLengthArrayType ⇒ s"for(i ← outData) writeConstArray(${
-          t.getBaseType match {
-            case t: Declaration ⇒ s"userRef[${mapType(t)}]"
-            case b              ⇒ b.getSkillName
-          }
-        })(i.$fName, dataChunk)"
-        case t: VariableLengthArrayType ⇒ s"for(i ← outData) writeVarArray(${
-          t.getBaseType match {
-            case t: Declaration ⇒ s"userRef[${mapType(t)}]"
-            case b              ⇒ b.getSkillName
-          }
-        })(i.$fName, dataChunk)"
-        case t: SetType                 ⇒ s"for(i ← outData) writeSet(${
-          t.getBaseType match {
-            case t: Declaration ⇒ s"userRef[${mapType(t)}]"
-            case b              ⇒ b.getSkillName
-          }
-        })(i.$fName, dataChunk)"
-        case t: ListType                ⇒ s"for(i ← outData) writeList(${
-          t.getBaseType match {
-            case t: Declaration ⇒ s"userRef[${mapType(t)}]"
-            case b              ⇒ b.getSkillName
-          }
-        })(i.$fName, dataChunk)"
-
-        case t: MapType ⇒ locally {
-          s"for(i ← outData) ${
-            t.getBaseTypes.map {
-              case t: Declaration ⇒ s"userRef[${mapType(t)}]"
-              case b              ⇒ b.getSkillName
-            }.reduceRight { (t, v) ⇒
-              s"writeMap($t, $v)"
-            }
-          }(i.$fName, dataChunk)"
-        }
-      }
     }
   }
 
@@ -247,7 +156,7 @@ final class Main extends FakeMain
   private def recursiveSuperInterfaces(i: InterfaceType,
                                        r: mutable.HashSet[InterfaceType]): mutable.HashSet[InterfaceType] = {
     r += i
-    for (s ← i.getSuperInterfaces) {
+    for (s ← i.getSuperInterfaces.asScala) {
       recursiveSuperInterfaces(s, r)
     }
     r
@@ -256,7 +165,7 @@ final class Main extends FakeMain
 
 object EscapeFunction {
   def apply(target: String): String = target match {
-    // keywords get a suffix "Z_" -- just "_" doens't work in rust as that will cause a warning
+    // keywords get a suffix "Z_" -- just "_" doesn't work in rust as that will cause a warning
     // for bad snake case -- because that way at least auto-completion will work almost as expected
     case
       // Used throughout the generator

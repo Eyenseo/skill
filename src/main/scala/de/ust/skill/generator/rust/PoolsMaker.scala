@@ -38,7 +38,6 @@ trait PoolsMaker extends GeneralOutputMaker {
   //----------------------------------------
   // Usage
   //----------------------------------------
-  // TODO turn off warning for unused
   private final def genUsage(base: UserType): String = {
     e"""use common::internal::InstancePool;
        |use common::internal::LazyFieldReader;
@@ -589,7 +588,6 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
        |""".stripMargin
   }
 
-  // FIXME We need the user provided pool to access the objects - validation cant be a separate step
   private final def genPoolImplInstancePoolAddFieldFieldUnwrapValidate(tt: Type): String = {
     tt match {
       case t: ConstantLengthArrayType ⇒
@@ -629,7 +627,7 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
        |    _ => panic!("Expected: ${mapTypeToUser(key.head)} Found: {}", **key_box_v)
        |}
        |match **box_v {
-       |    ${ // FIXME Insert map match - the list only contains the contents - not the map
+       |    ${
       if (remainder.size >= 2) {
         e"""FieldType::BuildIn(BuildInType::Tmap(ref key_box_v, ref box_v)) => {
            |    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidateMap(remainder)}
@@ -684,7 +682,6 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
 
   private final def genFieldReaderImpl(base: UserType,
                                        field: Field): String = {
-    // TODO really check if an object has to be read (e.g. map<int,int> doesn't need to)
     field.getType match {
       case _: GroundType ⇒
         e"""impl ${fieldReader(base, field)} {
@@ -832,7 +829,7 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
            |}
            |""".stripMargin.trim
       case t: GroundType                          ⇒
-        e"""reader.read_${unbox(t)}()?
+        e"""reader.read_${readName(t)}()?
            |""".stripMargin
       case t: ConstantLengthArrayType             ⇒
         // TODO check that everything was read?

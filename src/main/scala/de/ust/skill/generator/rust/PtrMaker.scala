@@ -14,16 +14,6 @@ import scala.collection.JavaConverters._
 
 trait PtrMaker extends GeneralOutputMaker {
 
-  // TODO move somewhere else / Main?
-  private final def getAllSuperTypes(t: UserType): List[Type] = {
-    if (t.getSuperType != null) {
-      getAllSuperTypes(t.getSuperType) ::: List[UserType](t)
-    } else {
-      List[UserType](t)
-    }
-  }.distinct
-
-
   abstract override def make: Unit = {
     super.make
 
@@ -68,8 +58,6 @@ trait PtrMaker extends GeneralOutputMaker {
   //----------------------------------------
   // Casts
   //----------------------------------------
-  // TODO check that all casts are present and working
-  // TODO benchmark against nucast
   def genCasts(): String = {
     e"""ptr_cast_able!(SkillObject =
        |    ${
