@@ -180,8 +180,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
   }
 
   private final def genSkillFileBuilderStruct(): String = {
-    e"""#[derive(Default)]
-       |pub struct SkillFileBuilder {
+    e"""pub struct SkillFileBuilder {
        |    ${
       (for (base ← IR) yield {
         e"""pub ${field(base)}: Option<Rc<RefCell<${storagePool(base)}>>>,
@@ -209,6 +208,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |    }
        |
        |    fn allocate(&mut self, type_pools: &mut Vec<Rc<RefCell<InstancePool>>>) {
+       |        self.string_block.borrow_mut().finalize();
        |        ${
       (for (base ← IR) yield {
         e"""if self.${field(base)}.is_none() {
@@ -263,10 +263,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |        type_id: usize,
        |        super_pool: Option<Rc<RefCell<InstancePool>>>,
        |    ) -> Rc<RefCell<InstancePool>> {
-       |        match type_name {
-       |            ${
+       |        ${
       (for (base ← IR) yield {
-        e""""${field(base)}" => {
+        e"""if type_name == self.string_block.borrow().lit().${literal_field(base)}  {
            |    if self.${field(base)}.is_none() {
            |        self.${field(base)} = Some(Rc::new(RefCell::new(
            |            ${storagePool(base)}::new(self.string_block.clone())
@@ -283,7 +282,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
                |);
                |""".stripMargin.trim
           } else {
-            e"""if super_name.as_str() != "${field(base.getSuperType)}" {
+            e"""if super_name.as_ref() != self.string_block.borrow().lit().${literal_field(base.getSuperType)} {
                |    panic!(
                |        "Wrong super type for '${base.getName.camel()}' aka '${name(base)}' expect:${
               field(base.getSuperType)
@@ -314,31 +313,28 @@ trait SkillFileMaker extends GeneralOutputMaker {
            |    ${field(base)}.set_type_id(type_id);
            |    ${field(base)}.set_type_name_index(type_name_index);
            |    self.${field(base)}.as_ref().unwrap().clone()
-           |},
-           |""".stripMargin
-      }).mkString.trim
-    }
-       |            _ => {
-       |                for pool in self.undefined_pools.iter() {
-       |                    if pool.borrow().get_type_id() == type_id {
-       |                        return pool.clone();
-       |                    }
+           |} else """.stripMargin
+      }).mkString
+    }{
+       |            for pool in self.undefined_pools.iter() {
+       |                if pool.borrow().get_type_id() == type_id {
+       |                    return pool.clone();
        |                }
-       |                let pool = Rc::new(RefCell::new(UndefinedPool::new(
-       |                    self.string_block.clone(),
-       |                )));
-       |                {
-       |                    let mut pool = pool.borrow_mut();
-       |                    pool.set_type_id(type_id);
-       |                    pool.set_type_name_index(type_name_index);
-       |                }
-       |                if let Some(super_pool) = super_pool {
-       |                    super_pool.borrow_mut().add_sub(pool.clone());
-       |                    pool.borrow_mut().set_super(super_pool);
-       |                }
-       |                self.undefined_pools.push(pool.clone());
-       |                pool
        |            }
+       |            let pool = Rc::new(RefCell::new(UndefinedPool::new(
+       |                self.string_block.clone(),
+       |            )));
+       |            {
+       |                let mut pool = pool.borrow_mut();
+       |                pool.set_type_id(type_id);
+       |                pool.set_type_name_index(type_name_index);
+       |            }
+       |            if let Some(super_pool) = super_pool {
+       |                super_pool.borrow_mut().add_sub(pool.clone());
+       |                pool.borrow_mut().set_super(super_pool);
+       |            }
+       |            self.undefined_pools.push(pool.clone());
+       |            pool
        |        }
        |    }
        |

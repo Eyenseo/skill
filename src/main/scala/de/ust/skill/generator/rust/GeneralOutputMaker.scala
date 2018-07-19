@@ -125,6 +125,10 @@ trait GeneralOutputMaker extends Generator {
     case _ ⇒ throw new GeneratorException(s"Type '$t' is not supported for reading")
   }
 
+  protected def literal_field(s: String): String = snakeCase(escaped(s).toLowerCase)
+  protected def literal_field(t: Type): String = literal_field(t.getName.camel())
+  protected def literal_field(f: Field): String = literal_field(f.getName.camel())
+
   protected def field(t: Type): String = snakeCase(escaped(t.getName.camel()).toLowerCase)
 
   protected def traitName(t: Type): String = escaped(t.getName.capital) + "T"

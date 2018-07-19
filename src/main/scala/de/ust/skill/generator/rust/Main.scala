@@ -23,7 +23,8 @@ final class Main extends FakeMain
                  with PoolsMaker
                  with LibMaker
                  with PtrMaker
-                 with DependenciesMaker {
+                 with DependenciesMaker
+                 with LiteralKeeper {
   lineLength = 100
 
   /**

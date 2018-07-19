@@ -89,7 +89,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        |${genTypeTrait(base)}
        |
        |${genTypeImpl(base)}
-       |""".stripMargin.trim
+       |""".stripMargin
   }.trim
 
   private final def genTypeStruct(base: UserType): String = {
@@ -547,17 +547,14 @@ trait PoolsMaker extends GeneralOutputMaker {
        |    mut field_type: FieldType,
        |    chunk: FieldChunk,
        |) {
-       |    match field_name {
-       |        ${
+       |    ${
       (for (f ← base.getAllFields.asScala) yield {
         genPoolImplInstancePoolAddFieldField(base, f)
       }).mkString.trim
-    }
-       |        _ => {
-       |            let mut reader = Box::new(LazyFieldReader::new(name_id));
-       |            reader.as_mut().add_chunk(chunk);
-       |            self.fields.push(reader);
-       |        },
+    } {
+       |        let mut reader = Box::new(LazyFieldReader::new(name_id));
+       |        reader.as_mut().add_chunk(chunk);
+       |        self.fields.push(reader);
        |    }
        |}""".stripMargin
   }
@@ -565,8 +562,9 @@ trait PoolsMaker extends GeneralOutputMaker {
   // TODO do something about these stupid names
   private final def genPoolImplInstancePoolAddFieldField(base: UserType,
                                                          field: Field): String = {
-    e""""${field.getName.lower()}" => match field_type {
-       |    ${
+    e"""if self.string_block.borrow().lit().${literal_field(field)} == field_name {
+       |    match field_type {
+       |        ${
       field.getType match {
         case t@(_: SingleBaseTypeContainer | _: MapType) ⇒
           e"""${mapTypeToMagicMatch(t)} => {
@@ -593,9 +591,9 @@ trait PoolsMaker extends GeneralOutputMaker {
           throw new GeneratorException("Unexpected field type")
       }
     }
-       |    _ => panic!("Expected: ${mapTypeToUser(field.getType)} Found: {}", field_type)
-       |},
-       |""".stripMargin
+       |        _ => panic!("Expected: ${mapTypeToUser(field.getType)} Found: {}", field_type)
+       |    }
+       |} else """.stripMargin
   }
 
   private final def genPoolImplInstancePoolAddFieldFieldUnwrapValidate(tt: Type): String = {

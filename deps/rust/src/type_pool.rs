@@ -455,7 +455,7 @@ impl TypeBlock {
                         let tmp_blocks = pool.blocks().len();
                         pool.add_field(
                             field_id as usize,
-                            &field_name.clone(),
+                            &field_name,
                             field_type,
                             FieldChunk::from(DeclarationFieldChunk {
                                 begin: data_start,
