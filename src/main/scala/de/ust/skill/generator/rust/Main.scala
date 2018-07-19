@@ -32,10 +32,14 @@ final class Main extends FakeMain
   private val escapeCache            = new mutable.HashMap[String, String]()
   private var _packagePrefix: String = _
 
-  override def comment(d: Declaration): String = d.getComment.format("/**\n", "     * ", lineLength, "     */\n    ")
+  override def comment(d: Declaration): String = d.getComment
+                                                 .format("", "/// ", lineLength, "")
+                                                 .trim
 
   override def comment(f: FieldLike): String = f.getComment
-                                               .format("/**\n", "         * ", lineLength, "         */\n        ")
+                                               // NOTE 4 spaces indent
+                                               .format("", "/// ", lineLength - 4, "")
+                                               .trim
 
   override def packageDependentPathPostfix: String = ""
 

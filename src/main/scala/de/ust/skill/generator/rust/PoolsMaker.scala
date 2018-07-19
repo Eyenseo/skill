@@ -55,7 +55,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        |
        |${getUsageUser(base)}
        |""".stripMargin
-  }
+  }.trim
 
   private final def getUsageUser(base: UserType): String = {
     IR
@@ -64,7 +64,7 @@ trait PoolsMaker extends GeneralOutputMaker {
     .map(t ⇒ s"use ${snakeCase(storagePool(t))}::*;\n")
     .sorted
     .mkString
-  }
+  }.trim
 
   private final def getUsageStd(): String = {
     e"""
@@ -75,7 +75,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        |use std::ops::DerefMut;
        |use std::rc::Rc;
        |""".stripMargin
-  }
+  }.trim
 
   //----------------------------------------
   // Type
@@ -90,7 +90,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        |
        |${genTypeImpl(base)}
        |""".stripMargin.trim
-  }
+  }.trim
 
   private final def genTypeStruct(base: UserType): String = {
     e"""#[derive(Default, Debug,  PartialEq)]
@@ -105,7 +105,12 @@ trait PoolsMaker extends GeneralOutputMaker {
   }
 
   private final def genTypeTrait(base: UserType): String = {
-    e"""pub trait ${traitName(base)} : ${
+    var com = comment(base)
+    if (!com.isEmpty) {
+      com += "\n"
+    }
+
+    e"""${com}pub trait ${traitName(base)} : ${
       if (base.getSuperType != null) {
         traitName(base.getSuperType)
       } else {
@@ -114,19 +119,25 @@ trait PoolsMaker extends GeneralOutputMaker {
     } {
        |    ${
       (for (f ← base.getFields.asScala) yield {
-        e"""fn get_${name(f)}(&self) -> ${
+        var com = comment(f)
+        if (!com.isEmpty) {
+          com += "\n"
+        }
+
+        e"""${com}fn get_${name(f)}(&self) -> ${
           if (returnByRef(f.getType)) {
             "&" + mapType(f.getType)
           } else {
             mapType(f.getType)
           }
         };
-fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
-""".stripMargin
+           |${com}fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
+           |
+           |""".stripMargin
       }).mkString.trim
     }
        |}""".stripMargin
-  }
+  }.trim
 
   private final def genGetSetImpl(field: Field): String = {
     e"""fn get_${name(field)}(&self) -> ${
@@ -144,7 +155,6 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
       }
     }
        |}
-       |
        |fn set_${name(field)}(&mut self, value: ${mapType(field.getType)}) {
        |    self.${name(field)} = value;
        |}""".stripMargin
@@ -174,9 +184,7 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
            |""".stripMargin
       }).mkString.trim
     }
-       |}
-       |
-       |${
+       |}${
       // Impl super
       var parent = base.getSuperType
       val ret = new StringBuilder()
@@ -189,7 +197,11 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
                   )
         parent = parent.getSuperType
       }
-      ret.mkString.trim
+      if (ret.nonEmpty) {
+        s"\n\n${ret.mkString.trim}"
+      } else {
+        ""
+      }
     }
        |
        |impl SkillObject for ${name(base)} {}
@@ -222,8 +234,8 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
        |${genPoolImpl(base)}
        |
        |${genPoolImplInstancePool(base)}
-       |""".stripMargin.trim
-  }
+       |""".stripMargin
+  }.trim
 
   private final def genPoolStruct(base: UserType): String = {
     e"""#[derive(Default)]
@@ -523,7 +535,6 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
        |        );
        |        Ptr::new(${name(base)}::new())
        |    }
-       |
        |}""".stripMargin
   }
 
@@ -548,8 +559,7 @@ fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
        |            self.fields.push(reader);
        |        },
        |    }
-       |}
-       |""".stripMargin
+       |}""".stripMargin
   }
 
   // TODO do something about these stupid names
