@@ -11,7 +11,7 @@ import de.ust.skill.generator.common
 import de.ust.skill.generator.common.Indenter._
 import de.ust.skill.ir._
 import de.ust.skill.main.CommandLine
-import org.json.{JSONArray, JSONObject}
+import org.json.JSONObject
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 
@@ -24,71 +24,120 @@ class APITests extends common.GenericAPITests {
 
   var gen = new Main
 
-  class Test(val name: String, val location: String) {}
+  var generatedTests = new Array[String](0)
 
-  var generatedTests = new Array[Test](0)
+  val skipGeneration = Array(
+                              // "age",
+                              // "floats",
+                              // "number",
+                              // "unicode",
+
+                              "annotation",
+                              "auto", // TODO - is this really successful?
+                              "basicTypes",
+                              "constants",
+                              "container",
+                              "custom",
+                              "empty",
+                              "enums", // TODO - is this really successful?
+                              "escaping",
+                              "fancy",
+                              "graph",
+                              "graphInterface", // TODO - is this really successful?
+                              "hintsAll", // TODO - is this really successful?
+                              "map3",
+                              "restrictionsAll", // TODO - is this really successful?
+                              "restrictionsCore", // TODO - is this really successful?
+                              "subtypes",
+                              "unknown",
+                              "user",
+                              "",
+                            )
 
   override def deleteOutDir(out: String): Unit = {
-    // TODO is this the intended behaviour? Why are the folders shared?
+    import scala.reflect.io.Directory
+
+    val pkgEsc = escSnakeCase(out.split("/").map(EscapeFunction.apply).mkString("_"))
+    Directory(new File("testsuites/rust/", out)).deleteRecursively
   }
 
   override def callMainFor(name: String, source: String, options: Seq[String]) {
-    // TODO remove / extend
-    if (!name.equals("age") && !name.equals("number")) {
-      println("mAPI Skip: " + name)
+    if (skipGeneration.contains(name)) {
+      println("API Skip: " + name)
       return
     }
+    val pkgEsc = escSnakeCase(name.split("/").map(EscapeFunction.apply).mkString("_"))
 
     CommandLine.main(Array[String](source,
-                                   "--debug-header",
-                                   "-c",
-                                   "-L", "rust",
-                                   "-p", name,
-                                   "-o", "testsuites/rust/" + name) ++ options)
+                                    "--debug-header",
+                                    "-c",
+                                    "-L", "rust",
+                                    "-p", name,
+                                    "-o", "testsuites/rust/" + pkgEsc) ++ options)
   }
 
-  override def finalizeTests {
+  override def finalizeTests() {
     val pw = new PrintWriter(new File("testsuites/rust/Cargo.toml"))
     // FIXME hardcoded path
-    // TODO move to separate file and share with other tests
     pw.write(
               """[workspace]
                 |members = [""".stripMargin
             )
-    for (test: Test <- generatedTests) {
-      pw.write(e""""${test.name}", """.stripMargin
+    for (test ← generatedTests) {
+      pw.write(
+                e""""$test", """.stripMargin
               )
     }
     pw.write("]")
     pw.close()
   }
 
+  def snakeCase(str: String): String = GeneralOutputMaker.snakeCase(str)
+
+  def escSnakeCase(str: String): String = snakeCase(EscapeFunction.apply(str))
+
   override def newTestFile(packagePath: String, name: String): PrintWriter = {
-    val packageName = packagePath.split("/").map(EscapeFunction.apply).mkString("::")
+    if (skipGeneration.contains(packagePath)) {
+      return null
+    }
+
     gen = new Main
     gen.setPackage(List(packagePath))
 
-    generatedTests :+= new Test(packagePath, s"$packagePath/tests/generic${name}Test.rs")
+    val pkgEsc = escSnakeCase(packagePath.split("/").map(EscapeFunction.apply).mkString("_"))
 
-    val f = new File(s"testsuites/rust/$packagePath/tests/generic${name}Test.rs")
+    generatedTests :+= pkgEsc
+
+    val f = if (name.toLowerCase.equals("api")) {
+      new File(s"testsuites/rust/$pkgEsc/tests/api.rs")
+    } else {
+      new File(s"testsuites/rust/$pkgEsc/tests/api_${escSnakeCase(name)}.rs")
+    }
+
+
     f.getParentFile.mkdirs
-    if (f.exists)
+    if (f.exists) {
+      // TODO is this ... "ok"
       f.delete
+    }
     f.createNewFile
 
     val rval = new PrintWriter(new BufferedWriter(new OutputStreamWriter(new FileOutputStream(f), "UTF-8")))
     rval.write(
                 e"""#![feature(test)]
                    |
-                  |extern crate skill_common;
-                   |extern crate skill_tests;
+                   |extern crate $pkgEsc;
                    |
-                  |#[cfg(test)]
+                   |#[cfg(test)]
                    |#[allow(non_snake_case)]
-                  |#[allow(unused_must_use)]
-                  |mod tests {
-                  |    use skill_common::SkillFile as SkillFileTrait;
-                  |    use skill_tests::$packageName::skill_file::SkillFile;""".stripMargin)
+                   |#[allow(unused_must_use)]
+                   |mod tests {
+                   |    extern crate env_logger;
+                   |
+                   |    use $pkgEsc::common::SkillFile as SkillFileTrait;
+                   |
+                   |    use $pkgEsc::skill_file::SkillFile;""".stripMargin
+              )
     rval
   }
 
@@ -101,52 +150,66 @@ class APITests extends common.GenericAPITests {
   }
 
   override def makeSkipTest(out: PrintWriter, kind: String, name: String, testName: String, accept: Boolean) {
-    // TODO skip tests
-    out.write(
-               s"""
-TEST(${name.capitalize}_APITest, ${gen.escaped(kind)}_skipped_${gen.escaped(testName)}) {${
-                 if (accept) ""
-                 else
-                   """
-    GTEST_FAIL() << "The test was skipped by the test generator.";"""
-               }
-}
-""")
+    throw new GeneratorException("SKIP is not implemented for Rust")
   }
 
   override def makeRegularTest(out: PrintWriter, kind: String, name: String, testName: String, accept: Boolean,
-                               IR: TypeContext, obj: JSONObject) {
+                               IR: TypeContext, root: JSONObject) {
     val tc = IR.removeSpecialDeclarations()
+    val uuid = java.util.UUID.randomUUID.toString
+    val funName = e"api_${escSnakeCase(name)}_${if (accept) "accept" else "reject"}_${
+      escSnakeCase(testName.replaceAll("_|-", ""))
+    }"
+
     out.write(
                // FIXME hardcoded tmp file
                e"""
                   |
                   |    #[test]${if (!accept) "\n#[should_panic]" else ""}
-                  |    fn ${name.capitalize}_APITest_${if (accept) "Acc" else "Fail"}_${gen.escaped(testName)}() {
-                  |        let mut sf = SkillFile::create("/tmp/foo.sf");
+                  |    fn $funName() {
+                  |        match SkillFile::create("/tmp/${funName}_$uuid.sf") {
+                  |            Ok(sf) => match sf.check() {
+                  |                Ok(_) => {
+                  |                    // create objects
+                  |                    ${createObjects(root, tc, name)}
+                  |                    // set fields
+                  |                    ${setFields(root, tc)}
                   |
-                  |        // create objects
-                  |        ${createObjects(obj, tc, name)}
-                  |        // set fields
-                  |        ${setFields(obj, tc)}
+                  |                    sf.close();
+                  |                },
+                  |                Err(e) => panic!("{}", e)
+                  |            },
+                  |            Err(e) => panic!("{}", e),
+                  |        };
                   |
-                  |        sf.close();
+                  |        match SkillFile::open("/tmp/${funName}_$uuid.sf") {
+                  |            Ok(sf) => match sf.check() {
+                  |                Ok(_) => {
+                  |                    // get objects
+                  |                    ${readObjects(root, tc, name)}
+                  |                    // assert fields
+                  |                    ${assertFields(root, tc)}
+                  |                },
+                  |                Err(e) => panic!("{}", e)
+                  |            },
+                  |            Err(e) => panic!("{}", e),
+                  |        };
                   |    }""".stripMargin)
+    // TODO add writing, reading and verifying results
   }
 
-  private def typ(tc: TypeContext, name: String): String = {
+  private def getType(tc: TypeContext, name: String) = {
     val n = name.toLowerCase()
+
     try {
-      gen.escaped((tc.getUsertypes.asScala ++ tc.getInterfaces.asScala).filter(_.getSkillName.equals(n)).head.getName
-                                                                       .capital())
+      (tc.getUsertypes.asScala ++ tc.getInterfaces.asScala).find(_.getSkillName.equals(n)).get
     } catch {
       case e: NoSuchElementException ⇒ fail(s"Type '$n' does not exist, fix your test description!")
     }
   }
 
-  private def field(tc: TypeContext, typ: String, field: String) = {
-    val tn = typ.toLowerCase()
-    val t = tc.getUsertypes.asScala.find(_.getSkillName.equals(tn)).get
+  private def getField(tc: TypeContext, typ: String, field: String) = {
+    val t = getType(tc, typ)
     val fn = field.toLowerCase()
     try {
       t.getAllFields.asScala.find(_.getSkillName.equals(fn)).get
@@ -155,44 +218,80 @@ TEST(${name.capitalize}_APITest, ${gen.escaped(kind)}_skipped_${gen.escaped(test
     }
   }
 
+  private def getPoolName(tc: TypeContext, name: String): String = {
+    val n = name.toLowerCase()
+    try {
+      snakeCase(
+                 gen.escaped(
+                              (tc.getUsertypes.asScala ++ tc.getInterfaces.asScala)
+                                .filter(_.getSkillName.equals(n))
+                                .head
+                                .getName
+                                .camel()
+                            )
+               )
+    } catch {
+      case e: NoSuchElementException ⇒ fail(s"Type '$n' does not exist, fix your test description!")
+    }
+  }
+
   private def value(v: Any, f: Field): String = value(v, f.getType)
 
   private def value(v: Any, t: Type): String = t match {
     case t: GroundType ⇒
       t.getSkillName match {
-        case "string" if null != v ⇒ s"""sf.strings.add("${v.toString}")"""
-        case "i8"                  ⇒ v.toString + " as i8"
-        case "i16"                 ⇒ v.toString + " as i16"
-        case "f32"                 ⇒ v.toString + " as f32"
-        case "f64"                 ⇒ v.toString + " as f64"
-        case "v64" | "i64"         ⇒ v.toString + " as i64"
-        case _                     ⇒
-          if (null == v || v.toString.equals("null"))
-            "std::ptr::null" // TODO check
-          else
-            v.toString
+        case "i8"          ⇒ v.toString + " as i8"
+        case "u8"          ⇒ v.toString + " as u8"
+        case "i16"         ⇒ v.toString + " as i16"
+        case "u16"         ⇒ v.toString + " as u16"
+        case "i32"         ⇒ v.toString + " as i32"
+        case "u32"         ⇒ v.toString + " as u32"
+        case "u64"         ⇒ v.toString + " as u64"
+        case "v64" | "i64" ⇒ v.toString + " as i64"
+        case "f32"         ⇒ v.toString + " as f32"
+        case "f64"         ⇒ v.toString + " as f64"
+
+        case "string" if null != v ⇒
+          s"""sf.strings.add("${v.toString}")"""
+
+        case _ ⇒
+          if (null == v || v.toString.equals("null")) {
+            "None"
+          } else {
+            // v.toString
+            throw new GeneratorException("to be implemented")
+          }
       }
 
     // TODO container
     case t: SingleBaseTypeContainer ⇒
-      locally {
-                var rval = t match {
-                  case t: SetType ⇒ s"set<${gen.mapType(t.getBaseType)}>()"
-                  case _          ⇒ s"array<${gen.mapType(t.getBaseType)}>()"
-                }
-                for (x ← v.asInstanceOf[JSONArray].iterator().asScala) {
-                  rval = s"put<${gen.mapType(t.getBaseType)}>($rval, ${value(x, t.getBaseType)})"
-                }
-                rval
-              }
+      throw new GeneratorException("to be implemented")
+    // locally {
+    //   var rval = t match {
+    //     case t: SetType ⇒ s"set<${gen.mapType(t.getBaseType)}>()"
+    //     case _          ⇒ s"array<${gen.mapType(t.getBaseType)}>()"
+    //   }
+    //   for (x ← v.asInstanceOf[JSONArray].iterator().asScala) {
+    //     rval = s"put<${gen.mapType(t.getBaseType)}>($rval, ${value(x, t.getBaseType)})"
+    //   }
+    //   rval
+    // }
     // TODO container map
-    case t: MapType if v != null ⇒ valueMap(v.asInstanceOf[JSONObject], t.getBaseTypes.asScala.toList)
+    case t: MapType if v != null ⇒
+      throw new GeneratorException("to be implemented")
+    // valueMap(v.asInstanceOf[JSONObject], t.getBaseTypes.asScala.toList)
 
+    // TODO user types
+    case t: UserType ⇒
+      throw new GeneratorException("to be implemented")
+    // if (null == v || v.toString().equals("null")) {
+    //   "std::ptr::null"
+    // } // TODO check
+    // else {
+    //   v.toString
+    // }
     case _ ⇒
-      if (null == v || v.toString().equals("null"))
-        "std::ptr::null" // TODO check
-      else
-        v.toString
+      throw new GeneratorException("Unknown Type")
   }
 
   private def valueMap(v: Any, ts: List[Type]): String = {
@@ -205,64 +304,96 @@ TEST(${name.capitalize}_APITest, ${gen.escaped(kind)}_skipped_${gen.escaped(test
           case t                ⇒ gen.mapType(t.head)
         }
       }>()"
-      val obj = v.asInstanceOf[JSONObject]
+      val root = v.asInstanceOf[JSONObject]
 
-      for (name ← JSONObject.getNames(obj)) {
+      for (name ← JSONObject.getNames(root)) {
         rval = s"put<${gen.mapType(ts.head)}, ${
           ts.tail match {
             case t if t.size >= 2 ⇒ t.map(gen.mapType).reduceRight((k, v) ⇒ s"::skill::api::Map<$k, $v>*")
             case t                ⇒ gen.mapType(t.head)
           }
-        }>($rval, ${value(name, ts.head)}, ${valueMap(obj.get(name), ts.tail)})"
+        }>($rval, ${value(name, ts.head)}, ${valueMap(root.get(name), ts.tail)})"
       }
 
-      rval;
+      rval
     }
   }
 
-  private def createObjects(obj: JSONObject, tc: TypeContext, packagePath: String): String = {
-    if (null == JSONObject.getNames(obj)) {
+  private def createObjects(root: JSONObject, tc: TypeContext, packagePath: String): String = {
+    if (null == JSONObject.getNames(root)) {
       ""
     } else {
-      val rval = for (name ← JSONObject.getNames(obj)) yield {
-        val x = obj.getJSONObject(name)
-        val t = JSONObject.getNames(x).head
+      (for (name ← JSONObject.getNames(root)) yield {
+        val obj = root.getJSONObject(name)
+        val objType = getType(tc, JSONObject.getNames(obj).head)
+        val pool = snakeCase(gen.escaped(objType.getName.camel()))
 
-        val typeName = typ(tc, t)
-
-        s"let mut $name = sf.$typeName.add();\n"
-      }
-
-      rval.mkString
+        e"""let $name = sf.$pool.add();
+           |""".stripMargin
+      }).mkString
     }
-  }
+  }.trim
 
-  private def setFields(obj: JSONObject, tc: TypeContext): String = {
-    if (null == JSONObject.getNames(obj)) {
+  private def readObjects(root: JSONObject, tc: TypeContext, packagePath: String): String = {
+    if (null == JSONObject.getNames(root)) {
       ""
     } else {
+      (for ((name, i) ← JSONObject.getNames(root).zipWithIndex) yield {
+        val obj = root.getJSONObject(name)
+        val objType = getType(tc, JSONObject.getNames(obj).head)
+        val pool = snakeCase(gen.escaped(objType.getName.camel()))
 
-      val rval = for (name ← JSONObject.getNames(obj)) yield {
-        val x = obj.getJSONObject(name)
-        val t = JSONObject.getNames(x).head
-        val fs = x.getJSONObject(t)
+        e"""let $name = sf.$pool.get(${i + 1});
+           |""".stripMargin
+      }).mkString
+    }
+  }.trim
 
-        if (null == JSONObject.getNames(fs))
+  private def setFields(root: JSONObject, tc: TypeContext): String = {
+    if (null == JSONObject.getNames(root)) {
+      ""
+    } else {
+      (for (name ← JSONObject.getNames(root)) yield {
+        val obj = root.getJSONObject(name)
+        val objTypeName = JSONObject.getNames(obj).head
+        val objFieldNames = obj.getJSONObject(objTypeName)
+
+        if (null == JSONObject.getNames(objFieldNames)) {
           ""
-        else {
-          val assignments = for (fieldName ← JSONObject.getNames(fs).toSeq) yield {
-            val f = field(tc, t, fieldName)
-            val setter = gen.escaped("set" + f.getName.capital())
-            s"$name.$setter(${value(fs.get(fieldName), f)});\n"
-          }
+        } else {
+          (for (fieldName ← JSONObject.getNames(objFieldNames).toSeq) yield {
+            val field = getField(tc, objTypeName, fieldName)
+            val setter = "set_" + snakeCase(gen.escaped(field.getName.camel()))
 
-          assignments.mkString
+            e"""$name.borrow_mut().$setter(${value(objFieldNames.get(fieldName), field)});
+               |""".stripMargin
+          }).mkString
         }
-      }
-      val rstr = rval.mkString
-      if (rstr.endsWith("\n"))
-        return rstr.substring(0, rstr.length - 1)
-      rstr
+      }).mkString
     }
-  }
+  }.trim
+
+  private def assertFields(root: JSONObject, tc: TypeContext): String = {
+    if (null == JSONObject.getNames(root)) {
+      ""
+    } else {
+      (for (name ← JSONObject.getNames(root)) yield {
+        val obj = root.getJSONObject(name)
+        val objTypeName = JSONObject.getNames(obj).head
+        val objFieldNames = obj.getJSONObject(objTypeName)
+
+        if (null == JSONObject.getNames(objFieldNames)) {
+          ""
+        } else {
+          (for (fieldName ← JSONObject.getNames(objFieldNames).toSeq) yield {
+            val field = getField(tc, objTypeName, fieldName)
+            val getter = "get_" + snakeCase(gen.escaped(field.getName.camel()))
+
+            e"""assert_eq!($name.borrow_mut().$getter(), ${value(objFieldNames.get(fieldName), field)});
+               |""".stripMargin
+          }).mkString
+        }
+      }).mkString
+    }
+  }.trim
 }

@@ -13,14 +13,9 @@ import de.ust.skill.main.CommandLine
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 
-import scala.reflect.io.Path.jfile2path
-
 
 @RunWith(classOf[JUnitRunner])
 class GenericTests extends common.GenericTests {
-
-  class Test(val name: String, val location: String)
-
   // FIXME remove
   var skipTestCases  = Array(
                               // "age",
@@ -57,7 +52,7 @@ class GenericTests extends common.GenericTests {
                               "nullInNonNullNode",
                               "",
                             )
-  var generatedTests = new Array[Test](0)
+  var generatedTests = new Array[String](0)
 
   val skipGeneration = Array(
                               // "age",
@@ -91,7 +86,9 @@ class GenericTests extends common.GenericTests {
 
   override def deleteOutDir(out: String) {
     import scala.reflect.io.Directory
-    Directory(new File("testsuites/rust/", out)).deleteRecursively
+
+    val pkgEsc = escSnakeCase(out.split("/").mkString("_"))
+    Directory(new File("testsuites/rust/", pkgEsc)).deleteRecursively
   }
 
   override def callMainFor(name: String,
@@ -101,11 +98,13 @@ class GenericTests extends common.GenericTests {
       println("Generic Skip: " + name)
       return
     }
+    val pkgEsc = escSnakeCase(name.split("/").mkString("_"))
+
     CommandLine.main(Array[String](source,
                                     "--debug-header",
                                     "-L", "rust",
                                     "-p", name,
-                                    "-o", "testsuites/rust/" + name) ++ options)
+                                    "-o", "testsuites/rust/" + pkgEsc) ++ options)
   }
 
   override def finalizeTests() {
@@ -115,9 +114,9 @@ class GenericTests extends common.GenericTests {
               """[workspace]
                 |members = [""".stripMargin
             )
-    for (test: Test <- generatedTests) {
+    for (test ← generatedTests) {
       pw.write(
-                e""""${test.name}", """.stripMargin
+                e""""$test", """.stripMargin
               )
     }
     pw.write("]")
@@ -126,14 +125,18 @@ class GenericTests extends common.GenericTests {
 
   def snakeCase(str: String): String = GeneralOutputMaker.snakeCase(str)
 
+  def escSnakeCase(str: String): String = snakeCase(EscapeFunction.apply(str))
+
   def newTestFile(packagePath: String, name: String): PrintWriter = {
-    val packageName = packagePath.split("/").map(EscapeFunction.apply).mkString("::")
+    val pkgEsc = escSnakeCase(packagePath.split("/").mkString("_"))
 
-    generatedTests :+= new Test(packagePath, s"$packagePath/tests/generic${name}Test.rs")
+    generatedTests :+= pkgEsc
 
-    val f = new File(s"testsuites/rust/$packageName/tests/generic_${snakeCase(packageName)}_${snakeCase(name)}_test.rs")
+    val f = new File(s"testsuites/rust/$pkgEsc/tests/generic_${escSnakeCase(name)}.rs")
+
     f.getParentFile.mkdirs
     if (f.exists) {
+      // TODO is this ... "ok"
       f.delete
     }
     f.createNewFile
@@ -142,7 +145,7 @@ class GenericTests extends common.GenericTests {
     rval.write(
                 e"""#![feature(test)]
                    |
-                   |extern crate ${snakeCase(packageName)};
+                   |extern crate $pkgEsc;
                    |
                    |#[cfg(test)]
                    |#[allow(non_snake_case)]
@@ -150,9 +153,9 @@ class GenericTests extends common.GenericTests {
                    |mod tests {
                    |    extern crate env_logger;
                    |
-                   |    use ${snakeCase(packageName)}::common::SkillFile as SkillFileTrait;
+                   |    use $pkgEsc::common::SkillFile as SkillFileTrait;
                    |
-                   |    use ${snakeCase(packageName)}::skill_file::SkillFile;""".stripMargin
+                   |    use $pkgEsc::skill_file::SkillFile;""".stripMargin
               )
     rval
   }
@@ -167,17 +170,19 @@ class GenericTests extends common.GenericTests {
 
 
   def testString(testName: String, file: File, reject: Boolean): String = {
-    val escFileName = file.getName.replaceAll("\\W", "_")
     val escFilePath = file.getPath.replaceAll("\\\\", "\\\\\\\\")
+    val testCase = file.getName.replaceAll("\\..*$", "")
 
-    if (skipTestCases.contains(escFileName.replace("_sf", ""))) {
+    if (skipTestCases.contains(testCase)) {
       return ""
     }
 
     e"""
        |
        |    #[test]${if (reject) "\n#[should_panic]" else ""}
-       |    fn ${testName.capitalize}_Parser_${if (reject) "Reject" else "Accept"}_$escFileName() {
+       |    fn generic_${escSnakeCase(testName)}_${if (reject) "reject" else "accept"}_${
+      escSnakeCase(testCase.replaceAll("_|-", ""))
+    }() {
        |        let _ = env_logger::try_init();
        |
        |        match SkillFile::open("../../../$escFilePath") {

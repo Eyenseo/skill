@@ -22,22 +22,22 @@ trait DependenciesMaker extends GeneralOutputMaker {
     super.make
 
     // safe unnecessary overwrites that cause race conditions on parallel builds anyway
-    if (!skipDependencies)
+    if (!skipDependencies) {
       this.getClass.synchronized(
         {
           if (!(depsSrc.exists && depsSrc.isDirectory)) {
             new GeneratorException("The directory " + depsSrc.getAbsolutePath + " apparently does not exist.")
           }
 
-          val files: List[File] = gatherFiles(depsSrc)
-
-          for (file ← files) {
+          for (file ← gatherFiles(depsSrc)) {
             val out = new File(depsPath, "src/common" + file.getPath.replaceFirst(depsSrc.getPath, ""))
 
-            out.getParentFile.mkdirs()
-            Files.deleteIfExists(out.toPath)
-            Files.copy(file.toPath, out.toPath)
+            if (!out.isDirectory && !out.exists()) {
+              out.getParentFile.mkdirs()
+              Files.copy(file.toPath, out.toPath)
+            }
           }
         })
+    }
   }
 }
