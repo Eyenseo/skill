@@ -136,7 +136,9 @@ class APITests extends common.GenericAPITests {
                    |
                    |    use $pkgEsc::common::SkillFile as SkillFileTrait;
                    |
-                   |    use $pkgEsc::skill_file::SkillFile;""".stripMargin
+                   |    use $pkgEsc::skill_file::SkillFile;
+                   |    use $pkgEsc::*;
+                   |""".stripMargin.trim
               )
     rval
   }
@@ -252,7 +254,7 @@ class APITests extends common.GenericAPITests {
         case "f64"         ⇒ v.toString + " as f64"
 
         case "string" if null != v ⇒
-          s"""sf.strings.add("${v.toString}")"""
+          s"""sf.strings.borrow_mut().add("${v.toString}")"""
 
         case _ ⇒
           if (null == v || v.toString.equals("null")) {
@@ -328,7 +330,7 @@ class APITests extends common.GenericAPITests {
         val objType = getType(tc, JSONObject.getNames(obj).head)
         val pool = snakeCase(gen.escaped(objType.getName.camel()))
 
-        e"""let $name = sf.$pool.add();
+        e"""let $name = sf.$pool.borrow_mut().add();
            |""".stripMargin
       }).mkString
     }
@@ -343,7 +345,10 @@ class APITests extends common.GenericAPITests {
         val objType = getType(tc, JSONObject.getNames(obj).head)
         val pool = snakeCase(gen.escaped(objType.getName.camel()))
 
-        e"""let $name = sf.$pool.get(${i + 1});
+        e"""let $name = match sf.$pool.borrow().get(${i + 1}) {
+           |    Ok(ptr) => ptr,
+           |    Err(e) => panic!("Object $name was not retrieved because:{}", e),
+           |};
            |""".stripMargin
       }).mkString
     }
@@ -389,8 +394,14 @@ class APITests extends common.GenericAPITests {
             val field = getField(tc, objTypeName, fieldName)
             val getter = "get_" + snakeCase(gen.escaped(field.getName.camel()))
 
-            e"""assert_eq!($name.borrow_mut().$getter(), ${value(objFieldNames.get(fieldName), field)});
-               |""".stripMargin
+            field.getType match {
+              case t: GroundType if t.getName.getSkillName.equals("string") ⇒
+                e"""assert_eq!($name.borrow_mut().$getter(), &${value(objFieldNames.get(fieldName), field)});
+""".stripMargin
+              case _                                                             ⇒
+                e"""assert_eq!($name.borrow_mut().$getter(), ${value(objFieldNames.get(fieldName), field)});
+""".stripMargin
+            }
           }).mkString
         }
       }).mkString

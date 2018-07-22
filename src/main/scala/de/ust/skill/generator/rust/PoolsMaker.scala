@@ -287,10 +287,10 @@ trait PoolsMaker extends GeneralOutputMaker {
        |        }
        |    }
        |
-       |    pub fn get(&self, index: usize) -> Result<WeakPtr<${traitName(base)}>, SkillError> {
+       |    pub fn get(&self, index: usize) -> Result<Ptr<${traitName(base)}>, SkillError> {
        |        match self.instances.borrow().get(index) {
        |            Some(obj) => match obj.nucast::<${traitName(base)}>() {
-       |                Some(obj) => Ok(obj.downgrade()),
+       |                Some(obj) => Ok(obj.clone()),
        |                None => panic!("Bad cast"),
        |            },
        |            None => Err(SkillError::BadSkillObjectID),
@@ -299,6 +299,10 @@ trait PoolsMaker extends GeneralOutputMaker {
        |
        |    pub fn id(&self) -> usize {
        |        self.type_id
+       |    }
+       |
+       |    pub fn add(&mut self) -> Ptr<${name(base)}> {
+       |        unimplemented!();
        |    }
        |}""".stripMargin
   }
@@ -561,29 +565,29 @@ trait PoolsMaker extends GeneralOutputMaker {
 
   // TODO do something about these stupid names
   private final def genPoolImplInstancePoolAddFieldField(base: UserType,
-                                                         field: Field): String = {
-    e"""if self.string_block.borrow().lit().${literal_field(field)} == field_name {
+                                                         f: Field): String = {
+    e"""if self.string_block.borrow().lit().${field(f)} == field_name {
        |    match field_type {
        |        ${
-      field.getType match {
+      f.getType match {
         case t@(_: SingleBaseTypeContainer | _: MapType) ⇒
           e"""${mapTypeToMagicMatch(t)} => {
              |    let mut object_readers: Vec<Rc<RefCell<InstancePool>>> = Vec::new();
              |    // TODO reserve size
              |    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(t)}
-             |    let mut reader = Box::new(${fieldReader(base, field)}::new(name_id, object_readers));
+             |    let mut reader = Box::new(${fieldReader(base, f)}::new(name_id, object_readers));
              |    reader.add_chunk(chunk);;
              |    self.fields.push(reader);
              |}""".stripMargin
         case t: GroundType                               ⇒
           e"""|${mapTypeToMagicMatch(t)} => {
-              |   let mut reader = Box::new(${fieldReader(base, field)}::new(name_id));
+              |   let mut reader = Box::new(${fieldReader(base, f)}::new(name_id));
               |   reader.add_chunk(chunk);
               |   self.fields.push(reader);
               |},""".stripMargin
         case t: UserType                                 ⇒
           e"""|${mapTypeToMagicMatch(t)} => {
-              |   let mut reader = Box::new(${fieldReader(base, field)}::new(name_id, vec!(pool)));
+              |   let mut reader = Box::new(${fieldReader(base, f)}::new(name_id, vec!(pool)));
               |   reader.add_chunk(chunk);
               |   self.fields.push(reader);
               |},""".stripMargin
@@ -591,7 +595,7 @@ trait PoolsMaker extends GeneralOutputMaker {
           throw new GeneratorException("Unexpected field type")
       }
     }
-       |        _ => panic!("Expected: ${mapTypeToUser(field.getType)} Found: {}", field_type)
+       |        _ => panic!("Expected: ${mapTypeToUser(f.getType)} Found: {}", field_type)
        |    }
        |} else """.stripMargin
   }

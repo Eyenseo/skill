@@ -32,7 +32,10 @@ trait DependenciesMaker extends GeneralOutputMaker {
           for (file ← gatherFiles(depsSrc)) {
             val out = new File(depsPath, "src/common" + file.getPath.replaceFirst(depsSrc.getPath, ""))
 
-            if (!out.isDirectory && !out.exists()) {
+            if (!out.isDirectory) {
+              if (out.exists()) {
+                out.delete()
+              }
               out.getParentFile.mkdirs()
               Files.copy(file.toPath, out.toPath)
             }

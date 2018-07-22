@@ -33,6 +33,7 @@ class GenericTests extends common.GenericTests {
                               // "duplicateDefinitionMixed",
                               // "duplicateDefinitionSecondBlock",
                               // "emptyBlocks",
+                              // "emptyFile",
                               // "fourColoredNodes",
                               // "illegalStringPoolOffsets",
                               // "illegalTypeID",
@@ -47,7 +48,6 @@ class GenericTests extends common.GenericTests {
                               // "twoTypes",
                               // "unicode_reference",
 
-                              "emptyFile",
                               "restrictionsAll",
                               "nullInNonNullNode",
                               "",

@@ -23,7 +23,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
                   |${genSkillFile()}
                   |
                   |${genSkillFileBuilder()}
-                  |""".stripMargin)
+                  |""".stripMargin
+             )
 
     out.close()
   }
@@ -82,10 +83,14 @@ trait SkillFileMaker extends GeneralOutputMaker {
 
   private final def genSkillFileStruct(): String = {
     e"""pub struct SkillFile {
-       |    mmap: Rc<Mmap>,
-       |    string_block: Rc<RefCell<StringBlock>>,
+       |    file: std::fs::File,
        |    type_pool: TypeBlock,
-       |    pub file_builder: SkillFileBuilder,
+       |    pub strings: Rc<RefCell<StringBlock>>,${
+      (for (base ← IR) yield {
+        e"""
+           |pub ${field(base)}: Rc<RefCell<${storagePool(base)}>>,""".stripMargin
+      }).mkString
+    }
        |}""".stripMargin
   }
 
@@ -97,42 +102,54 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |        let f = ::std::fs::OpenOptions::new()
        |            .read(true)
        |            .write(true)
-       |            .open(&file)
+       |            .open(&file)${
+      "" // FIXME handle errors better
+    }
        |            .or(Err(SkillError::NotAFile))?;
        |
-       |        let string_block = Rc::new(RefCell::new(StringBlock::new())); // FIXME rename / move w/e.
-       |        let mut type_pool = TypeBlock::new(); // FIXME rename / move w/e.
+       |        debug!(
+       |              target: "SkillParsing", "File exists!",
+       |        );
+       |        let string_block = Rc::new(RefCell::new(StringBlock::new()));
+       |        let mut type_pool = TypeBlock::new();
        |        let mut file_builder = SkillFileBuilder::new(string_block.clone());
        |        let mut type_pools = Vec::new();
-       |
-       |        let mmap = unsafe { Mmap::map(&f) }.or(Err(SkillError::NotAFile))?;
-       |        let rmmap = Rc::new(mmap);
        |        let mut data_chunk_reader = Vec::new();
-       |        let mut block_index = BlockIndex::from(0);
-       |        {
-       |            let mut reader = FileReader::from(rmmap.clone());
+       |${
+      "" // FIXME handle errors better
+    }
+       |        if f.metadata().or(Err(SkillError::NotAFile))?.len() != 0 {
+       |            let mmap = unsafe { Mmap::map(&f) }.or(Err(SkillError::NotAFile))?;
+       |            debug!(
+       |                  target: "SkillParsing", "File exists!",
+       |            );
+       |            let rmmap = Rc::new(mmap);
+       |            let mut block_index = BlockIndex::from(0);
+       |            {
+       |                let mut reader = FileReader::from(rmmap.clone());
        |
-       |            loop {
-       |                info!(
-       |                      target: "SkillParsing", "Block: {:?} Reader:{:?}",
-       |                      block_index,
-       |                      reader
-       |                );
+       |                loop {
+       |                    info!(
+       |                          target: "SkillParsing", "Block: {:?} Reader:{:?}",
+       |                          block_index,
+       |                          reader
+       |                    );
        |
-       |                // TODO implement blocks
-       |                string_block.borrow_mut().read_string_block(&mut reader)?;
-       |                type_pool.read_type_block(
-       |                    block_index,
-       |                    &mut reader,
-       |                    &mut file_builder,
-       |                    &string_block,
-       |                    &mut type_pools,
-       |                    &mut data_chunk_reader,
-       |                )?;
-       |                if reader.is_empty() {
-       |                    break;
+       |                    // TODO implement blocks
+       |                    string_block.borrow_mut().read_string_block(&mut reader)?;
+       |                    type_pool.read_type_block(
+       |                        block_index,
+       |                        &mut reader,
+       |                        &mut file_builder,
+       |                        &string_block,
+       |                        &mut type_pools,
+       |                        &mut data_chunk_reader,
+       |                    )?;
+       |                    if reader.is_empty() {
+       |                        break;
+       |                    }
+       |                    block_index += 1;
        |                }
-       |                block_index += 1;
        |            }
        |        }
        |        file_builder.allocate(&mut type_pools);
@@ -140,25 +157,64 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |            &type_pools,
        |            &data_chunk_reader,
        |            &string_block.borrow(),
-       |
        |        )?;
        |        Ok(SkillFile {
-       |            mmap: rmmap,
-       |            string_block,
+       |            file: f,
        |            type_pool,
-       |            file_builder,
+       |            strings: string_block,${
+      (for (base ← IR) yield {
+        e"""
+           |${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin
+      }).mkString
+    }
        |        })
        |    }
-       |    fn create(_file: &str) -> Result<Self, SkillError> {
-       |        Err(SkillError::UnexpectedEndOfInput)
+       |
+       |    fn create(file: &str) -> Result<Self, SkillError> {
+       |        let f = ::std::fs::OpenOptions::new()
+       |            .write(true)
+       |            .create(true)
+       |            .open(&file)
+       |            .or(Err(SkillError::NotAFile))?;
+       |        let string_block = Rc::new(RefCell::new(StringBlock::new()));
+       |        let mut type_pool = TypeBlock::new();
+       |        let mut file_builder = SkillFileBuilder::new(string_block.clone());
+       |        let mut type_pools = Vec::new();
+       |        let mut data_chunk_reader = Vec::new();
+       |
+       |        file_builder.allocate(&mut type_pools);
+       |        file_builder.initialize(
+       |            &type_pools,
+       |            &data_chunk_reader,
+       |            &string_block.borrow(),
+       |        )?;
+       |        Ok(SkillFile {
+       |            file: f,
+       |            type_pool,
+       |            strings: string_block,${
+      (for (base ← IR) yield {
+        e"""
+           |${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin
+      }).mkString
+    }
+       |        })
        |    }
-       |    fn write(&self) -> Result<(), SkillError> {
-       |        Ok(())
+       |
+       |    fn write(&self) -> Result<(), SkillError> {${
+      "" // TODO implement write
+    }
+       |        unimplemented!()
        |    }
-       |    fn close(&self) -> Result<(), SkillError> {
-       |        Ok(())
+       |
+       |    fn close(&self) -> Result<(), SkillError> {${
+      "" // TODO implement close
+    }
+       |        unimplemented!()
        |    }
-       |    fn check(&self) -> Result<(), SkillError> {
+       |
+       |    fn check(&self) -> Result<(), SkillError> {${
+      "" // TODO implement check
+    }
        |        Ok(())
        |    }
        |}""".stripMargin
@@ -265,7 +321,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |    ) -> Rc<RefCell<InstancePool>> {
        |        ${
       (for (base ← IR) yield {
-        e"""if type_name == self.string_block.borrow().lit().${literal_field(base)}  {
+        e"""if type_name == self.string_block.borrow().lit().${field(base)}  {
            |    if self.${field(base)}.is_none() {
            |        self.${field(base)} = Some(Rc::new(RefCell::new(
            |            ${storagePool(base)}::new(self.string_block.clone())
@@ -282,7 +338,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
                |);
                |""".stripMargin.trim
           } else {
-            e"""if super_name.as_ref() != self.string_block.borrow().lit().${literal_field(base.getSuperType)} {
+            e"""if super_name.as_ref() != self.string_block.borrow().lit().${field(base.getSuperType)} {
                |    panic!(
                |        "Wrong super type for '${base.getName.camel()}' aka '${name(base)}' expect:${
               field(base.getSuperType)

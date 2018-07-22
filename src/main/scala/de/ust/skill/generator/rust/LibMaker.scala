@@ -60,6 +60,7 @@ trait LibMaker extends GeneralOutputMaker {
 
       ret.append(
                   e"""pub mod $low_base;
+                     |pub use $low_base::*;
                      |""".stripMargin
                 )
     }
@@ -74,7 +75,7 @@ trait LibMaker extends GeneralOutputMaker {
     val out = files.openRaw("Cargo.toml")
     out.write(
                e"""[package]
-                  |name = "skill-${snakeCase(packageName)}-tests"
+                  |name = "skill_${snakeCase(packageName)}"
                   |version = "0.1.0"
                   |publish = false
                   |

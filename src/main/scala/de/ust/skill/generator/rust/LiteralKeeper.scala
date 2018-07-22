@@ -7,6 +7,8 @@ package de.ust.skill.generator.rust
 
 import de.ust.skill.generator.common.Indenter._
 
+import scala.collection.JavaConverters._
+
 trait LiteralKeeper extends GeneralOutputMaker {
   abstract override def make {
     super.make
@@ -56,14 +58,14 @@ trait LiteralKeeper extends GeneralOutputMaker {
     e"""#[derive(Debug)]
        |pub struct LiteralKeeper {
        |   ${
-      (for (s ← allStrings._1; name = literal_field(s)) yield {
+      (for (s ← allStrings._1; name = getName(s)) yield {
         e"""pub $name: &'static str,
-           |""".mkString
+           |""".stripMargin
       }).mkString
     }${
-      (for (s ← allStrings._2; name = literal_field(s)) yield {
+      (for (s ← allStrings._2; name = getName(s)) yield {
         e"""pub $name: &'static str,
-           |""".mkString
+           |""".stripMargin
       }).mkString.trim
     }
        |   set: HashSet<Rc<String>>,
@@ -89,32 +91,49 @@ trait LiteralKeeper extends GeneralOutputMaker {
        |    fn default() -> LiteralKeeper {
        |        let mut lit = LiteralKeeper {
        |            ${
-      (for (s ← allStrings._1; name = literal_field(s)) yield {
+      (for (s ← allStrings._1; name = getName(s)) yield {
         e"""$name: "$s",
-           |""".mkString
+           |""".stripMargin
       }).mkString
     }${
-      (for (s ← allStrings._2; name = literal_field(s)) yield {
+      (for (s ← allStrings._2; name = getName(s)) yield {
         e"""$name: "$s",
-           |""".mkString
+           |""".stripMargin
       }).mkString.trim
     }
        |            set: HashSet::with_capacity(${allStrings._1.size + allStrings._2.size}),
        |        };
        |        ${
-      (for (s ← allStrings._1; name = literal_field(s)) yield {
+      (for (s ← allStrings._1; name = getName(s)) yield {
         e"""lit.set.insert(Rc::new(String::from(Cow::Borrowed(lit.$name))));
-           |""".mkString
+           |""".stripMargin
       }).mkString
     }${
-      (for (s ← allStrings._2; name = literal_field(s)) yield {
+      (for (s ← allStrings._2; name = getName(s)) yield {
         e"""lit.set.insert(Rc::new(String::from(Cow::Borrowed(lit.$name))));
-           |""".mkString
+           |""".stripMargin
       }).mkString.trim
     }
        |        lit
        |    }
        |}
-       |""".mkString
+       |""".stripMargin
   }.trim
+
+  private final def getName(name: String): String = {
+    // TODO this shouldn't be needed and the names should be provided not in string from
+
+    IR.find(u ⇒ u.getSkillName.equals(name)) match {
+      case Some(t) ⇒
+        field(t.getName.camel())
+      case None    ⇒
+        IR.flatMap(u ⇒ u.getAllFields.asScala).find(k ⇒ k.getSkillName.equals(name)) match {
+          case Some(f) ⇒
+            field(f.getName.camel())
+          case None    ⇒
+            // If we cant fnd a field with the name it has to be a string literal
+            field(name)
+        }
+    }
+  }
 }
