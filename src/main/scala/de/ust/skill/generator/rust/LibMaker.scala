@@ -33,6 +33,7 @@ trait LibMaker extends GeneralOutputMaker {
                   |#![feature(specialization)]
                   |#![feature(core_intrinsics)]
                   |#![feature(extern_prelude)]
+                  |#![feature(slice_index_methods)]
                   |
                   |#[macro_use]
                   |extern crate log;

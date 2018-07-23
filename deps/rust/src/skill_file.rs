@@ -10,7 +10,7 @@ pub trait SkillFile {
     fn open(file: &str) -> Result<Self::T, SkillError>;
     fn create(file: &str) -> Result<Self::T, SkillError>;
     fn write(&self) -> Result<(), SkillError>;
-    fn close(&self) -> Result<(), SkillError>;
+    fn close(self) -> Result<(), SkillError>;
     fn check(&self) -> Result<(), SkillError>;
 }
 

@@ -1,7 +1,7 @@
 use common::internal::{InstancePool, ObjectReader};
 use common::io::{
     Block, BlockIndex, BuildInType, ContinuationFieldChunk, DeclarationFieldChunk, FieldChunk,
-    FieldType, FileReader, Offset,
+    FieldType, FileReader, FileWriter,
 };
 use common::PoolMaker;
 use common::SkillError;
@@ -12,32 +12,15 @@ use std::rc::Rc;
 
 #[derive(Default)]
 pub struct TypeBlock {
-    pools: Vec<u64>,
+    pools: Vec<Rc<RefCell<InstancePool>>>,
 }
 
 impl TypeBlock {
     pub fn new() -> TypeBlock {
         TypeBlock { pools: Vec::new() }
     }
-    pub fn reserve(&mut self, size: usize) {
-        self.pools.reserve(size);
-    }
-    pub fn extend(&mut self, size: usize) {
-        let reserve = self.pools.len();
-        self.reserve(reserve + size);
-    }
-    pub fn add(&mut self, i: u64) {
-        self.pools.push(i);
-    }
-    pub fn has(&self, i: u64) -> bool {
-        self.pools.contains(&i)
-    }
 
-    fn read_field_type(
-        &self,
-        reader: &mut FileReader,
-        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
-    ) -> Result<FieldType, SkillError> {
+    fn read_field_type(&self, reader: &mut FileReader) -> Result<FieldType, SkillError> {
         let field_type = reader.read_v64()?; // type of field
 
         //TODO add from for the enum and use that to match and throw an error?
@@ -112,32 +95,26 @@ impl TypeBlock {
                 info!(target: "SkillParsing", "~~~~FieldType = const array length: {:?}", length);
                 FieldType::BuildIn(BuildInType::ConstTarray(
                     length,
-                    Box::new(self.read_field_type(reader, type_pools)?),
+                    Box::new(self.read_field_type(reader)?),
                 ))
             }
             0x11 => {
                 info!(target: "SkillParsing", "~~~~FieldType = varray");
-                FieldType::BuildIn(BuildInType::Tarray(Box::new(
-                    self.read_field_type(reader, type_pools)?,
-                )))
+                FieldType::BuildIn(BuildInType::Tarray(Box::new(self.read_field_type(reader)?)))
             }
             0x12 => {
                 info!(target: "SkillParsing", "~~~~FieldType = list");
-                FieldType::BuildIn(BuildInType::Tlist(Box::new(
-                    self.read_field_type(reader, type_pools)?,
-                )))
+                FieldType::BuildIn(BuildInType::Tlist(Box::new(self.read_field_type(reader)?)))
             }
             0x13 => {
                 info!(target: "SkillParsing", "~~~~FieldType = set");
-                FieldType::BuildIn(BuildInType::Tset(Box::new(
-                    self.read_field_type(reader, type_pools)?,
-                )))
+                FieldType::BuildIn(BuildInType::Tset(Box::new(self.read_field_type(reader)?)))
             }
             0x14 => {
                 info!(target: "SkillParsing", "~~~~FieldType = map");
                 FieldType::BuildIn(BuildInType::Tmap(
-                    Box::new(self.read_field_type(reader, type_pools)?),
-                    Box::new(self.read_field_type(reader, type_pools)?),
+                    Box::new(self.read_field_type(reader)?),
+                    Box::new(self.read_field_type(reader)?),
                 ))
             }
             user => {
@@ -149,7 +126,7 @@ impl TypeBlock {
                 // FIXME this is wrong!
                 // What we want is to put the pool in here - user - 32 to access the vector that
                 // stores all pools -> there has to be a vector that stores all pools ...
-                FieldType::User(type_pools[user as usize - 32].clone(), user as usize)
+                FieldType::User(self.pools[user as usize - 32].clone(), user as usize)
             }
         })
     }
@@ -160,7 +137,6 @@ impl TypeBlock {
         reader: &mut FileReader,
         pool_maker: &mut PoolMaker,
         string_pool: &Rc<RefCell<StringBlock>>,
-        type_pools: &mut Vec<Rc<RefCell<InstancePool>>>,
         field_data: &mut Vec<FileReader>,
     ) -> Result<(), SkillError> {
         let mut block_local_pools = Vec::new();
@@ -170,7 +146,7 @@ impl TypeBlock {
         info!(target: "SkillParsing", "~Block Start~");
         let type_amount = reader.read_v64()? as usize;
         info!(target: "SkillParsing", "~Types: {:?}", type_amount);
-        self.extend(type_amount);
+        self.pools.reserve(type_amount);
 
         info!(target: "SkillParsing", "~TypeData~");
         for _ in 0..type_amount {
@@ -189,9 +165,9 @@ impl TypeBlock {
             let mut type_pool = if let Some(pool) = pool_maker.get_pool(type_name_index as usize) {
                 pool
             } else {
-                let type_id = type_pools.len() + 32;
+                let type_id = self.pools.len() + 32;
 
-                info!(target: "SkillParsing", "~~New Type:{:?}", type_pools.len() + 32);
+                info!(target: "SkillParsing", "~~New Type:{:?}", type_id);
                 let type_restrictions = reader.read_v64()?; // restrictions ?
                 for _ in 0..type_restrictions {
                     let restriction = reader.read_v64()?;
@@ -206,31 +182,30 @@ impl TypeBlock {
                         _ => panic!("Unknown type restriction"),
                     }
                 }
-                self.add(type_name_index); // FIXME this has to be 'improved'
 
                 let super_type = reader.read_v64()?; // super type index? id?
-                let super_pool = if super_type as usize > type_pools.len() {
+                let super_pool = if super_type as usize > self.pools.len() {
                     panic!("Unknown Supertype."); // TODO improve message
                 } else if super_type != 0 {
                     info!(
                         target: "SkillParsing",
                         "~~Add Super Type:{:?} for:{:?}",
-                        type_pools[(super_type - 1) as usize].borrow().get_type_id(),
+                        self.pools[(super_type - 1) as usize].borrow().get_type_id(),
                         type_id
                     );
                     // TODO check that this is the expected super type
-                    Some(type_pools[(super_type - 1) as usize].clone())
+                    Some(self.pools[(super_type - 1) as usize].clone())
                 } else {
                     None
                 };
 
                 let type_pool = pool_maker.make_pool(
                     type_name_index as usize,
-                    &type_name.clone(),
+                    &type_name,
                     type_id as usize,
                     super_pool,
                 );
-                type_pools.push(type_pool.clone());
+                self.pools.push(type_pool.clone());
                 type_pool
             };
 
@@ -317,7 +292,7 @@ impl TypeBlock {
         }
 
         info!(target: "SkillParsing", "~TypeFieldMetaData~");
-        let mut data_start = Offset::from(0);
+        let mut data_start = 0;
 
         for (pool, field_count) in block_local_pools {
             let mut field_id_limit = 1 + pool.borrow().field_amount();
@@ -352,7 +327,7 @@ impl TypeBlock {
                     info!(target: "SkillParsing", "~~~Field name: {}", field_name);
 
                     //TODO add from for the enum and use that to match and throw an error?
-                    let field_type = self.read_field_type(reader, type_pools)?;
+                    let field_type = self.read_field_type(reader)?;
 
                     let field_restrictions = reader.read_v64()?; // restrictions
                     info!(target: "SkillParsing", "~~~FieldRestrictions: {:?}", field_restrictions);
@@ -441,7 +416,7 @@ impl TypeBlock {
                             }
                         }
                     }
-                    let data_end = Offset::from(reader.read_v64()? as usize);
+                    let data_end = reader.read_v64()? as usize;
 
                     info!(
                         target: "SkillParsing", "~~~Add Field:{} start:{:?} end:{:?}",
@@ -467,7 +442,7 @@ impl TypeBlock {
                     }
                     data_start = data_end;
                 } else {
-                    let data_end = Offset::from(reader.read_v64()? as usize);
+                    let data_end = reader.read_v64()? as usize;
 
                     info!(
                         target: "SkillParsing", "~~~Add Field Chunk:{} start:{:?} end:{:?}",
@@ -495,6 +470,24 @@ impl TypeBlock {
         }
         field_data.push(reader.jump(data_start));
         info!(target: "SkillParsing", "~Block End~");
+        Ok(())
+    }
+
+    pub fn add(&mut self, pool: Rc<RefCell<InstancePool>>) {
+        self.pools.push(pool);
+    }
+
+    pub fn initialize(
+        &self,
+        strings: &StringBlock,
+        reader: &Vec<FileReader>,
+    ) -> Result<(), SkillError> {
+        for pool in self.pools.iter() {
+            pool.borrow().initialize(reader, strings, &self.pools)?;
+        }
+        Ok(())
+    }
+    pub fn write_block(&self, writer: &mut FileWriter) -> Result<(), SkillError> {
         Ok(())
     }
 }

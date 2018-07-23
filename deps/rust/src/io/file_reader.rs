@@ -8,18 +8,18 @@ use memmap::Mmap;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FileReader {
-    position: Offset,
-    end: Offset,
+    position: usize,
+    end: usize,
     mmap: Rc<Mmap>,
 }
 
 impl From<Rc<Mmap>> for FileReader {
     fn from(mmap: Rc<Mmap>) -> Self {
-        let len = Offset::from(mmap.len());
+        let len = mmap.len();
         FileReader {
-            position: Offset::from(0),
+            position: 0,
             end: len,
             mmap,
         }
@@ -27,7 +27,7 @@ impl From<Rc<Mmap>> for FileReader {
 }
 
 impl FileReader {
-    pub fn jump(&mut self, len: Offset) -> FileReader {
+    pub fn jump(&mut self, len: usize) -> FileReader {
         let reader = FileReader {
             position: self.position,
             end: self.position + len,
@@ -37,7 +37,7 @@ impl FileReader {
         reader
     }
 
-    pub fn rel_view(&self, from: Offset, len: Offset) -> FileReader {
+    pub fn rel_view(&self, from: usize, len: usize) -> FileReader {
         FileReader {
             position: self.position + from,
             end: self.position + len,
@@ -45,11 +45,11 @@ impl FileReader {
         }
     }
 
-    pub fn pos(&self) -> Offset {
+    pub fn pos(&self) -> usize {
         self.position
     }
 
-    pub fn len(&self) -> Offset {
+    pub fn len(&self) -> usize {
         self.end - self.position
     }
 
@@ -57,16 +57,7 @@ impl FileReader {
         self.position >= self.end
     }
 
-    // TODO fastpath for bigedian?
     // Reading
-    fn read_byte(&mut self) -> Result<u8, SkillError> {
-        if self.position < self.end {
-            Err(SkillError::UnexpectedEndOfInput)
-        } else {
-            Ok(read_byte_unchecked(&mut self.position, &*self.mmap))
-        }
-    }
-
     // boolean
     pub fn read_bool(&mut self) -> Result<bool, SkillError> {
         read_bool(&mut self.position, self.end, &*self.mmap)

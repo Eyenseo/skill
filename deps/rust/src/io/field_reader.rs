@@ -1,6 +1,6 @@
 use common::internal::InstancePool;
 use common::internal::SkillObject;
-use common::io::{FileReader, Offset};
+use common::io::FileReader;
 use common::Ptr;
 use common::SkillError;
 use common::StringBlock;
@@ -58,16 +58,16 @@ pub struct Block {
 
 #[derive(Default, Debug, Clone)]
 pub struct DeclarationFieldChunk {
-    pub begin: Offset,
-    pub end: Offset,
+    pub begin: usize,
+    pub end: usize,
     pub count: usize,
     pub appearance: BlockIndex,
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct ContinuationFieldChunk {
-    pub begin: Offset,
-    pub end: Offset,
+    pub begin: usize,
+    pub end: usize,
     pub count: usize,
     pub bpo: usize, // TODO strongly type
 }

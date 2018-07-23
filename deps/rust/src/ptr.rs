@@ -449,17 +449,6 @@ where
         }
     }
 
-    pub fn cast<U: 'static>(&self) -> Ptr<U> {
-        unsafe {
-            let meta = self.meta.as_ref();
-            meta.strong.set(meta.strong.get() + 1);
-            Ptr {
-                meta: self.meta,
-                value: Box::into_raw_non_null(Box::from_raw(self.value.as_ptr() as *mut U)),
-            }
-        }
-    }
-
     pub fn type_id(&self) -> TypeId {
         unsafe { self.meta.as_ref().type_id }
     }

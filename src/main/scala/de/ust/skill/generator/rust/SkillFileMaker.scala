@@ -39,7 +39,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
                 e"""use common::internal::InstancePool;
                    |use common::internal::ObjectReader;
                    |use common::internal::UndefinedPool;
-                   |use common::io::{FieldReader, BlockIndex, FieldType, FileReader};
+                   |use common::io::{FieldReader, BlockIndex, FieldType, FileWriter, FileReader};
                    |use common::PoolMaker;
                    |use common::Ptr;
                    |use common::SkillError;
@@ -83,7 +83,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
 
   private final def genSkillFileStruct(): String = {
     e"""pub struct SkillFile {
-       |    file: std::fs::File,
+       |    file: Rc<RefCell<std::fs::File>>,
        |    type_pool: TypeBlock,
        |    pub strings: Rc<RefCell<StringBlock>>,${
       (for (base ← IR) yield {
@@ -113,7 +113,6 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |        let string_block = Rc::new(RefCell::new(StringBlock::new()));
        |        let mut type_pool = TypeBlock::new();
        |        let mut file_builder = SkillFileBuilder::new(string_block.clone());
-       |        let mut type_pools = Vec::new();
        |        let mut data_chunk_reader = Vec::new();
        |${
       "" // FIXME handle errors better
@@ -142,7 +141,6 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |                        &mut reader,
        |                        &mut file_builder,
        |                        &string_block,
-       |                        &mut type_pools,
        |                        &mut data_chunk_reader,
        |                    )?;
        |                    if reader.is_empty() {
@@ -152,14 +150,14 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |                }
        |            }
        |        }
-       |        file_builder.allocate(&mut type_pools);
+       |        file_builder.allocate(&mut type_pool);
        |        file_builder.initialize(
-       |            &type_pools,
+       |            &type_pool,
        |            &data_chunk_reader,
        |            &string_block.borrow(),
        |        )?;
        |        Ok(SkillFile {
-       |            file: f,
+       |            file: Rc::new(RefCell::new(f)),
        |            type_pool,
        |            strings: string_block,${
       (for (base ← IR) yield {
@@ -179,17 +177,16 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |        let string_block = Rc::new(RefCell::new(StringBlock::new()));
        |        let mut type_pool = TypeBlock::new();
        |        let mut file_builder = SkillFileBuilder::new(string_block.clone());
-       |        let mut type_pools = Vec::new();
        |        let mut data_chunk_reader = Vec::new();
        |
-       |        file_builder.allocate(&mut type_pools);
+       |        file_builder.allocate(&mut type_pool);
        |        file_builder.initialize(
-       |            &type_pools,
+       |            &type_pool,
        |            &data_chunk_reader,
        |            &string_block.borrow(),
        |        )?;
        |        Ok(SkillFile {
-       |            file: f,
+       |            file: Rc::new(RefCell::new(f)),
        |            type_pool,
        |            strings: string_block,${
       (for (base ← IR) yield {
@@ -200,16 +197,18 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |        })
        |    }
        |
-       |    fn write(&self) -> Result<(), SkillError> {${
-      "" // TODO implement write
-    }
-       |        unimplemented!()
+       |    fn write(&self) -> Result<(), SkillError> {
+       |        let mut writer = FileWriter::new(self.file.clone());
+       |        self.strings.borrow().write_block(&mut writer)?;
+       |        self.type_pool.write_block(&mut writer)?;
+       |
+       |        Ok(())
        |    }
        |
-       |    fn close(&self) -> Result<(), SkillError> {${
-      "" // TODO implement close
+       |    fn close(self) -> Result<(), SkillError> {${
+      "" // TODO check if more has to be done?
     }
-       |        unimplemented!()
+       |        self.write()
        |    }
        |
        |    fn check(&self) -> Result<(), SkillError> {${
@@ -263,7 +262,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |        }
        |    }
        |
-       |    fn allocate(&mut self, type_pools: &mut Vec<Rc<RefCell<InstancePool>>>) {
+       |    fn allocate(&mut self, type_pool: &mut TypeBlock) {
        |        self.string_block.borrow_mut().finalize();
        |        ${
       (for (base ← IR) yield {
@@ -280,31 +279,29 @@ trait SkillFileMaker extends GeneralOutputMaker {
           }
         }
            |    self.${field(base)} = Some(pool.clone());
-           |    type_pools.push(pool);
+           |    type_pool.add(pool);
            |}
            |""".stripMargin
       }).mkString.trim
     }
        |        ${
       (for (base ← IR) yield {
-        e"""self.${field(base)}.as_ref().unwrap().borrow_mut().allocate(type_pools);
+        e"""self.${field(base)}.as_ref().unwrap().borrow_mut().allocate();
            |""".stripMargin
       }).mkString.trim
     }
        |        for pool in self.undefined_pools.iter() {
-       |            pool.borrow_mut().allocate(type_pools);
+       |            pool.borrow_mut().allocate();
        |        }
        |    }
        |
        |    fn initialize(
-       |        &mut self,
-       |        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
+       |        &self,
+       |        type_pool: &TypeBlock,
        |        file_reader: &Vec<FileReader>,
        |        string_block: &StringBlock,
        |    ) -> Result<(), SkillError> {
-       |        for ref pool in type_pools {
-       |            pool.borrow().initialize(file_reader, string_block, type_pools);
-       |        }
+       |        type_pool.initialize(string_block, file_reader)?;
        |        Ok(())
        |    }
        |}""".stripMargin

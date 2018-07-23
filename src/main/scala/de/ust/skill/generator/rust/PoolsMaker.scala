@@ -47,6 +47,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        |use common::io::{Block, BlockIndex, FileReader, FieldReader, FieldChunk, BuildInType, FieldType};
        |use common::StringBlock;
        |use common::SkillError;
+       |use common::Book;
        |use common::{Ptr, WeakPtr};
        |
        |use skill_file::SkillFileBuilder;
@@ -242,11 +243,8 @@ trait PoolsMaker extends GeneralOutputMaker {
        |pub struct ${storagePool(base)} {
        |    string_block: Rc<RefCell<StringBlock>>,
        |    instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
-       |    book_static: Vec<Ptr<SkillObject>>,
-       |    book_dynamic: Vec<Ptr<SkillObject>>,${
-      "" // TODO Implement the rest of book / freelist for the one "page"
-    }
-       |    // TODO needed after construction?
+       |    book: Book<${name(base)}>,
+       |    // TODO implement writing + rename
        |    fields: Vec<Box<FieldReader>>,
        |    type_name_index: usize,
        |    type_id: usize,
@@ -270,8 +268,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        |        ${storagePool(base)} {
        |            string_block,
        |            instances: Rc::default(),
-       |            book_static: Vec::new(),
-       |            book_dynamic: Vec::new(),
+       |            book: Book::default(),
        |            fields: Vec::new(),
        |            type_name_index: 0,
        |            type_id: 0,
@@ -302,7 +299,9 @@ trait PoolsMaker extends GeneralOutputMaker {
        |    }
        |
        |    pub fn add(&mut self) -> Ptr<${name(base)}> {
-       |        unimplemented!();
+       |        let ret = Ptr::new(${name(base)}::new());
+       |        self.book.insert(&ret);
+       |        ret
        |    }
        |}""".stripMargin
   }
@@ -330,7 +329,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        |        Ok(())
        |    }
        |
-       |    fn allocate(&mut self, type_pools: &Vec<Rc<RefCell<InstancePool>>>) {
+       |    fn allocate(&mut self) {
        |        let mut vec = self.instances.borrow_mut();
        |        if self.is_base() {
        |            let tmp = Ptr::new(UndefinedObject::new());
@@ -352,7 +351,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        |                vec.push(tmp.clone());
        |            }
        |        }
-       |        self.book_static.reserve(self.static_count);
+       |        self.book.static_page().reserve(self.static_count);
        |
        |        info!(
        |            target:"SkillParsing",
@@ -371,8 +370,8 @@ trait PoolsMaker extends GeneralOutputMaker {
        |                    block,
        |                );
        |
-       |                self.book_static.push(Ptr::new(${name(base)}::new()));
-       |                vec[id - 1] = self.book_static.last().unwrap().clone();
+       |                self.book.static_page().push(Ptr::new(${name(base)}::new()));
+       |                vec[id - 1] = self.book.static_page().last().unwrap().clone();
        |            }
        |        }
        |    }

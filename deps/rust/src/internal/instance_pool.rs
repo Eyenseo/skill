@@ -1,5 +1,5 @@
 use common::internal::{ObjectReader, SkillObject};
-use common::io::{Block, FieldChunk, FieldReader, FieldType, FileReader};
+use common::io::{Block, FieldChunk, FieldReader, FieldType, FileReader, FileWriter};
 use common::Ptr;
 use common::SkillError;
 use common::StringBlock;
@@ -8,6 +8,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 // TODO rename
+// TODO reorder
 pub trait InstancePool {
     fn has_field(&self, name_id: usize) -> bool;
     fn add_chunk_to(&mut self, name_id: usize, chunk: FieldChunk);
@@ -56,7 +57,7 @@ pub trait InstancePool {
 
     fn add_sub(&mut self, pool: Rc<RefCell<InstancePool>>);
 
-    fn allocate(&mut self, type_pools: &Vec<Rc<RefCell<InstancePool>>>);
+    fn allocate(&mut self);
     fn initialize(
         &self,
         file_reader: &Vec<FileReader>,

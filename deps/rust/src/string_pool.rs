@@ -1,6 +1,8 @@
 use common::error::SkillError;
 use common::internal::LiteralKeeper;
+use common::io::base_writer::bytes_v64;
 use common::io::FileReader;
+use common::io::FileWriter;
 
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -11,7 +13,9 @@ pub struct StringBlock {
     set: HashSet<Rc<String>>,
     literal_keeper: LiteralKeeper,
 }
-
+// TODO improve user interface
+// => split reading to another type
+// TODO write a String wrapper - implement dref - needs ID and a "faster" hashing
 impl StringBlock {
     pub fn new() -> StringBlock {
         StringBlock {
@@ -98,5 +102,26 @@ impl StringBlock {
 
     pub fn lit(&self) -> &LiteralKeeper {
         &self.literal_keeper
+    }
+
+    pub fn write_block(&self, writer: &mut FileWriter) -> Result<(), SkillError> {
+        let amount = self.pool.len();
+        if amount > 0 {
+            let mut lengths = writer.jump(bytes_v64(amount as i64) + amount * 4)?;
+            lengths.write_v64(amount as i64);
+
+            let mut offset: i32 = 0;
+            for s in self.pool.iter() {
+                offset += s.len() as i32;
+                writer.write_raw_string(s.as_str());
+                lengths.write_i32(offset);
+            }
+            // TODO flush async?
+            lengths.flush();
+        } else {
+            // tiny optimization
+            writer.write_i8(0);
+        }
+        Ok(())
     }
 }

@@ -236,7 +236,7 @@ impl InstancePool for UndefinedPool {
         Ok(())
     }
 
-    fn allocate(&mut self, type_pools: &Vec<Rc<RefCell<InstancePool>>>) {
+    fn allocate(&mut self) {
         let mut vec = self.instances.borrow_mut();
         if self.is_base() {
             let tmp = Ptr::new(UndefinedObject::new());
