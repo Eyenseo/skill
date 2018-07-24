@@ -36,6 +36,7 @@ impl<T> Book<T> {
         if ptr.strong_count() != 2 || ptr.weak_count() != 0 {
             panic!("Tried to free a object that is still beeing used.");
         }
+        // TODO Improve this => Ptr has to learn to be null
         for (i, v) in self.book.iter_mut().enumerate() {
             for (j, mut o) in v.iter_mut().enumerate() {
                 if o.is_some() && o.as_ref().unwrap() == &ptr {

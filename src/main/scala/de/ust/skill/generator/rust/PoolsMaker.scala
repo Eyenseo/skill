@@ -47,6 +47,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        |use common::io::{Block, BlockIndex, FileReader, FieldReader, FieldChunk, BuildInType, FieldType};
        |use common::StringBlock;
        |use common::SkillError;
+       |use common::SkillString;
        |use common::Book;
        |use common::{Ptr, WeakPtr};
        |
@@ -69,6 +70,7 @@ trait PoolsMaker extends GeneralOutputMaker {
 
   private final def getUsageStd(): String = {
     e"""
+       |use std::cell::Cell;
        |use std::cell::RefCell;
        |use std::collections::HashMap;
        |use std::collections::HashSet;
@@ -96,6 +98,7 @@ trait PoolsMaker extends GeneralOutputMaker {
   private final def genTypeStruct(base: UserType): String = {
     e"""#[derive(Default, Debug,  PartialEq)]
        |pub struct ${name(base)} {
+       |    id: Cell<usize>,
        |    ${
       (for (f ← base.getAllFields.asScala) yield {
         e"""${name(f)}: ${mapType(f.getType)},
@@ -164,9 +167,9 @@ trait PoolsMaker extends GeneralOutputMaker {
   private final def genTypeImpl(base: UserType): String = {
     // gen New
     e"""impl ${name(base)} {
-       |    pub fn new() -> ${name(base)} {
-       |        // TODO optimize for small / single field objects?
+       |    pub fn new(id: usize) -> ${name(base)} {
        |        ${name(base)} {
+       |            id: Cell::new(id),
        |            ${
       (for (f ← base.getAllFields.asScala) yield {
         e"""${name(f)}: ${defaultValue(f)},
@@ -205,7 +208,14 @@ trait PoolsMaker extends GeneralOutputMaker {
       }
     }
        |
-       |impl SkillObject for ${name(base)} {}
+       |impl SkillObject for ${name(base)} {
+       |    fn get_skill_id(&self) -> usize {
+       |        self.id.get()
+       |    }
+       |    fn set_skill_id(&self, id: usize) {
+       |        self.id.set(id);
+       |    }
+       |}
        |""".stripMargin.trim
   }
 
@@ -299,7 +309,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        |    }
        |
        |    pub fn add(&mut self) -> Ptr<${name(base)}> {
-       |        let ret = Ptr::new(${name(base)}::new());
+       |        let ret = Ptr::new(${name(base)}::new(0));
        |        self.book.insert(&ret);
        |        ret
        |    }
@@ -331,8 +341,10 @@ trait PoolsMaker extends GeneralOutputMaker {
        |
        |    fn allocate(&mut self) {
        |        let mut vec = self.instances.borrow_mut();
-       |        if self.is_base() {
-       |            let tmp = Ptr::new(UndefinedObject::new());
+       |        if self.is_base() {${
+      "" // TODO add garbage type
+    }
+       |            let tmp = Ptr::new(UndefinedObject::new(0));
        |            info!(
        |                target:"SkillParsing",
        |                "Allocate space for:${base.getName} aka ${name(base)} amount:{}",
@@ -370,7 +382,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        |                    block,
        |                );
        |
-       |                self.book.static_page().push(Ptr::new(${name(base)}::new()));
+       |                self.book.static_page().push(Ptr::new(${name(base)}::new(id)));
        |                vec[id - 1] = self.book.static_page().last().unwrap().clone();
        |            }
        |        }
@@ -531,12 +543,12 @@ trait PoolsMaker extends GeneralOutputMaker {
        |         self.cached_count = count;
        |    }
        |
-       |    fn make_instance(&self) -> Ptr<SkillObject> {
+       |    fn make_instance(&self, id: usize) -> Ptr<SkillObject> {
        |        trace!(
        |            target:"SkillParsing",
        |            "Create new ${name(base)}",
        |        );
-       |        Ptr::new(${name(base)}::new())
+       |        Ptr::new(${name(base)}::new(id))
        |    }
        |}""".stripMargin
   }
@@ -546,7 +558,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        |fn add_field(
        |    &mut self,
        |    name_id: usize,
-       |    field_name: &str,
+       |    field_name: &Rc<SkillString>,
        |    mut field_type: FieldType,
        |    chunk: FieldChunk,
        |) {
@@ -565,7 +577,7 @@ trait PoolsMaker extends GeneralOutputMaker {
   // TODO do something about these stupid names
   private final def genPoolImplInstancePoolAddFieldField(base: UserType,
                                                          f: Field): String = {
-    e"""if self.string_block.borrow().lit().${field(f)} == field_name {
+    e"""if self.string_block.borrow().lit().${field(f)} == field_name.as_str() {
        |    match field_type {
        |        ${
       f.getType match {

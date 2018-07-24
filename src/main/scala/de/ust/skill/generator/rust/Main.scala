@@ -60,7 +60,7 @@ final class Main extends FakeMain
       case "f32" ⇒ "f32"
       case "f64" ⇒ "f64"
 
-      case "string"     ⇒ "Rc<String>"
+      case "string"     ⇒ "Rc<SkillString>"
       case "annotation" ⇒ "Option<Ptr<SkillObject>>"
 
       case _ ⇒ throw new GeneratorException(s"Unhandled type $t")

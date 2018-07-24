@@ -44,6 +44,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
                    |use common::Ptr;
                    |use common::SkillError;
                    |use common::SkillFile as SkillFileTrait;
+                   |use common::SkillString;
                    |use common::StringBlock;
                    |use common::TypeBlock;
                    |
@@ -312,13 +313,13 @@ trait SkillFileMaker extends GeneralOutputMaker {
        |    fn make_pool(
        |        &mut self,
        |        type_name_index: usize,
-       |        type_name: &str,
+       |        type_name: &Rc<SkillString>,
        |        type_id: usize,
        |        super_pool: Option<Rc<RefCell<InstancePool>>>,
        |    ) -> Rc<RefCell<InstancePool>> {
        |        ${
       (for (base ← IR) yield {
-        e"""if type_name == self.string_block.borrow().lit().${field(base)}  {
+        e"""if type_name.as_str() == self.string_block.borrow().lit().${field(base)}  {
            |    if self.${field(base)}.is_none() {
            |        self.${field(base)} = Some(Rc::new(RefCell::new(
            |            ${storagePool(base)}::new(self.string_block.clone())
@@ -335,7 +336,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
                |);
                |""".stripMargin.trim
           } else {
-            e"""if super_name.as_ref() != self.string_block.borrow().lit().${field(base.getSuperType)} {
+            e"""if super_name.as_str() != self.string_block.borrow().lit().${field(base.getSuperType)} {
                |    panic!(
                |        "Wrong super type for '${base.getName.camel()}' aka '${name(base)}' expect:${
               field(base.getSuperType)

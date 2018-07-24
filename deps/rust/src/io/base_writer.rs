@@ -81,35 +81,35 @@ pub fn write_i64(position: &mut usize, out: &mut [u8], what: i64) {
 pub fn write_v64(position: &mut usize, out: &mut [u8], what: i64) {
     // TODO check out of bounds?
     // is this handeld through rust as rust will check the bounds of the slice ?
-    if what as u64 & 0xFFFFFFFFFFFFFF80 as u64 == 0 {
+    if (what as u64) < 0x80 {
         write_byte_unchecked(position, out, what as u8);
     } else {
         write_byte_unchecked(position, out, ((what) | 0x80) as u8);
-        if what as u64 & 0xFFFFFFFFFFFFFC00 as u64 == 0 {
+        if (what as u64) < 0x4000 {
             write_byte_unchecked(position, out, (what >> 7) as u8);
         } else {
             write_byte_unchecked(position, out, ((what >> 7) | 0x80) as u8);
-            if what as u64 & 0xFFFFFFFFFFE00000 as u64 == 0 {
+            if (what as u64) < 0x200000 {
                 write_byte_unchecked(position, out, (what >> 14) as u8);
             } else {
                 write_byte_unchecked(position, out, ((what >> 14) | 0x80) as u8);
-                if what as u64 & 0xFFFFFFFFF0000000 as u64 == 0 {
+                if (what as u64) < 0x10000000 {
                     write_byte_unchecked(position, out, (what >> 21) as u8);
                 } else {
                     write_byte_unchecked(position, out, ((what >> 21) | 0x80) as u8);
-                    if what as u64 & 0xFFFFFFF800000000 as u64 == 0 {
+                    if (what as u64) < 0x800000000 {
                         write_byte_unchecked(position, out, (what >> 28) as u8);
                     } else {
                         write_byte_unchecked(position, out, ((what >> 28) | 0x80) as u8);
-                        if what as u64 & 0xFFFFFC0000000000 as u64 == 0 {
+                        if (what as u64) < 0x40000000000 {
                             write_byte_unchecked(position, out, (what >> 35) as u8);
                         } else {
                             write_byte_unchecked(position, out, ((what >> 35) | 0x80) as u8);
-                            if what as u64 & 0xFFFE000000000000 as u64 == 0 {
+                            if (what as u64) < 0x2000000000000 {
                                 write_byte_unchecked(position, out, (what >> 42) as u8);
                             } else {
                                 write_byte_unchecked(position, out, ((what >> 42) | 0x80) as u8);
-                                if what as u64 & 0xFF00000000000000 as u64 == 0 {
+                                if (what as u64) < 0x100000000000000 {
                                     write_byte_unchecked(position, out, (what >> 49) as u8);
                                 } else {
                                     write_byte_unchecked(
@@ -137,21 +137,21 @@ pub fn write_v64(position: &mut usize, out: &mut [u8], what: i64) {
 }
 
 pub fn bytes_v64(what: i64) -> usize {
-    if what < 0x80 {
+    if (what as u64) < 0x80 {
         1
-    } else if what < 0x4000 {
+    } else if (what as u64) < 0x4000 {
         2
-    } else if what < 0x200000 {
+    } else if (what as u64) < 0x200000 {
         3
-    } else if what < 0x10000000 {
+    } else if (what as u64) < 0x10000000 {
         4
-    } else if what < 0x800000000 {
+    } else if (what as u64) < 0x800000000 {
         5
-    } else if what < 0x40000000000 {
+    } else if (what as u64) < 0x40000000000 {
         6
-    } else if what < 0x2000000000000 {
+    } else if (what as u64) < 0x2000000000000 {
         7
-    } else if what < 0x100000000000000 {
+    } else if (what as u64) < 0x100000000000000 {
         8
     } else {
         9

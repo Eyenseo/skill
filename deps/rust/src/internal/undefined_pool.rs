@@ -2,6 +2,7 @@ use common::internal::{InstancePool, LazyFieldReader, ObjectReader, SkillObject,
 use common::io::{Block, FieldChunk, FieldReader, FieldType, FileReader};
 use common::Ptr;
 use common::SkillError;
+use common::SkillString;
 use common::StringBlock;
 
 use std::cell::RefCell;
@@ -53,7 +54,7 @@ impl InstancePool for UndefinedPool {
     fn add_field(
         &mut self,
         name_id: usize,
-        field_name: &str,
+        field_name: &Rc<SkillString>,
         field_type: FieldType,
         chunk: FieldChunk,
     ) {
@@ -239,7 +240,8 @@ impl InstancePool for UndefinedPool {
     fn allocate(&mut self) {
         let mut vec = self.instances.borrow_mut();
         if self.is_base() {
-            let tmp = Ptr::new(UndefinedObject::new());
+            // TODO add extra Garbage / placeholder object
+            let tmp = Ptr::new(UndefinedObject::new(0));
             info!(
                 target:"SkillParsing",
                 "Allocate space for:UndefinedPool amount:{}",
@@ -277,7 +279,7 @@ impl InstancePool for UndefinedPool {
                         pool.get_type_id(),
                         block,
                     );
-                    self.book_static.push(pool.make_instance());
+                    self.book_static.push(pool.make_instance(id));
                 } else {
                     trace!(
                         target:"SkillParsing",
@@ -285,7 +287,7 @@ impl InstancePool for UndefinedPool {
                         id,
                         block,
                     );
-                    let tmp = self.make_instance();
+                    let tmp = self.make_instance(id);
                     self.book_static.push(tmp);
                 }
                 vec[id - 1] = self.book_static.last().unwrap().clone();
@@ -293,14 +295,14 @@ impl InstancePool for UndefinedPool {
         }
     }
 
-    fn make_instance(&self) -> Ptr<SkillObject> {
+    fn make_instance(&self, id: usize) -> Ptr<SkillObject> {
         if let Some(pool) = self.super_pool.as_ref() {
-            return pool.borrow().make_instance();
+            return pool.borrow().make_instance(id);
         }
         trace!(
             target:"SkillParsing",
             "Create new UndefinedObject",
         );
-        Ptr::new(UndefinedObject {})
+        Ptr::new(UndefinedObject::new(id))
     }
 }

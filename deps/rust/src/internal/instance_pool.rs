@@ -2,6 +2,7 @@ use common::internal::{ObjectReader, SkillObject};
 use common::io::{Block, FieldChunk, FieldReader, FieldType, FileReader, FileWriter};
 use common::Ptr;
 use common::SkillError;
+use common::SkillString;
 use common::StringBlock;
 
 use std::cell::RefCell;
@@ -15,7 +16,7 @@ pub trait InstancePool {
     fn add_field(
         &mut self,
         name_id: usize,
-        field_name: &str,
+        field_name: &Rc<SkillString>,
         field_type: FieldType,
         chunk: FieldChunk,
     );
@@ -65,5 +66,5 @@ pub trait InstancePool {
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<(), SkillError>;
 
-    fn make_instance(&self) -> Ptr<SkillObject>;
+    fn make_instance(&self, id: usize) -> Ptr<SkillObject>;
 }

@@ -54,6 +54,7 @@ impl FileWriter {
                 MmapOptions::new()
                     .len(new_pos)
                     .map_mut(&self.file.borrow())
+                    // TODO use offset?
                     // TODO better error
                     .or(Err(SkillError::UnexpectedEndOfInput))?
             }),

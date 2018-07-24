@@ -33,7 +33,9 @@ trait LiteralKeeper extends GeneralOutputMaker {
   // Usage
   //----------------------------------------
   private final def genUsage(): String = {
-    e"""use std::borrow::Cow;
+    e"""use common::SkillString;
+       |
+       |use std::borrow::Cow;
        |use std::collections::HashSet;
        |use std::rc::Rc;
        |""".stripMargin
@@ -68,18 +70,18 @@ trait LiteralKeeper extends GeneralOutputMaker {
            |""".stripMargin
       }).mkString.trim
     }
-       |   set: HashSet<Rc<String>>,
+       |   set: HashSet<Rc<SkillString>>,
        |}
        |""".stripMargin
   }.trim
 
   def genLiteralKeeperImpl(): String = {
     e"""impl LiteralKeeper {
-       |    pub fn get(&mut self, lit: &str) -> Option<Rc<String>> {
-       |        self.set.take(&String::from(Cow::Borrowed(lit)))
+       |    pub fn get(&mut self, lit: &Rc<SkillString>) -> Option<Rc<SkillString>> {
+       |        self.set.take(lit)
        |    }
        |
-       |    pub fn get_rest(&mut self) -> Vec<Rc<String>> {
+       |    pub fn get_rest(&mut self) -> Vec<Rc<SkillString>> {
        |        self.set.drain().collect()
        |    }
        |}
@@ -105,12 +107,12 @@ trait LiteralKeeper extends GeneralOutputMaker {
        |        };
        |        ${
       (for (s ← allStrings._1; name = getName(s)) yield {
-        e"""lit.set.insert(Rc::new(String::from(Cow::Borrowed(lit.$name))));
+        e"""lit.set.insert(Rc::new(SkillString::from(Cow::from(lit.$name))));
            |""".stripMargin
       }).mkString
     }${
       (for (s ← allStrings._2; name = getName(s)) yield {
-        e"""lit.set.insert(Rc::new(String::from(Cow::Borrowed(lit.$name))));
+        e"""lit.set.insert(Rc::new(SkillString::from(Cow::from(lit.$name))));
            |""".stripMargin
       }).mkString.trim
     }

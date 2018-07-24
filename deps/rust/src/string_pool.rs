@@ -1,21 +1,22 @@
 use common::error::SkillError;
 use common::internal::LiteralKeeper;
+use common::internal::SkillObject;
 use common::io::base_writer::bytes_v64;
 use common::io::FileReader;
 use common::io::FileWriter;
+use common::SkillString;
 
 use std::collections::HashSet;
 use std::rc::Rc;
 
 #[derive(Default, Debug)]
 pub struct StringBlock {
-    pool: Vec<Rc<String>>, // TODO add set to filter dupliates -> Box the string
-    set: HashSet<Rc<String>>,
+    pool: Vec<Rc<SkillString>>,
+    set: HashSet<Rc<SkillString>>,
     literal_keeper: LiteralKeeper,
 }
 // TODO improve user interface
 // => split reading to another type
-// TODO write a String wrapper - implement dref - needs ID and a "faster" hashing
 impl StringBlock {
     pub fn new() -> StringBlock {
         StringBlock {
@@ -39,28 +40,32 @@ impl StringBlock {
         self.reserve(reserve + size);
     }
     fn add_raw(&mut self, s: &str) {
-        if let Some(v) = self.set.get(&String::from(s)) {
-            panic!("String |{}| was already contained in the pool", s);
-        }
-        let v = if let Some(v) = self.literal_keeper.get(s) {
+        let ss = Rc::new(SkillString::new(self.pool.len(), s));
+        let ss = if let Some(v) = self.literal_keeper.get(&ss) {
+            v.set_skill_id(self.pool.len());
             v
         } else {
-            Rc::new(String::from(s))
+            if let Some(_) = self.set.get(&ss) {
+                panic!("String |{}| was already contained in the pool", s);
+            }
+            ss
         };
-        self.pool.push(v.clone());
-        self.set.insert(v);
+
+        self.pool.push(ss.clone());
+        self.set.insert(ss);
     }
-    pub fn add(&mut self, s: &str) -> Rc<String> {
-        if let Some(v) = self.set.get(&String::from(s)) {
+    pub fn add(&mut self, s: &str) -> Rc<SkillString> {
+        // this is bad ...
+        let v = Rc::new(SkillString::new(self.pool.len(), s));
+        if let Some(v) = self.set.get(&v) {
             return v.clone();
         }
-        let v = Rc::new(String::from(s));
         self.pool.push(v.clone());
         self.set.insert(v.clone());
         v
     }
     // TODO replace with Rc -- beter suited for the job
-    pub fn get(&self, i: usize) -> Rc<String> {
+    pub fn get(&self, i: usize) -> Rc<SkillString> {
         if i == 0 {
             panic!("StringBlock index starts at 1 not 0");
         }
@@ -112,7 +117,7 @@ impl StringBlock {
 
             let mut offset: i32 = 0;
             for s in self.pool.iter() {
-                offset += s.len() as i32;
+                offset += s.string().len() as i32;
                 writer.write_raw_string(s.as_str());
                 lengths.write_i32(offset);
             }
