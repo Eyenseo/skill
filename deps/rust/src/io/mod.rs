@@ -9,7 +9,7 @@ pub mod file_writer;
 pub use self::base_reader::*;
 pub use self::base_writer::*;
 pub use self::field_reader::{
-    Block, BlockIndex, ContinuationFieldChunk, DeclarationFieldChunk, FieldChunk, FieldReader,
+    Block, BlockIndex, ContinuationFieldChunk, DeclarationFieldChunk, FieldChunk, FieldDeclaration,
 };
 pub use self::file_reader::FileReader;
 pub use self::file_writer::FileWriter;

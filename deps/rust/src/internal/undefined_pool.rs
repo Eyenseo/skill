@@ -1,5 +1,9 @@
-use common::internal::{InstancePool, LazyFieldReader, ObjectReader, SkillObject, UndefinedObject};
-use common::io::{Block, FieldChunk, FieldReader, FieldType, FileReader};
+use common::internal::{
+    InstancePool, LazyFieldDeclaration, ObjectReader, SkillObject, UndefinedObject,
+};
+use common::io::{
+    Block, BlockIndex, FieldChunk, FieldDeclaration, FieldType, FileReader, FileWriter,
+};
 use common::Ptr;
 use common::SkillError;
 use common::SkillString;
@@ -11,41 +15,49 @@ use std::rc::Rc;
 pub struct UndefinedPool {
     string_block: Rc<RefCell<StringBlock>>,
     instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
-    book_static: Vec<Ptr<SkillObject>>,
-    book_dynamic: Vec<Ptr<SkillObject>>,
-    fields: Vec<Box<LazyFieldReader>>,
-    type_name_index: usize,
+    own_static_instances: Vec<Ptr<SkillObject>>,
+    own_new_instances: Vec<Ptr<SkillObject>>,
+    fields: Vec<Box<LazyFieldDeclaration>>,
+    name: Rc<SkillString>,
     type_id: usize,
     blocks: Vec<Block>,
     super_pool: Option<Rc<RefCell<InstancePool>>>,
     sub_pools: Vec<Rc<RefCell<InstancePool>>>,
     base_pool: Option<Rc<RefCell<InstancePool>>>,
+    next_pool: Option<Rc<RefCell<InstancePool>>>,
     static_count: usize,
     dynamic_count: usize,
     cached_count: usize,
     deleted_count: usize,
     invariant: bool,
+    type_hierarchy_height: usize,
 }
 
 impl UndefinedPool {
-    pub fn new(string_block: Rc<RefCell<StringBlock>>) -> UndefinedPool {
+    pub fn new(
+        string_block: Rc<RefCell<StringBlock>>,
+        name: Rc<SkillString>,
+        type_id: usize,
+    ) -> UndefinedPool {
         UndefinedPool {
             string_block,
             instances: Rc::default(),
-            book_static: Vec::new(),
-            book_dynamic: Vec::new(),
+            own_static_instances: Vec::new(),
+            own_new_instances: Vec::new(),
             fields: Vec::new(),
-            type_name_index: 0,
-            type_id: 0,
+            name,
+            type_id,
             blocks: Vec::new(),
             super_pool: None,
             sub_pools: Vec::new(),
             base_pool: None,
+            next_pool: None,
             static_count: 0,
             dynamic_count: 0,
             cached_count: 0,
             deleted_count: 0,
             invariant: false,
+            type_hierarchy_height: 0,
         }
     }
 }
@@ -53,19 +65,19 @@ impl UndefinedPool {
 impl InstancePool for UndefinedPool {
     fn add_field(
         &mut self,
-        name_id: usize,
-        field_name: &Rc<SkillString>,
+        index: usize,
+        field_name: Rc<SkillString>,
         field_type: FieldType,
         chunk: FieldChunk,
     ) {
-        let mut reader = Box::new(LazyFieldReader::new(name_id));
+        let mut reader = Box::new(LazyFieldDeclaration::new(field_name, index, field_type));
         reader.as_mut().add_chunk(chunk);
         self.fields.push(reader);
     }
     fn has_field(&self, name_id: usize) -> bool {
         for f in &self.fields {
             let f = f.as_ref();
-            if f.name_id() == name_id {
+            if f.name().get_skill_id() == name_id {
                 return true;
             }
         }
@@ -77,7 +89,7 @@ impl InstancePool for UndefinedPool {
     fn add_chunk_to(&mut self, name_id: usize, chunk: FieldChunk) {
         for f in &mut self.fields {
             let f = f.as_mut();
-            if f.name_id() == name_id {
+            if f.name().get_skill_id() == name_id {
                 f.add_chunk(chunk);
                 return;
             }
@@ -92,17 +104,17 @@ impl InstancePool for UndefinedPool {
         self.type_id
     }
 
-    fn set_type_name_index(&mut self, id: usize) {
-        self.type_name_index = id;
-    }
-    fn get_type_name_index(&self) -> usize {
-        self.type_name_index
+    fn name(&self) -> &SkillString {
+        &self.name
     }
 
     fn add_block(&mut self, block: Block) {
         self.blocks.push(block);
     }
-    fn blocks(&mut self) -> &mut Vec<Block> {
+    fn blocks(&self) -> &Vec<Block> {
+        &self.blocks
+    }
+    fn blocks_mut(&mut self) -> &mut Vec<Block> {
         &mut self.blocks
     }
 
@@ -162,7 +174,7 @@ impl InstancePool for UndefinedPool {
         if self.invariant != invariant {
             self.invariant = invariant;
             if invariant {
-                self.cached_count = self.static_count - self.deleted_count;
+                self.cached_count = self.static_size() - self.deleted_count;
                 for s in self.sub_pools.iter() {
                     let mut s = s.borrow_mut();
                     s.set_invariant(true);
@@ -177,19 +189,6 @@ impl InstancePool for UndefinedPool {
             }
         }
     }
-
-    fn size(&self) -> usize {
-        if self.invariant {
-            self.cached_count
-        } else {
-            let mut ret = self.static_count;
-            for s in self.sub_pools.iter() {
-                ret += s.borrow().size();
-            }
-            ret
-        }
-    }
-
     fn get_global_static_count(&self) -> usize {
         self.static_count
     }
@@ -258,7 +257,7 @@ impl InstancePool for UndefinedPool {
                 vec.push(tmp.clone());
             }
         }
-        self.book_static.reserve(self.static_count);
+        self.own_static_instances.reserve(self.static_count);
 
         info!(
             target:"SkillParsing",
@@ -279,7 +278,7 @@ impl InstancePool for UndefinedPool {
                         pool.get_type_id(),
                         block,
                     );
-                    self.book_static.push(pool.make_instance(id));
+                    self.own_static_instances.push(pool.make_instance(id));
                 } else {
                     trace!(
                         target:"SkillParsing",
@@ -288,9 +287,9 @@ impl InstancePool for UndefinedPool {
                         block,
                     );
                     let tmp = self.make_instance(id);
-                    self.book_static.push(tmp);
+                    self.own_static_instances.push(tmp);
                 }
-                vec[id - 1] = self.book_static.last().unwrap().clone();
+                vec[id - 1] = self.own_static_instances.last().unwrap().clone();
             }
         }
     }
@@ -304,5 +303,108 @@ impl InstancePool for UndefinedPool {
             "Create new UndefinedObject",
         );
         Ptr::new(UndefinedObject::new(id))
+    }
+    fn update_after_compress(
+        &mut self,
+        local_bpo: &Vec<usize>,
+        vec: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
+    ) {
+        self.instances = vec;
+        self.own_new_instances = Vec::new();
+        self.blocks = Vec::with_capacity(1);
+        let static_size = self.static_size();
+        self.blocks.push(Block {
+            block: BlockIndex::from(0),
+            bpo: local_bpo[self.type_id - 32],
+            static_count: static_size,
+            dynamic_count: self.cached_count,
+        });
+        trace!(
+            target:"SkillWriting",
+            "Updated Block:{:?}",
+            self.blocks.last().unwrap(),
+        );
+    }
+
+    fn static_instances(&self) -> &Vec<Ptr<SkillObject>> {
+        &self.own_static_instances
+    }
+    fn new_instances(&self) -> &Vec<Ptr<SkillObject>> {
+        &self.own_new_instances
+    }
+
+    fn static_size(&self) -> usize {
+        self.static_count + self.own_new_instances.len()
+    }
+    fn dynamic_size(&self) -> usize {
+        if self.invariant {
+            self.cached_count
+        } else {
+            let mut ret = self.static_size();
+            for s in self.sub_pools.iter() {
+                ret += s.borrow().static_size();
+            }
+            ret
+        }
+    }
+    fn deleted(&self) -> usize {
+        self.deleted_count
+    }
+
+    fn set_next_pool(&mut self, pool: Rc<RefCell<InstancePool>>) {
+        if self.sub_pools.len() > 0 {
+            self.next_pool = Some(self.sub_pools.first().unwrap().clone());
+            for i in 0..self.sub_pools.len() - 1 {
+                self.sub_pools[i]
+                    .borrow_mut()
+                    .set_next_pool(self.sub_pools[i + 1].clone());
+            }
+            self.sub_pools
+                .last()
+                .unwrap()
+                .borrow_mut()
+                .set_next_pool(pool);
+        } else {
+            self.next_pool = Some(pool);
+        }
+    }
+    fn get_next_pool(&self) -> Option<Rc<RefCell<InstancePool>>> {
+        self.next_pool.clone()
+    }
+    fn type_hierarchy_height(&self) -> usize {
+        self.type_hierarchy_height
+    }
+    fn compress_field_chunks(&mut self, local_bpo: &Vec<usize>) {
+        let total_count = self.get_global_cached_count();
+        for f in self.fields.iter_mut() {
+            f.compress_chunks(total_count);
+        }
+    }
+    fn write_type_meta(&self, writer: &mut FileWriter, local_bpos: &Vec<usize>) {
+        writer.write_v64(self.name().get_skill_id() as i64);
+        writer.write_v64(self.get_local_dynamic_count() as i64);
+        // FIXME restrictions
+        writer.write_v64(0);
+        if let Some(s) = self.get_super() {
+            writer.write_v64((s.borrow().get_type_id() - 32) as i64); // TODO +1?
+            if self.get_local_dynamic_count() != 0 {
+                writer.write_v64(local_bpos[self.get_type_id() - 32] as i64);
+            }
+        } else {
+            // tiny optimisation
+            writer.write_i8(0);
+        }
+        writer.write_v64(self.field_amount() as i64);
+    }
+    fn write_field_meta(&mut self, writer: &mut FileWriter, mut offset: usize) -> usize {
+        for f in self.fields.iter_mut() {
+            offset = f.write_meta(writer, offset);
+        }
+        offset
+    }
+    fn write_field_data(&self, writer: &mut FileWriter) {
+        for f in self.fields.iter() {
+            f.write_data(writer)
+        }
     }
 }

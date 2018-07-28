@@ -1,8 +1,10 @@
 use common::internal::InstancePool;
 use common::internal::SkillObject;
 use common::io::FileReader;
+use common::io::FileWriter;
 use common::Ptr;
 use common::SkillError;
+use common::SkillString;
 use common::StringBlock;
 
 use std::cell::RefCell;
@@ -89,7 +91,7 @@ impl From<DeclarationFieldChunk> for FieldChunk {
     }
 }
 
-pub trait FieldReader {
+pub trait FieldDeclaration {
     fn read(
         &self,
         file_reader: &Vec<FileReader>,
@@ -98,6 +100,15 @@ pub trait FieldReader {
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
         instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillError>;
+
+    fn name(&self) -> &Rc<SkillString>;
+
     fn add_chunk(&mut self, chunk: FieldChunk);
-    fn name_id(&self) -> usize;
+
+    fn compress_chunks(&mut self, total_count: usize);
+    fn offset(&self) -> usize;
+
+    /// This call will also update the offsets of the chunk
+    fn write_meta(&mut self, writer: &mut FileWriter, offset: usize) -> usize;
+    fn write_data(&self, writer: &mut FileWriter);
 }

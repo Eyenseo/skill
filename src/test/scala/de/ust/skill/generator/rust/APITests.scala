@@ -8,7 +8,7 @@ package de.ust.skill.generator.rust
 import java.io._
 
 import de.ust.skill.generator.common
-import de.ust.skill.generator.common.Indenter._
+import de.ust.skill.generator.common.IndenterLaw._
 import de.ust.skill.ir._
 import de.ust.skill.main.CommandLine
 import org.json.JSONObject
@@ -84,11 +84,11 @@ class APITests extends common.GenericAPITests {
     // FIXME hardcoded path
     pw.write(
               """[workspace]
-                |members = [""".stripMargin
+                §members = [""".stripMargin('§')
             )
     for (test ← generatedTests) {
       pw.write(
-                e""""$test", """.stripMargin
+                e""""$test", """.stripMargin('§')
               )
     }
     pw.write("]")
@@ -128,20 +128,18 @@ class APITests extends common.GenericAPITests {
     val rval = new PrintWriter(new BufferedWriter(new OutputStreamWriter(new FileOutputStream(f), "UTF-8")))
     rval.write(
                 e"""#![feature(test)]
-                   |
-                   |extern crate $pkgEsc;
-                   |
-                   |#[cfg(test)]
-                   |#[allow(non_snake_case)]
-                   |#[allow(unused_must_use)]
-                   |mod tests {
-                   |    extern crate env_logger;
-                   |
-                   |    use $pkgEsc::common::SkillFile as SkillFileTrait;
-                   |
-                   |    use $pkgEsc::skill_file::SkillFile;
-                   |    use $pkgEsc::*;
-                   |""".stripMargin.trim
+                   §
+                   §extern crate $pkgEsc;
+                   §
+                   §#[cfg(test)]
+                   §#[allow(non_snake_case)]
+                   §#[allow(unused_must_use)]
+                   §mod tests {
+                   §    extern crate env_logger;
+                   §
+                   §    use $pkgEsc::skill_file::SkillFile;
+                   §    use $pkgEsc::*;
+                   §""".stripMargin('§').trim
               )
     rval
   }
@@ -149,8 +147,8 @@ class APITests extends common.GenericAPITests {
   override def closeTestFile(out: java.io.PrintWriter) {
     out.write(
                """
-                 |}
-               """.stripMargin)
+                 §}
+                 §""".stripMargin('§'))
     out.close()
   }
 
@@ -173,46 +171,47 @@ class APITests extends common.GenericAPITests {
     out.write(
                // FIXME hardcoded tmp file
                e"""
-                  |    struct Cleanup${gen.camelCase(funName)};
-                  |
-                  |    impl Drop for Cleanup${gen.camelCase(funName)} {
-                  |        fn drop(&mut self) {
-                  |            ::std::fs::remove_file("/tmp/${funName}_$uuid.sf");
-                  |        }
-                  |    }
-                  |
-                  |    #[test]${if (!accept) "\n#[should_panic]" else ""}
-                  |    fn $funName() {
-                  |        let _cleanup = Cleanup${gen.camelCase(funName)};
-                  |
-                  |        match SkillFile::create("/tmp/${funName}_$uuid.sf") {
-                  |            Ok(sf) => match sf.check() {
-                  |                Ok(_) => {
-                  |                    // create objects
-                  |                    ${createObjects(root, tc, name)}
-                  |                    // set fields
-                  |                    ${setFields(root, tc)}
-                  |
-                  |                    sf.close();
-                  |                },
-                  |                Err(e) => panic!("{}", e)
-                  |            },
-                  |            Err(e) => panic!("{}", e),
-                  |        };
-                  |
-                  |        match SkillFile::open("/tmp/${funName}_$uuid.sf") {
-                  |            Ok(sf) => match sf.check() {
-                  |                Ok(_) => {
-                  |                    // get objects
-                  |                    ${readObjects(root, tc, name)}
-                  |                    // assert fields
-                  |                    ${assertFields(root, tc)}
-                  |                },
-                  |                Err(e) => panic!("{}", e)
-                  |            },
-                  |            Err(e) => panic!("{}", e),
-                  |        };
-                  |    }""".stripMargin)
+                  §    struct Cleanup${gen.camelCase(funName.capitalize)};
+                  §
+                  §    impl Drop for Cleanup${gen.camelCase(funName.capitalize)} {
+                  §        fn drop(&mut self) {
+                  §            ::std::fs::remove_file("/tmp/${funName}_$uuid.sf");
+                  §        }
+                  §    }
+                  §
+                  §    #[test]${if (!accept) "\n#[should_panic]" else ""}
+                  §    fn $funName() {
+                  §        let _logger = env_logger::try_init();
+                  §        let _cleanup = Cleanup${gen.camelCase(funName.capitalize)};
+                  §
+                  §        match SkillFile::create("/tmp/${funName}_$uuid.sf") {
+                  §            Ok(sf) => match sf.check() {
+                  §                Ok(_) => {
+                  §                    // create objects
+                  §                    ${createObjects(root, tc, name)}
+                  §                    // set fields
+                  §                    ${setFields(root, tc)}
+                  §
+                  §                    sf.close();
+                  §                },
+                  §                Err(e) => panic!("{}", e)
+                  §            },
+                  §            Err(e) => panic!("{}", e),
+                  §        };
+                  §
+                  §        match SkillFile::open("/tmp/${funName}_$uuid.sf") {
+                  §            Ok(sf) => match sf.check() {
+                  §                Ok(_) => {
+                  §                    // get objects
+                  §                    ${readObjects(root, tc, name)}
+                  §                    // assert fields
+                  §                    ${assertFields(root, tc)}
+                  §                },
+                  §                Err(e) => panic!("{}", e)
+                  §            },
+                  §            Err(e) => panic!("{}", e),
+                  §        };
+                  §    }""".stripMargin('§'))
     // TODO add writing, reading and verifying results
   }
 
@@ -347,7 +346,7 @@ class APITests extends common.GenericAPITests {
         val pool = snakeCase(gen.escaped(objType.getName.camel()))
 
         e"""let $name = sf.$pool.borrow_mut().add();
-           |""".stripMargin
+           §""".stripMargin('§')
       }).mkString
     }
   }.trim
@@ -362,10 +361,10 @@ class APITests extends common.GenericAPITests {
         val pool = snakeCase(gen.escaped(objType.getName.camel()))
 
         e"""let $name = match sf.$pool.borrow().get(${i + 1}) {
-           |    Ok(ptr) => ptr,
-           |    Err(e) => panic!("Object $name was not retrieved because:{}", e),
-           |};
-           |""".stripMargin
+           §    Ok(ptr) => ptr,
+           §    Err(e) => panic!("Object $name was not retrieved because:{}", e),
+           §};
+           §""".stripMargin('§')
       }).mkString
     }
   }.trim
@@ -387,7 +386,7 @@ class APITests extends common.GenericAPITests {
             val setter = "set_" + snakeCase(gen.escaped(field.getName.camel()))
 
             e"""$name.borrow_mut().$setter(${value(objFieldNames.get(fieldName), field)});
-               |""".stripMargin
+               §""".stripMargin('§')
           }).mkString
         }
       }).mkString
@@ -413,10 +412,10 @@ class APITests extends common.GenericAPITests {
             field.getType match {
               case t: GroundType if t.getName.getSkillName.equals("string") ⇒
                 e"""assert_eq!($name.borrow_mut().$getter(), &${value(objFieldNames.get(fieldName), field)});
-                   |""".stripMargin
+                   §""".stripMargin('§')
               case _                                                        ⇒
                 e"""assert_eq!($name.borrow_mut().$getter(), ${value(objFieldNames.get(fieldName), field)});
-                   |""".stripMargin
+                   §""".stripMargin('§')
             }
           }).mkString
         }

@@ -7,7 +7,7 @@ pub mod undefined_pool;
 pub mod literal_keeper;
 
 pub use self::instance_pool::InstancePool;
-pub use self::lazy_field_reader::LazyFieldReader;
+pub use self::lazy_field_reader::LazyFieldDeclaration;
 pub use self::object_reader::ObjectReader;
 pub use self::skill_object::SkillObject;
 pub use self::undefined_object::UndefinedObject;

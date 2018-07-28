@@ -93,13 +93,13 @@ final class Main extends FakeMain
 
   override def helpText: String =
     """
-      |interfaceChecks   true/false  if set to true, the generated API will contain is[[interface]] methods
-      |""".stripMargin
+      §interfaceChecks   true/false  if set to true, the generated API will contain is[[interface]] methods
+      §""".stripMargin('§')
 
   override def customFieldManual: String =
     """
-      |!include string+    Argument strings are added to the head of the generated file and included using
-      |                    <> around the strings content.""".stripMargin
+      §!include string+    Argument strings are added to the head of the generated file and included using
+      §                    <> around the strings content.""".stripMargin('§')
 
   override def escaped(target: String): String = escapeCache.getOrElse(target, {
     val result = EscapeFunction(target)

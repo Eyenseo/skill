@@ -2,7 +2,7 @@
 package de.ust.skill.generator.common
 
 // Adapted from https://stackoverflow.com/a/11426477
-class IndentStringContext(sc: StringContext) {
+class IndentStringContext(sc: StringContext, margin: Char) {
   def e(args: Any*): String = {
     val sb = new StringBuilder()
 
@@ -16,14 +16,15 @@ class IndentStringContext(sc: StringContext) {
         sb.append(a.toString)
       }
     }
-    if (sc.parts.size > args.size)
+    if (sc.parts.size > args.size) {
       sb.append(sc.parts.last)
+    }
 
     sb.toString()
   }
 
   // get white indent after the last new line, if any
-  def getIndent(sb: StringBuilder, str: String): String = {
+  private final def getIndent(sb: StringBuilder, str: String): String = {
     val lastnl = str.lastIndexOf("\n")
 
     if (lastnl == -1) {
@@ -32,16 +33,17 @@ class IndentStringContext(sc: StringContext) {
       if (lastnl == -1) {
         ""
       } else {
-        extractIndent(sb.substring(lastnl + 1).stripMargin)
+        extractIndent(sb.substring(lastnl + 1).stripMargin(margin))
       }
     } else {
-      extractIndent(str.substring(lastnl + 1).stripMargin)
+      extractIndent(str.substring(lastnl + 1).stripMargin(margin))
     }
   }
 
-  def extractIndent(str: String): String = {
-    if (str.trim.isEmpty) str // ind is all whitespace. Use this
-    else {
+  private final def extractIndent(str: String): String = {
+    if (str.trim.isEmpty) {
+      str // ind is all whitespace. Use this
+    } else {
       val pattern = "^(\\s*).*".r
       str match {
         case pattern(ind) ⇒ ind
@@ -51,7 +53,13 @@ class IndentStringContext(sc: StringContext) {
   }
 }
 
+// TODO find a better way to pass the margin char
 object Indenter {
   // top level implicit defs allowed only in 2.10 and above
-  implicit def toISC(sc: StringContext): IndentStringContext = new IndentStringContext(sc)
+  implicit def toISC(sc: StringContext): IndentStringContext = new IndentStringContext(sc, '|')
+}
+
+object IndenterLaw {
+  // top level implicit defs allowed only in 2.10 and above
+  implicit def toISC(sc: StringContext): IndentStringContext = new IndentStringContext(sc, '§')
 }

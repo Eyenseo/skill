@@ -1,9 +1,11 @@
-use common::internal::{InstancePool, ObjectReader};
+use common::internal::{InstancePool, ObjectReader, SkillObject, UndefinedObject};
 use common::io::{
     Block, BlockIndex, BuildInType, ContinuationFieldChunk, DeclarationFieldChunk, FieldChunk,
     FieldType, FileReader, FileWriter,
 };
+use common::iterator::*;
 use common::PoolMaker;
+use common::Ptr;
 use common::SkillError;
 use common::StringBlock;
 
@@ -199,12 +201,7 @@ impl TypeBlock {
                     None
                 };
 
-                let type_pool = pool_maker.make_pool(
-                    type_name_index as usize,
-                    &type_name,
-                    type_id as usize,
-                    super_pool,
-                );
+                let type_pool = pool_maker.make_pool(&type_name, type_id as usize, super_pool);
                 self.pools.push(type_pool.clone());
                 type_pool
             };
@@ -430,7 +427,7 @@ impl TypeBlock {
                         let tmp_blocks = pool.blocks().len();
                         pool.add_field(
                             field_id as usize,
-                            &field_name,
+                            field_name,
                             field_type,
                             FieldChunk::from(DeclarationFieldChunk {
                                 begin: data_start,
@@ -477,6 +474,10 @@ impl TypeBlock {
         self.pools.push(pool);
     }
 
+    pub fn len(&self) -> usize {
+        self.pools.len()
+    }
+
     pub fn initialize(
         &self,
         strings: &StringBlock,
@@ -487,7 +488,79 @@ impl TypeBlock {
         }
         Ok(())
     }
-    pub fn write_block(&self, writer: &mut FileWriter) -> Result<(), SkillError> {
+
+    pub fn compress(&mut self) -> Vec<usize> {
+        let mut local_bpos = Vec::new();
+        local_bpos.reserve(self.pools.len());
+        for _ in 0..self.pools.len() {
+            local_bpos.push(0);
+        }
+
+        for p in self.pools.iter() {
+            if p.borrow().is_base() {
+                let vec: Rc<RefCell<Vec<Ptr<SkillObject>>>> = Rc::new(RefCell::new(Vec::new()));
+                {
+                    let mut vec = vec.borrow_mut();
+                    vec.reserve(p.borrow().static_size());
+                    for _ in 0..p.borrow().static_size() {
+                        // TODO replace with garbage object
+                        vec.push(Ptr::new(UndefinedObject::new(0)));
+                    }
+
+                    let mut id = 1;
+                    for i in type_order::Iter::new(p.clone()) {
+                        i.borrow().set_skill_id(id);
+                        vec[id - 1] = i;
+                        id += 1;
+                    }
+                }
+
+                // TODO does the reorder work?
+                let mut next = 0;
+                for p in type_hierarchy::Iter::new(p.clone()) {
+                    local_bpos[p.borrow().get_type_id() - 32] = next;
+                    next += p.borrow().static_size() - p.borrow().deleted();
+                    p.borrow_mut().compress_field_chunks(&local_bpos);
+                }
+
+                for p in type_hierarchy::Iter::new(p.clone()) {
+                    p.borrow_mut()
+                        .update_after_compress(&local_bpos, vec.clone());
+                }
+            }
+        }
+        local_bpos
+    }
+
+    pub fn write_block(
+        &self,
+        writer: &mut FileWriter,
+        local_bpos: &Vec<usize>,
+    ) -> Result<(), SkillError> {
+        // How many types
+        writer.write_v64(self.pools.len() as i64);
+
+        // Write Type meta data
+        for p in self.pools.iter() {
+            p.borrow().write_type_meta(writer, &local_bpos);
+        }
+
+        // Write Field meta data
+        let mut offset = 0;
+        for p in self.pools.iter() {
+            offset = p.borrow_mut().write_field_meta(writer, offset);
+        }
+
+        // Write Field data
+        for p in self.pools.iter() {
+            p.borrow().write_field_data(writer);
+        }
         Ok(())
+    }
+
+    pub fn set_invariant(&self, invariant: bool) {
+        for p in self.pools.iter() {
+            p.borrow_mut().set_invariant(invariant);
+        }
     }
 }

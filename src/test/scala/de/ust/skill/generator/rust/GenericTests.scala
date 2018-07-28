@@ -8,7 +8,7 @@ package de.ust.skill.generator.rust
 import java.io._
 
 import de.ust.skill.generator.common
-import de.ust.skill.generator.common.Indenter._
+import de.ust.skill.generator.common.IndenterLaw._
 import de.ust.skill.main.CommandLine
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
@@ -112,11 +112,11 @@ class GenericTests extends common.GenericTests {
     // FIXME hardcoded path
     pw.write(
               """[workspace]
-                |members = [""".stripMargin
+                §members = [""".stripMargin('§')
             )
     for (test ← generatedTests) {
       pw.write(
-                e""""$test", """.stripMargin
+                e""""$test", """.stripMargin('§')
               )
     }
     pw.write("]")
@@ -144,18 +144,16 @@ class GenericTests extends common.GenericTests {
     val rval = new PrintWriter(new BufferedWriter(new OutputStreamWriter(new FileOutputStream(f), "UTF-8")))
     rval.write(
                 e"""#![feature(test)]
-                   |
-                   |extern crate $pkgEsc;
-                   |
-                   |#[cfg(test)]
-                   |#[allow(non_snake_case)]
-                   |#[allow(unused_must_use)]
-                   |mod tests {
-                   |    extern crate env_logger;
-                   |
-                   |    use $pkgEsc::common::SkillFile as SkillFileTrait;
-                   |
-                   |    use $pkgEsc::skill_file::SkillFile;""".stripMargin
+                   §
+                   §extern crate $pkgEsc;
+                   §
+                   §#[cfg(test)]
+                   §#[allow(non_snake_case)]
+                   §#[allow(unused_must_use)]
+                   §mod tests {
+                   §    extern crate env_logger;
+                   §
+                   §    use $pkgEsc::skill_file::SkillFile;""".stripMargin('§')
               )
     rval
   }
@@ -163,8 +161,8 @@ class GenericTests extends common.GenericTests {
   def closeTestFile(out: java.io.PrintWriter) {
     out.write(
                """
-                 |}
-               """.stripMargin)
+                 §}
+                 §""".stripMargin('§'))
     out.close()
   }
 
@@ -178,21 +176,21 @@ class GenericTests extends common.GenericTests {
     }
 
     e"""
-       |
-       |    #[test]${if (reject) "\n#[should_panic]" else ""}
-       |    fn generic_${escSnakeCase(testName)}_${if (reject) "reject" else "accept"}_${
+       §
+       §    #[test]${if (reject) "\n#[should_panic]" else ""}
+       §    fn generic_${escSnakeCase(testName)}_${if (reject) "reject" else "accept"}_${
       escSnakeCase(testCase.replaceAll("_|-", ""))
     }() {
-       |        let _ = env_logger::try_init();
-       |
-       |        match SkillFile::open("../../../$escFilePath") {
-       |            Ok(sf) => match sf.check() {
-       |                Ok(_) => (),
-       |                Err(e) => panic!("{}", e)
-       |            },
-       |            Err(e) => panic!("{}", e),
-       |        }
-       |    }""".stripMargin
+       §        let _logger = env_logger::try_init();
+       §
+       §        match SkillFile::open("../../../$escFilePath") {
+       §            Ok(sf) => match sf.check() {
+       §                Ok(_) => (),
+       §                Err(e) => panic!("{}", e)
+       §            },
+       §            Err(e) => panic!("{}", e),
+       §        }
+       §    }""".stripMargin('§')
   }
 
   override def makeTests(name: String) {

@@ -39,7 +39,6 @@ impl FileWriter {
     pub fn jump(&mut self, len: usize) -> Result<FileWriter, SkillError> {
         self.flush();
 
-        // NOTE might have to resize the file after seek
         let new_pos = self
             .file
             .borrow_mut()
@@ -47,19 +46,47 @@ impl FileWriter {
             // TODO better error
             .or(Err(SkillError::UnexpectedEndOfInput))? as usize;
 
+        // NOTE this _actually_ extends the file size
+        self.file
+            .borrow_mut()
+            .set_len(new_pos as u64)
+            // TODO better error
+            .or(Err(SkillError::UnexpectedEndOfInput))?;
+
+        let mmap = match unsafe {
+            MmapOptions::new()
+                    .len(new_pos)
+                    // TODO use offset?
+                    .map_mut(&self.file.borrow())
+        } {
+            Ok(map) => map,
+            Err(e) => panic!("{}", e),
+        };
+
         let writer = FileWriter {
             file: self.file.clone(),
             buffer_position: new_pos - len,
-            out: Out::MMap(unsafe {
-                MmapOptions::new()
-                    .len(new_pos)
-                    .map_mut(&self.file.borrow())
-                    // TODO use offset?
-                    // TODO better error
-                    .or(Err(SkillError::UnexpectedEndOfInput))?
-            }),
+            out: Out::MMap(mmap),
         };
         Ok(writer)
+    }
+
+    fn require_buffer(&mut self, space: usize) -> Result<(), SkillError> {
+        // double matching can't be prevented because borrowing rules
+        match self.out {
+            Out::Buffer(ref mut buf) => {
+                if self.buffer_position + space >= BUFFER_SIZE {
+                    self.file
+                    .borrow_mut()
+                    .write_all(&buf[..self.buffer_position])
+                    // TODO better error
+                    .or(Err(SkillError::UnexpectedEndOfInput))?;
+                    self.buffer_position = 0;
+                }
+            }
+            Out::MMap(ref mut map) => {}
+        }
+        Ok(())
     }
 
     pub fn flush(&mut self) -> Result<usize, SkillError> {
@@ -74,14 +101,24 @@ impl FileWriter {
                     .borrow_mut()
                     .flush()
                     // TODO better error
-                    .or(Err(SkillError::UnexpectedEndOfInput));
+                    .or(Err(SkillError::UnexpectedEndOfInput))?;
                 let tmp = self.buffer_position;
                 self.buffer_position = 0;
+                self.file
+                    .borrow_mut()
+                    .sync_data()
+                // TODO better error
+                    .or(Err(SkillError::UnexpectedEndOfInput))?;
                 Ok(tmp)
             }
             Out::MMap(ref mut map) => {
                 // TODO better error
                 map.flush().or(Err(SkillError::UnexpectedEndOfInput))?;
+                self.file
+                    .borrow_mut()
+                    .sync_data()
+                // TODO better error
+                    .or(Err(SkillError::UnexpectedEndOfInput))?;
                 Ok(map.len())
             }
         }
@@ -90,7 +127,8 @@ impl FileWriter {
     // writeing
     // boolean
     pub fn write_bool(&mut self, what: bool) {
-        match self.out {
+        self.require_buffer(1);
+        match &mut self.out {
             Out::Buffer(ref mut buf) => write_bool(&mut self.buffer_position, buf, what),
             Out::MMap(ref mut map) => write_bool(&mut self.buffer_position, &mut map[..], what),
         }
@@ -98,6 +136,7 @@ impl FileWriter {
 
     // integer types
     pub fn write_i8(&mut self, what: i8) {
+        self.require_buffer(1);
         match self.out {
             Out::Buffer(ref mut buf) => write_i8(&mut self.buffer_position, buf, what),
             Out::MMap(ref mut map) => write_i8(&mut self.buffer_position, &mut map[..], what),
@@ -105,6 +144,7 @@ impl FileWriter {
     }
 
     pub fn write_i16(&mut self, what: i16) {
+        self.require_buffer(2);
         match self.out {
             Out::Buffer(ref mut buf) => write_i16(&mut self.buffer_position, buf, what),
             Out::MMap(ref mut map) => write_i16(&mut self.buffer_position, &mut map[..], what),
@@ -112,6 +152,7 @@ impl FileWriter {
     }
 
     pub fn write_i32(&mut self, what: i32) {
+        self.require_buffer(4);
         match self.out {
             Out::Buffer(ref mut buf) => write_i32(&mut self.buffer_position, buf, what),
             Out::MMap(ref mut map) => write_i32(&mut self.buffer_position, &mut map[..], what),
@@ -119,6 +160,7 @@ impl FileWriter {
     }
 
     pub fn write_i64(&mut self, what: i64) {
+        self.require_buffer(8);
         match self.out {
             Out::Buffer(ref mut buf) => write_i64(&mut self.buffer_position, buf, what),
             Out::MMap(ref mut map) => write_i64(&mut self.buffer_position, &mut map[..], what),
@@ -126,6 +168,7 @@ impl FileWriter {
     }
 
     pub fn write_v64(&mut self, what: i64) {
+        self.require_buffer(9);
         match self.out {
             Out::Buffer(ref mut buf) => write_v64(&mut self.buffer_position, buf, what),
             Out::MMap(ref mut map) => write_v64(&mut self.buffer_position, &mut map[..], what),
@@ -134,6 +177,7 @@ impl FileWriter {
 
     // float types
     pub fn write_f32(&mut self, what: f32) {
+        self.require_buffer(4);
         match self.out {
             Out::Buffer(ref mut buf) => write_f32(&mut self.buffer_position, buf, what),
             Out::MMap(ref mut map) => write_f32(&mut self.buffer_position, &mut map[..], what),
@@ -141,6 +185,7 @@ impl FileWriter {
     }
 
     pub fn write_f64(&mut self, what: f64) {
+        self.require_buffer(8);
         match self.out {
             Out::Buffer(ref mut buf) => write_f64(&mut self.buffer_position, buf, what),
             Out::MMap(ref mut map) => write_f64(&mut self.buffer_position, &mut map[..], what),
@@ -149,12 +194,38 @@ impl FileWriter {
 
     // string
     pub fn write_raw_string(&mut self, what: &str) {
+        self.require_buffer(what.len());
         match self.out {
-            Out::Buffer(ref mut buf) => write_string(&mut self.buffer_position, buf, what),
+            Out::Buffer(ref mut buf) => {
+                if what.len() > BUFFER_SIZE {
+                    let pos = match self.file.borrow_mut().seek(SeekFrom::Current(0)) {
+                        Ok(pos) => pos,
+                        Err(e) => panic!("{}", e),
+                    };
+                    trace!(
+                        target: "SkillBaseTypewriting",
+                        "#W# str:|{:?}| position:{:?} out:file",
+                        what,
+                        pos
+                    );
+                    match self.file.borrow_mut().write_all(what.as_bytes()) {
+                        Ok(_) => {}
+                        Err(_) => panic!("Couldn't write the complete string!"),
+                    }
+                } else {
+                    write_string(&mut self.buffer_position, buf, what)
+                }
+            }
             Out::MMap(ref mut map) => write_string(&mut self.buffer_position, &mut map[..], what),
         }
     }
 
     // compound types
     // are generated
+}
+
+impl Drop for FileWriter {
+    fn drop(&mut self) {
+        self.flush();
+    }
 }

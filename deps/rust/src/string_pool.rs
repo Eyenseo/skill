@@ -99,7 +99,9 @@ impl StringBlock {
     }
 
     pub fn finalize(&mut self) {
+        // TODO this shoudl be done on write?
         for s in self.literal_keeper.get_rest() {
+            s.set_skill_id(self.pool.len() + 1);
             self.pool.push(s.clone());
             self.set.insert(s);
         }
@@ -110,6 +112,8 @@ impl StringBlock {
     }
 
     pub fn write_block(&self, writer: &mut FileWriter) -> Result<(), SkillError> {
+        // TODO strings should be pruned/compressed when strong_count is 1
+
         let amount = self.pool.len();
         if amount > 0 {
             let mut lengths = writer.jump(bytes_v64(amount as i64) + amount * 4)?;

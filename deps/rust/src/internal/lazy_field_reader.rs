@@ -1,28 +1,36 @@
 use common::internal::InstancePool;
 use common::internal::SkillObject;
-use common::io::{Block, FieldChunk, FieldReader, FileReader};
+use common::io::{
+    Block, BlockIndex, DeclarationFieldChunk, FieldChunk, FieldDeclaration, FieldType, FileReader,
+    FileWriter,
+};
 use common::Ptr;
 use common::SkillError;
+use common::SkillString;
 use common::StringBlock;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub struct LazyFieldReader {
-    name_id: usize,
+pub struct LazyFieldDeclaration {
+    name: Rc<SkillString>,
+    index: usize,
     chunks: Vec<FieldChunk>,
+    field_type: FieldType,
 }
 
-impl LazyFieldReader {
-    pub fn new(name_id: usize) -> LazyFieldReader {
-        LazyFieldReader {
-            name_id,
+impl LazyFieldDeclaration {
+    pub fn new(name: Rc<SkillString>, index: usize, field_type: FieldType) -> LazyFieldDeclaration {
+        LazyFieldDeclaration {
+            name,
+            index,
             chunks: Vec::new(),
+            field_type,
         }
     }
 }
 
-impl FieldReader for LazyFieldReader {
+impl FieldDeclaration for LazyFieldDeclaration {
     fn read(
         &self,
         file_reader: &Vec<FileReader>,
@@ -37,7 +45,41 @@ impl FieldReader for LazyFieldReader {
     fn add_chunk(&mut self, chunk: FieldChunk) {
         self.chunks.push(chunk);
     }
-    fn name_id(&self) -> usize {
-        self.name_id
+    fn name(&self) -> &Rc<SkillString> {
+        &self.name
+    }
+    fn compress_chunks(&mut self, total_count: usize) {
+        self.chunks = Vec::with_capacity(1);
+        self.chunks
+            .push(FieldChunk::Declaration(DeclarationFieldChunk {
+                begin: 0,
+                end: 0,
+                count: total_count,
+                appearance: BlockIndex::from(1),
+            }));
+    }
+    fn offset(&self) -> usize {
+        unimplemented!();
+    }
+    fn write_meta(&mut self, writer: &mut FileWriter, offset: usize) -> usize {
+        writer.write_v64(self.index as i64);
+        writer.write_v64(self.name.get_skill_id() as i64);
+        // TODO write type
+        writer.write_i8(0); // TODO write restrictions
+        let end_offset = offset + self.offset();
+        writer.write_v64(end_offset as i64);
+
+        match self.chunks.first_mut().unwrap() {
+            FieldChunk::Declaration(ref mut dec) => {
+                dec.begin = offset;
+                dec.end = end_offset;
+            }
+            _ => panic!("Expected an declaration chunk after compress!"),
+        };
+
+        end_offset
+    }
+    fn write_data(&self, writer: &mut FileWriter) {
+        unimplemented!();
     }
 }
