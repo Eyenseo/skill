@@ -4,6 +4,7 @@ use common::io::{
     Block, BlockIndex, DeclarationFieldChunk, FieldChunk, FieldDeclaration, FieldType, FileReader,
     FileWriter,
 };
+use common::iterator::static_data;
 use common::Ptr;
 use common::SkillError;
 use common::SkillString;
@@ -48,6 +49,9 @@ impl FieldDeclaration for LazyFieldDeclaration {
     fn name(&self) -> &Rc<SkillString> {
         &self.name
     }
+    fn index(&self) -> usize {
+        self.index
+    }
     fn compress_chunks(&mut self, total_count: usize) {
         self.chunks = Vec::with_capacity(1);
         self.chunks
@@ -58,15 +62,20 @@ impl FieldDeclaration for LazyFieldDeclaration {
                 appearance: BlockIndex::from(1),
             }));
     }
-    fn offset(&self) -> usize {
+    fn offset(&self, iter: static_data::Iter) -> usize {
         unimplemented!();
     }
-    fn write_meta(&mut self, writer: &mut FileWriter, offset: usize) -> usize {
+    fn write_meta(
+        &mut self,
+        writer: &mut FileWriter,
+        iter: static_data::Iter,
+        offset: usize,
+    ) -> usize {
         writer.write_v64(self.index as i64);
         writer.write_v64(self.name.get_skill_id() as i64);
-        // TODO write type
+        writer.write_field_type(&self.field_type);
         writer.write_i8(0); // TODO write restrictions
-        let end_offset = offset + self.offset();
+        let end_offset = offset + self.offset(iter);
         writer.write_v64(end_offset as i64);
 
         match self.chunks.first_mut().unwrap() {
@@ -79,7 +88,7 @@ impl FieldDeclaration for LazyFieldDeclaration {
 
         end_offset
     }
-    fn write_data(&self, writer: &mut FileWriter) {
+    fn write_data(&self, writer: &mut FileWriter, iter: static_data::Iter) {
         unimplemented!();
     }
 }

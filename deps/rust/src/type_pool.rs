@@ -22,117 +22,6 @@ impl TypeBlock {
         TypeBlock { pools: Vec::new() }
     }
 
-    fn read_field_type(&self, reader: &mut FileReader) -> Result<FieldType, SkillError> {
-        let field_type = reader.read_v64()?; // type of field
-
-        //TODO add from for the enum and use that to match and throw an error?
-        Ok(match field_type {
-            0x0 => {
-                reader.read_i8()?;
-                info!(target: "SkillParsing", "~~~~FieldType = const i8");
-                FieldType::BuildIn(BuildInType::ConstTi8)
-            }
-            0x1 => {
-                reader.read_i16()?;
-                info!(target: "SkillParsing", "~~~~FieldType = const i16");
-                FieldType::BuildIn(BuildInType::ConstTi16)
-            }
-            0x2 => {
-                reader.read_i32()?;
-                info!(target: "SkillParsing", "~~~~FieldType = const i32");
-                FieldType::BuildIn(BuildInType::ConstTi32)
-            }
-            0x3 => {
-                reader.read_i64()?;
-                info!(target: "SkillParsing", "~~~~FieldType = const i64");
-                FieldType::BuildIn(BuildInType::ConstTi64)
-            }
-            0x4 => {
-                reader.read_v64()?;
-                info!(target: "SkillParsing", "~~~~FieldType = const v64");
-                FieldType::BuildIn(BuildInType::ConstTv64)
-            }
-            0x5 => {
-                info!(target: "SkillParsing", "~~~~FieldType = annotation");
-                FieldType::BuildIn(BuildInType::Tannotation)
-            }
-            0x6 => {
-                info!(target: "SkillParsing", "~~~~FieldType = bool");
-                FieldType::BuildIn(BuildInType::Tbool)
-            }
-            0x7 => {
-                info!(target: "SkillParsing", "~~~~FieldType = i8");
-                FieldType::BuildIn(BuildInType::Ti8)
-            }
-            0x8 => {
-                info!(target: "SkillParsing", "~~~~FieldType = i16");
-                FieldType::BuildIn(BuildInType::Ti16)
-            }
-            0x9 => {
-                info!(target: "SkillParsing", "~~~~FieldType = i32");
-                FieldType::BuildIn(BuildInType::Ti32)
-            }
-            0xA => {
-                info!(target: "SkillParsing", "~~~~FieldType = i64");
-                FieldType::BuildIn(BuildInType::Ti64)
-            }
-            0xB => {
-                info!(target: "SkillParsing", "~~~~FieldType = v64");
-                FieldType::BuildIn(BuildInType::Tv64)
-            }
-            0xC => {
-                info!(target: "SkillParsing", "~~~~FieldType = f32");
-                FieldType::BuildIn(BuildInType::Tf32)
-            }
-            0xD => {
-                info!(target: "SkillParsing", "~~~~FieldType = f64");
-                FieldType::BuildIn(BuildInType::Tf64)
-            }
-            0xE => {
-                info!(target: "SkillParsing", "~~~~FieldType = string");
-                FieldType::BuildIn(BuildInType::Tstring)
-            }
-            0xF => {
-                let length = reader.read_v64()? as u64;
-                info!(target: "SkillParsing", "~~~~FieldType = const array length: {:?}", length);
-                FieldType::BuildIn(BuildInType::ConstTarray(
-                    length,
-                    Box::new(self.read_field_type(reader)?),
-                ))
-            }
-            0x11 => {
-                info!(target: "SkillParsing", "~~~~FieldType = varray");
-                FieldType::BuildIn(BuildInType::Tarray(Box::new(self.read_field_type(reader)?)))
-            }
-            0x12 => {
-                info!(target: "SkillParsing", "~~~~FieldType = list");
-                FieldType::BuildIn(BuildInType::Tlist(Box::new(self.read_field_type(reader)?)))
-            }
-            0x13 => {
-                info!(target: "SkillParsing", "~~~~FieldType = set");
-                FieldType::BuildIn(BuildInType::Tset(Box::new(self.read_field_type(reader)?)))
-            }
-            0x14 => {
-                info!(target: "SkillParsing", "~~~~FieldType = map");
-                FieldType::BuildIn(BuildInType::Tmap(
-                    Box::new(self.read_field_type(reader)?),
-                    Box::new(self.read_field_type(reader)?),
-                ))
-            }
-            user => {
-                if user < 32 {
-                    // TODO check the current upper limit of known types
-                    panic!("Invalid UserType ID {:?}", user);
-                }
-                info!(target: "SkillParsing", "~~~~FieldType = User ID {:?}", user);
-                // FIXME this is wrong!
-                // What we want is to put the pool in here - user - 32 to access the vector that
-                // stores all pools -> there has to be a vector that stores all pools ...
-                FieldType::User(self.pools[user as usize - 32].clone(), user as usize)
-            }
-        })
-    }
-
     pub fn read_type_block(
         &mut self,
         block: BlockIndex,
@@ -213,9 +102,10 @@ impl TypeBlock {
                     block_local_id_limit = type_pool.get_type_id();
                 } else {
                     panic!(
-                        "Unordered type block; ID:{} < ID:{}",
+                        "Unordered type block; ID:{} < ID:{} of type: {}",
                         block_local_id_limit,
-                        type_pool.get_type_id()
+                        type_pool.get_type_id(),
+                        type_pool.name().as_str(),
                     );
                 }
             }
@@ -315,21 +205,21 @@ impl TypeBlock {
 
                 if field_id as usize == field_id_limit {
                     field_id_limit += 1;
-                    let field_name_index = reader.read_v64()? as usize; // field name id
+                    let field_name_id = reader.read_v64()? as usize; // field name id
 
-                    info!(target: "SkillParsing", "~~~Field index: {:?}", field_id);
-                    info!(target: "SkillParsing", "~~~Field id: {:?}", field_name_index);
+                    info!(target: "SkillParsing", "~~~Field id: {:?}", field_id);
+                    info!(target: "SkillParsing", "~~~Field name id: {:?}", field_name_id);
 
-                    let field_name = string_pool.borrow().get(field_name_index);
+                    let field_name = string_pool.borrow().get(field_name_id);
                     info!(target: "SkillParsing", "~~~Field name: {}", field_name);
 
                     //TODO add from for the enum and use that to match and throw an error?
-                    let field_type = self.read_field_type(reader)?;
+                    let field_type = reader.read_field_type(&self.pools)?;
 
                     let field_restrictions = reader.read_v64()?; // restrictions
                     info!(target: "SkillParsing", "~~~FieldRestrictions: {:?}", field_restrictions);
                     match field_type {
-                        FieldType::User(_, _) => (), // NOTE this might be wrong
+                        FieldType::User(_) => (), // NOTE this might be wrong
                         _ => {
                             for restriction in 0..field_restrictions {
                                 // TODO call real function / match
@@ -348,7 +238,7 @@ impl TypeBlock {
                                         //Default
                                         match field_type {
                                             FieldType::BuildIn(BuildInType::Tannotation)
-                                            | FieldType::User(_, _) => {
+                                            | FieldType::User(_) => {
                                                 // TODO This is the id of the user object that is used
                                                 // as defualt value / initialization
                                                 reader.read_v64()?;
@@ -538,23 +428,53 @@ impl TypeBlock {
         local_bpos: &Vec<usize>,
     ) -> Result<(), SkillError> {
         // How many types
+        info!(
+            target:"SkillWriting",
+            "~Type Block Start~"
+        );
+        info!(
+            target:"SkillWriting",
+            "~Write {} types",
+            self.pools.len(),
+        );
         writer.write_v64(self.pools.len() as i64);
 
+        info!(
+            target:"SkillWriting",
+            "~~Write Type Meta Data",
+        );
         // Write Type meta data
         for p in self.pools.iter() {
             p.borrow().write_type_meta(writer, &local_bpos);
         }
 
+        info!(
+            target:"SkillWriting",
+            "~~Write Type Field Meta Data",
+        );
         // Write Field meta data
         let mut offset = 0;
         for p in self.pools.iter() {
-            offset = p.borrow_mut().write_field_meta(writer, offset);
+            offset = p
+                .borrow()
+                .write_field_meta(writer, static_data::Iter::new(p.clone()), offset);
         }
 
+        info!(
+            target:"SkillWriting",
+            "~~Write Type Field Data",
+        );
         // Write Field data
         for p in self.pools.iter() {
-            p.borrow().write_field_data(writer);
+            p.borrow()
+                .write_field_data(writer, static_data::Iter::new(p.clone()));
         }
+
+        info!(
+            target:"SkillWriting",
+            "~Type Block End~"
+        );
+
         Ok(())
     }
 

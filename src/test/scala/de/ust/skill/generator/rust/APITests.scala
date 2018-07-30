@@ -31,29 +31,29 @@ class APITests extends common.GenericAPITests {
                             )
   val skipGeneration = Array(
                               // "age",
+                              // "constants", // TODO -  is this really successful?
+                              // "custom",  // TODO -  is this really successful?
+                              // "empty",
                               // "floats",
                               // "number",
                               // "unicode",
+                              // "user",
 
-                              "annotation",
-                              "auto", // TODO - is this really successful?
-                              "basicTypes",
-                              "constants",
-                              "container",
-                              "custom",
-                              "empty",
-                              "enums", // TODO - is this really successful?
-                              "escaping",
-                              "fancy",
-                              "graph",
-                              "graphInterface", // TODO - is this really successful?
-                              "hintsAll", // TODO - is this really successful?
-                              "map3",
-                              "restrictionsAll", // TODO - is this really successful?
-                              "restrictionsCore", // TODO - is this really successful?
-                              "subtypes",
-                              "unknown",
-                              "user",
+                              "annotation", // FIXME broken generation
+                              "auto", // FIXME broken generation
+                              "basicTypes", // FIXME broken generation
+                              "container", // FIXME broken generation
+                              "enums", // FIXME broken generation
+                              "escaping", // FIXME broken generation
+                              "fancy", // FIXME broken generation
+                              "graph", // FIXME broken generation
+                              "graphInterface", // FIXME broken generation
+                              "hintsAll", // FIXME broken generation
+                              "map3", // FIXME broken generation
+                              "restrictionsAll", // FIXME broken generation
+                              "restrictionsCore", // FIXME broken generation
+                              "subtypes", // FIXME broken generation
+                              "unknown", // FIXME broken generation
                               "",
                             )
 
@@ -61,7 +61,7 @@ class APITests extends common.GenericAPITests {
     import scala.reflect.io.Directory
 
     val pkgEsc = escSnakeCase(out.split("/").map(EscapeFunction.apply).mkString("_"))
-    Directory(new File("testsuites/rust/", out)).deleteRecursively
+    Directory(new File(s"testsuites/rust/$pkgEsc", out)).deleteRecursively
   }
 
   override def callMainFor(name: String, source: String, options: Seq[String]) {
@@ -336,7 +336,9 @@ class APITests extends common.GenericAPITests {
     }
   }
 
-  private def createObjects(root: JSONObject, tc: TypeContext, packagePath: String): String = {
+  private def createObjects(root: JSONObject,
+                            tc: TypeContext,
+                            packagePath: String): String = {
     if (null == JSONObject.getNames(root)) {
       ""
     } else {
@@ -355,12 +357,18 @@ class APITests extends common.GenericAPITests {
     if (null == JSONObject.getNames(root)) {
       ""
     } else {
-      (for ((name, i) ← JSONObject.getNames(root).zipWithIndex) yield {
+      val idMap = collection.mutable.Map[Type, Int]()
+
+      (for (name ← JSONObject.getNames(root)) yield {
         val obj = root.getJSONObject(name)
         val objType = getType(tc, JSONObject.getNames(obj).head)
         val pool = snakeCase(gen.escaped(objType.getName.camel()))
 
-        e"""let $name = match sf.$pool.borrow().get(${i + 1}) {
+        val objBase = objType.getBaseType
+        val id = idMap.getOrElse(objBase, 1)
+        idMap.update(objBase, id + 1)
+
+        e"""let $name = match sf.$pool.borrow().get($id) {
            §    Ok(ptr) => ptr,
            §    Err(e) => panic!("Object $name was not retrieved because:{}", e),
            §};

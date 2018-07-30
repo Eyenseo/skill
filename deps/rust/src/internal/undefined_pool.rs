@@ -4,6 +4,7 @@ use common::internal::{
 use common::io::{
     Block, BlockIndex, FieldChunk, FieldDeclaration, FieldType, FileReader, FileWriter,
 };
+use common::iterator::static_data;
 use common::Ptr;
 use common::SkillError;
 use common::SkillString;
@@ -17,7 +18,7 @@ pub struct UndefinedPool {
     instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
     own_static_instances: Vec<Ptr<SkillObject>>,
     own_new_instances: Vec<Ptr<SkillObject>>,
-    fields: Vec<Box<LazyFieldDeclaration>>,
+    fields: Vec<Box<RefCell<LazyFieldDeclaration>>>,
     name: Rc<SkillString>,
     type_id: usize,
     blocks: Vec<Block>,
@@ -70,14 +71,16 @@ impl InstancePool for UndefinedPool {
         field_type: FieldType,
         chunk: FieldChunk,
     ) {
-        let mut reader = Box::new(LazyFieldDeclaration::new(field_name, index, field_type));
-        reader.as_mut().add_chunk(chunk);
+        let mut reader = Box::new(RefCell::new(LazyFieldDeclaration::new(
+            field_name, index, field_type,
+        )));
+        reader.borrow_mut().add_chunk(chunk);
         self.fields.push(reader);
     }
     fn has_field(&self, name_id: usize) -> bool {
         for f in &self.fields {
             let f = f.as_ref();
-            if f.name().get_skill_id() == name_id {
+            if f.borrow().name().get_skill_id() == name_id {
                 return true;
             }
         }
@@ -86,15 +89,15 @@ impl InstancePool for UndefinedPool {
     fn field_amount(&self) -> usize {
         self.fields.len()
     }
-    fn add_chunk_to(&mut self, name_id: usize, chunk: FieldChunk) {
-        for f in &mut self.fields {
-            let f = f.as_mut();
-            if f.name().get_skill_id() == name_id {
+    fn add_chunk_to(&mut self, field_index: usize, chunk: FieldChunk) {
+        for f in self.fields.iter() {
+            let mut f = f.borrow_mut();
+            if f.index() == field_index {
                 f.add_chunk(chunk);
                 return;
             }
         }
-        panic!("No field of id:{}", name_id);
+        panic!("No field with index:{}", field_index);
     }
 
     fn set_type_id(&mut self, id: usize) {
@@ -104,7 +107,7 @@ impl InstancePool for UndefinedPool {
         self.type_id
     }
 
-    fn name(&self) -> &SkillString {
+    fn name(&self) -> &Rc<SkillString> {
         &self.name
     }
 
@@ -225,7 +228,7 @@ impl InstancePool for UndefinedPool {
     ) -> Result<(), SkillError> {
         for f in self.fields.iter() {
             let instances = self.instances.borrow();
-            f.read(
+            f.borrow().read(
                 file_reader,
                 string_block,
                 &self.blocks,
@@ -310,6 +313,7 @@ impl InstancePool for UndefinedPool {
         vec: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
     ) {
         self.instances = vec;
+        self.static_count += self.own_new_instances.len();
         self.own_new_instances = Vec::new();
         self.blocks = Vec::with_capacity(1);
         let static_size = self.static_size();
@@ -376,11 +380,19 @@ impl InstancePool for UndefinedPool {
     }
     fn compress_field_chunks(&mut self, local_bpo: &Vec<usize>) {
         let total_count = self.get_global_cached_count();
-        for f in self.fields.iter_mut() {
-            f.compress_chunks(total_count);
+        for f in self.fields.iter() {
+            f.borrow_mut().compress_chunks(total_count);
         }
     }
     fn write_type_meta(&self, writer: &mut FileWriter, local_bpos: &Vec<usize>) {
+        info!(
+            target:"SkillWriting",
+            "~~~Write Meta Data for UndefinedPool:{} Instances; Static:{} Dynamic:{}",
+            self.name.as_ref(),
+            self.get_local_static_count(),
+            self.get_local_dynamic_count(),
+        );
+
         writer.write_v64(self.name().get_skill_id() as i64);
         writer.write_v64(self.get_local_dynamic_count() as i64);
         // FIXME restrictions
@@ -396,15 +408,32 @@ impl InstancePool for UndefinedPool {
         }
         writer.write_v64(self.field_amount() as i64);
     }
-    fn write_field_meta(&mut self, writer: &mut FileWriter, mut offset: usize) -> usize {
-        for f in self.fields.iter_mut() {
-            offset = f.write_meta(writer, offset);
+    fn write_field_meta(
+        &self,
+        writer: &mut FileWriter,
+        iter: static_data::Iter,
+        mut offset: usize,
+    ) -> usize {
+        info!(
+            target:"SkillWriting",
+            "~~~Write Field Meta Data for UndefinedPool:{} Fields:{}",
+            self.name.as_ref(),
+            self.fields.len(),
+        );
+        for f in self.fields.iter() {
+            offset = f.borrow_mut().write_meta(writer, iter.clone(), offset);
         }
         offset
     }
-    fn write_field_data(&self, writer: &mut FileWriter) {
+    fn write_field_data(&self, writer: &mut FileWriter, iter: static_data::Iter) {
+        info!(
+            target:"SkillWriting",
+            "~~~Write Field Data for UndefinedPool:{} Fields:{}",
+            self.name.as_ref(),
+            self.fields.len(),
+        );
         for f in self.fields.iter() {
-            f.write_data(writer)
+            f.borrow().write_data(writer, iter.clone())
         }
     }
 }

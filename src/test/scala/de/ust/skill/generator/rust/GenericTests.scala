@@ -45,8 +45,8 @@ class GenericTests extends common.GenericTests {
                               // "partial", // TODO - is this really successful?
                               // "trivialType",
                               // "twoNodeBlocks",
-                              // "twoTypes",
-                              // "unicode_reference",
+                              // "twoTypes", // FIXME
+                              // "unicode-reference",
 
                               "restrictionsAll",
                               "nullInNonNullNode",

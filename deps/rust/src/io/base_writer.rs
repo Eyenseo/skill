@@ -136,28 +136,6 @@ pub fn write_v64(position: &mut usize, out: &mut [u8], what: i64) {
     }
 }
 
-pub fn bytes_v64(what: i64) -> usize {
-    if (what as u64) < 0x80 {
-        1
-    } else if (what as u64) < 0x4000 {
-        2
-    } else if (what as u64) < 0x200000 {
-        3
-    } else if (what as u64) < 0x10000000 {
-        4
-    } else if (what as u64) < 0x800000000 {
-        5
-    } else if (what as u64) < 0x40000000000 {
-        6
-    } else if (what as u64) < 0x2000000000000 {
-        7
-    } else if (what as u64) < 0x100000000000000 {
-        8
-    } else {
-        9
-    }
-}
-
 // float types
 pub fn write_f32(position: &mut usize, out: &mut [u8], what: f32) {
     trace!(

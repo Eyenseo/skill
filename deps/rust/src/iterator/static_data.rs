@@ -1,13 +1,13 @@
+// TODO rename DATA to instance
 use common::internal::InstancePool;
 use common::internal::SkillObject;
-use common::iterator::type_hierarchy;
 use common::Ptr;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
+#[derive(Clone)]
 pub struct Iter {
-    type_hierarchy: type_hierarchy::Iter,
     pool: Rc<RefCell<InstancePool>>,
     instance_index: usize,
     instance_end: usize,
@@ -19,7 +19,6 @@ impl Iter {
     pub fn new(pool: Rc<RefCell<InstancePool>>) -> Iter {
         let mut iter = Iter {
             block_end: pool.borrow().blocks().len(),
-            type_hierarchy: type_hierarchy::Iter::new(pool.clone()),
             pool: pool.clone(),
             instance_index: 0,
             block_index: 0,
@@ -43,9 +42,9 @@ impl Iter {
         }
         // If no new instance is available iterate over the new instances that were added
         if self.instance_index == self.instance_end && self.block_index == self.block_end {
-            self.block_index += 1;
             self.instance_index = 0;
             self.instance_end = self.pool.borrow().new_instances().len();
+            self.block_index += 1;
         }
     }
 }
@@ -61,8 +60,9 @@ impl Iterator for Iter {
         }
 
         if self.block_index <= self.block_end {
-            let ret = self.pool.borrow().static_instances()[self.instance_index].clone();
-            self.instance_index += 1; // TODO NOT a pointer?! SkillID - starts form 1
+            let tmp = self.pool.borrow().get_base_vec();
+            let ret = tmp.borrow()[self.instance_index].clone();
+            self.instance_index += 1;
 
             if self.instance_index == self.instance_end {
                 self.next_viable();
@@ -70,9 +70,8 @@ impl Iterator for Iter {
             Some(ret)
         } else {
             let ret = self.pool.borrow().new_instances()[self.instance_index].clone();
-            self.instance_index += 1; // Array position - starts from 0
+            self.instance_index += 1;
             Some(ret)
         }
-        // FIXME where is the NONE?
     }
 }

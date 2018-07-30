@@ -1,7 +1,7 @@
 use common::error::SkillError;
 use common::internal::LiteralKeeper;
 use common::internal::SkillObject;
-use common::io::base_writer::bytes_v64;
+use common::io::magic::bytes_v64;
 use common::io::FileReader;
 use common::io::FileWriter;
 use common::SkillString;
@@ -40,9 +40,9 @@ impl StringBlock {
         self.reserve(reserve + size);
     }
     fn add_raw(&mut self, s: &str) {
-        let ss = Rc::new(SkillString::new(self.pool.len(), s));
+        let ss = Rc::new(SkillString::new(self.pool.len() + 1, s));
         let ss = if let Some(v) = self.literal_keeper.get(&ss) {
-            v.set_skill_id(self.pool.len());
+            v.set_skill_id(self.pool.len() + 1);
             v
         } else {
             if let Some(_) = self.set.get(&ss) {
@@ -56,7 +56,7 @@ impl StringBlock {
     }
     pub fn add(&mut self, s: &str) -> Rc<SkillString> {
         // this is bad ...
-        let v = Rc::new(SkillString::new(self.pool.len(), s));
+        let v = Rc::new(SkillString::new(self.pool.len() + 1, s));
         if let Some(v) = self.set.get(&v) {
             return v.clone();
         }
@@ -113,14 +113,25 @@ impl StringBlock {
 
     pub fn write_block(&self, writer: &mut FileWriter) -> Result<(), SkillError> {
         // TODO strings should be pruned/compressed when strong_count is 1
+        info!(
+            target:"SkillWriting",
+            "~String Block Start~"
+        );
 
         let amount = self.pool.len();
+        info!(
+            target:"SkillWriting",
+            "~~Write {} Strings",
+            amount
+        );
         if amount > 0 {
             let mut lengths = writer.jump(bytes_v64(amount as i64) + amount * 4)?;
             lengths.write_v64(amount as i64);
 
             let mut offset: i32 = 0;
+            let mut i = 0;
             for s in self.pool.iter() {
+                i += 1;
                 offset += s.string().len() as i32;
                 writer.write_raw_string(s.as_str());
                 lengths.write_i32(offset);

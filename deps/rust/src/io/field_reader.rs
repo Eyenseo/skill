@@ -1,7 +1,9 @@
+// TODO rename
 use common::internal::InstancePool;
 use common::internal::SkillObject;
 use common::io::FileReader;
 use common::io::FileWriter;
+use common::iterator::static_data;
 use common::Ptr;
 use common::SkillError;
 use common::SkillString;
@@ -102,13 +104,19 @@ pub trait FieldDeclaration {
     ) -> Result<(), SkillError>;
 
     fn name(&self) -> &Rc<SkillString>;
+    fn index(&self) -> usize;
 
     fn add_chunk(&mut self, chunk: FieldChunk);
 
     fn compress_chunks(&mut self, total_count: usize);
-    fn offset(&self) -> usize;
+    fn offset(&self, iter: static_data::Iter) -> usize;
 
     /// This call will also update the offsets of the chunk
-    fn write_meta(&mut self, writer: &mut FileWriter, offset: usize) -> usize;
-    fn write_data(&self, writer: &mut FileWriter);
+    fn write_meta(
+        &mut self,
+        writer: &mut FileWriter,
+        iter: static_data::Iter,
+        offset: usize,
+    ) -> usize;
+    fn write_data(&self, writer: &mut FileWriter, iter: static_data::Iter);
 }

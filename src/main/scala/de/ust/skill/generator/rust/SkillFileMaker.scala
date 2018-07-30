@@ -94,6 +94,15 @@ trait SkillFileMaker extends GeneralOutputMaker {
 
   private final def genSkillFileImpl(): String = {
     e"""impl SkillFile {
+       §    fn complete(&mut self) {
+       §        ${
+      (for (base ← IR) yield {
+        e"""self.${field(base)}.borrow_mut().complete(&self);
+           §""".stripMargin('§')
+      }).mkString.trim
+    }
+       §    }
+       §
        §    pub fn open(file: &str) -> Result<Self, SkillError> {
        §        let f = ::std::fs::OpenOptions::new()
        §            .read(true)
@@ -145,7 +154,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §            &data_chunk_reader,
        §            &string_block.borrow(),
        §        )?;
-       §        Ok(SkillFile {
+       §        let mut sf = SkillFile {
        §            file: Rc::new(RefCell::new(f)),
        §            type_pool,
        §            strings: string_block,${
@@ -154,7 +163,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin('§')
       }).mkString
     }
-       §        })
+       §        };
+       §        sf.complete();
+       §        Ok(sf)
        §    }
        §
        §    pub fn create(file: &str) -> Result<Self, SkillError> {
@@ -175,7 +186,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §            &data_chunk_reader,
        §            &string_block.borrow(),
        §        )?;
-       §        Ok(SkillFile {
+       §        let mut sf = SkillFile {
        §            file: Rc::new(RefCell::new(f)),
        §            type_pool,
        §            strings: string_block,${
@@ -184,7 +195,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin('§')
       }).mkString
     }
-       §        })
+       §        };
+       §        sf.complete();
+       §        Ok(sf)
        §    }
        §
        §    pub fn write(&mut self) -> Result<(), SkillError> {
@@ -342,8 +355,10 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §        )));
            §
            §        if let Some(super_pool) = super_pool {
-           §            let idx = super_pool.borrow().name().get_skill_id();
-           §            let super_name = self.string_block.borrow().get(idx);
+           §            let super_name = {
+           §                let tmp = super_pool.borrow();
+           §                tmp.name().clone()
+           §            };
            §            ${
           if (base.getSuperType == null) {
             e"""panic!(

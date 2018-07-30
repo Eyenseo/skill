@@ -1,4 +1,5 @@
 use common::io::base_writer::*;
+use common::io::magic::*;
 use common::Ptr;
 use common::SkillError;
 use common::StringBlock;
@@ -220,8 +221,111 @@ impl FileWriter {
         }
     }
 
-    // compound types
-    // are generated
+    pub fn write_field_type(&mut self, field_type: &FieldType) -> Result<(), SkillError> {
+        match field_type {
+            FieldType::BuildIn(BuildInType::ConstTi8) => {
+                info!(target: "SkillWriting", "~~~~FieldType = const i8");
+                self.write_i8(0x0);
+            }
+            FieldType::BuildIn(BuildInType::ConstTi16) => {
+                info!(target: "SkillWriting", "~~~~FieldType = const i16");
+                self.write_i8(0x1);
+            }
+            FieldType::BuildIn(BuildInType::ConstTi32) => {
+                info!(target: "SkillWriting", "~~~~FieldType = const i32");
+                self.write_i8(0x2);
+            }
+            FieldType::BuildIn(BuildInType::ConstTi64) => {
+                info!(target: "SkillWriting", "~~~~FieldType = const i64");
+                self.write_i8(0x3);
+            }
+            FieldType::BuildIn(BuildInType::ConstTv64) => {
+                info!(target: "SkillWriting", "~~~~FieldType = const v64");
+                self.write_i8(0x4);
+            }
+            FieldType::BuildIn(BuildInType::Tannotation) => {
+                info!(target: "SkillWriting", "~~~~FieldType = annotation");
+                self.write_i8(0x5);
+            }
+            FieldType::BuildIn(BuildInType::Tbool) => {
+                info!(target: "SkillWriting", "~~~~FieldType = bool");
+                self.write_i8(0x6);
+            }
+            FieldType::BuildIn(BuildInType::Ti8) => {
+                info!(target: "SkillWriting", "~~~~FieldType = i8");
+                self.write_i8(0x7);
+            }
+            FieldType::BuildIn(BuildInType::Ti16) => {
+                info!(target: "SkillWriting", "~~~~FieldType = i16");
+                self.write_i8(0x8);
+            }
+            FieldType::BuildIn(BuildInType::Ti32) => {
+                info!(target: "SkillWriting", "~~~~FieldType = i32");
+                self.write_i8(0x9);
+            }
+            FieldType::BuildIn(BuildInType::Ti64) => {
+                info!(target: "SkillWriting", "~~~~FieldType = i64");
+                self.write_i8(0xA);
+            }
+            FieldType::BuildIn(BuildInType::Tv64) => {
+                info!(target: "SkillWriting", "~~~~FieldType = v64");
+                self.write_i8(0xB);
+            }
+            FieldType::BuildIn(BuildInType::Tf32) => {
+                info!(target: "SkillWriting", "~~~~FieldType = f32");
+                self.write_i8(0xC);
+            }
+            FieldType::BuildIn(BuildInType::Tf64) => {
+                info!(target: "SkillWriting", "~~~~FieldType = f64");
+                self.write_i8(0xD);
+            }
+            FieldType::BuildIn(BuildInType::Tstring) => {
+                info!(target: "SkillWriting", "~~~~FieldType = string");
+                self.write_i8(0xE);
+            }
+            FieldType::BuildIn(BuildInType::ConstTarray(length, ref boxed)) => {
+                info!(
+                    target: "SkillWriting",
+                    "~~~~FieldType = const array length: {:?}",
+                    length
+                );
+                self.write_i8(0xF);
+                self.write_v64(*length as i64);
+                self.write_field_type(boxed);
+            }
+            FieldType::BuildIn(BuildInType::Tarray(ref boxed)) => {
+                info!(target: "SkillWriting", "~~~~FieldType = varray");
+                self.write_i8(0x11);
+                self.write_field_type(boxed);
+            }
+            FieldType::BuildIn(BuildInType::Tlist(ref boxed)) => {
+                info!(target: "SkillWriting", "~~~~FieldType = list");
+                self.write_i8(0x12);
+                self.write_field_type(boxed);
+            }
+            FieldType::BuildIn(BuildInType::Tset(ref boxed)) => {
+                info!(target: "SkillWriting", "~~~~FieldType = set");
+                self.write_i8(0x13);
+                self.write_field_type(boxed);
+            }
+            FieldType::BuildIn(BuildInType::Tmap(ref key_boxed, ref val_boxed)) => {
+                info!(target: "SkillWriting", "~~~~FieldType = map");
+                self.write_i8(0x14);
+                self.write_field_type(key_boxed);
+                self.write_field_type(val_boxed);
+            }
+            FieldType::User(ref user) => {
+                info!(
+                    target: "SkillWriting",
+                    "~~~~FieldType = User{} ID:{}",
+                    user.borrow().name().as_str(),
+                    user.borrow().get_type_id()
+                );
+                self.write_v64(user.borrow().get_type_id() as i64);
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Drop for FileWriter {

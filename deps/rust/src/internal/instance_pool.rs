@@ -1,5 +1,6 @@
 use common::internal::{ObjectReader, SkillObject};
 use common::io::{Block, FieldChunk, FieldDeclaration, FieldType, FileReader, FileWriter};
+use common::iterator::static_data;
 use common::Ptr;
 use common::SkillError;
 use common::SkillString;
@@ -36,7 +37,7 @@ pub trait InstancePool {
     fn set_type_id(&mut self, id: usize);
     fn get_type_id(&self) -> usize;
 
-    fn name(&self) -> &SkillString;
+    fn name(&self) -> &Rc<SkillString>;
 
     fn get_local_static_count(&self) -> usize;
     fn set_local_static_count(&mut self, count: usize);
@@ -102,7 +103,13 @@ pub trait InstancePool {
     fn compress_field_chunks(&mut self, local_bpo: &Vec<usize>);
 
     fn write_type_meta(&self, writer: &mut FileWriter, local_bpos: &Vec<usize>);
-    /// self has to be mutable as in this step the new offsets of field data is updated
-    fn write_field_meta(&mut self, writer: &mut FileWriter, offset: usize) -> usize;
-    fn write_field_data(&self, writer: &mut FileWriter);
+    /// * `iter` is needed as self cant create a static_data::Iter instance
+    fn write_field_meta(
+        &self,
+        writer: &mut FileWriter,
+        iter: static_data::Iter,
+        offset: usize,
+    ) -> usize;
+    /// * `iter` is needed as self cant create a static_data::Iter instance
+    fn write_field_data(&self, writer: &mut FileWriter, iter: static_data::Iter);
 }

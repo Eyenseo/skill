@@ -84,15 +84,16 @@ impl Iterator for Iter {
         // clone because borrow madness
         {
             if self.block_index <= self.block_end {
-                let ret = pool.borrow().static_instances()[self.instance_index].clone();
-                self.instance_index += 1; // TODO nOT a pointer SkillID - starts form 1
+                let tmp = pool.borrow().get_base_vec();
+                let ret = tmp.borrow()[self.instance_index].clone();
+                self.instance_index += 1;
 
                 self.next_viable();
 
                 Some(ret)
             } else {
                 let ret = pool.borrow().new_instances()[self.instance_index].clone();
-                self.instance_index += 1; // Array position - starts from 0
+                self.instance_index += 1;
 
                 if self.instance_index == self.instance_end {
                     loop {
