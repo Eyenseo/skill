@@ -1,8 +1,8 @@
+use common::error::*;
 use common::internal::{ObjectReader, SkillObject};
 use common::io::{Block, FieldChunk, FieldDeclaration, FieldType, FileReader, FileWriter};
 use common::iterator::static_data;
 use common::Ptr;
-use common::SkillError;
 use common::SkillString;
 use common::StringBlock;
 
@@ -13,14 +13,14 @@ use std::rc::Rc;
 // TODO reorder
 pub trait InstancePool {
     fn has_field(&self, name_id: usize) -> bool;
-    fn add_chunk_to(&mut self, name_id: usize, chunk: FieldChunk);
+    fn add_chunk_to(&mut self, name_id: usize, chunk: FieldChunk) -> Result<(), SkillFail>;
     fn add_field(
         &mut self,
         index: usize,
         field_name: Rc<SkillString>,
         field_type: FieldType,
         chunk: FieldChunk,
-    );
+    ) -> Result<(), SkillFail>;
 
     fn field_amount(&self) -> usize;
 
@@ -54,7 +54,7 @@ pub trait InstancePool {
     fn set_global_cached_count(&mut self, count: usize);
 
     fn get_base_vec(&self) -> Rc<RefCell<Vec<Ptr<SkillObject>>>>;
-    fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillError>;
+    fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillFail>;
 
     fn add_sub(&mut self, pool: Rc<RefCell<InstancePool>>);
 
@@ -64,7 +64,7 @@ pub trait InstancePool {
         file_reader: &Vec<FileReader>,
         string_block: &StringBlock,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
-    ) -> Result<(), SkillError>;
+    ) -> Result<(), SkillFail>;
 
     fn make_instance(&self, id: usize) -> Ptr<SkillObject>;
 
@@ -102,14 +102,22 @@ pub trait InstancePool {
     );
     fn compress_field_chunks(&mut self, local_bpo: &Vec<usize>);
 
-    fn write_type_meta(&self, writer: &mut FileWriter, local_bpos: &Vec<usize>);
+    fn write_type_meta(
+        &self,
+        writer: &mut FileWriter,
+        local_bpos: &Vec<usize>,
+    ) -> Result<(), SkillFail>;
     /// * `iter` is needed as self cant create a static_data::Iter instance
     fn write_field_meta(
         &self,
         writer: &mut FileWriter,
         iter: static_data::Iter,
         offset: usize,
-    ) -> usize;
+    ) -> Result<usize, SkillFail>;
     /// * `iter` is needed as self cant create a static_data::Iter instance
-    fn write_field_data(&self, writer: &mut FileWriter, iter: static_data::Iter);
+    fn write_field_data(
+        &self,
+        writer: &mut FileWriter,
+        iter: static_data::Iter,
+    ) -> Result<(), SkillFail>;
 }

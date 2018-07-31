@@ -1,3 +1,4 @@
+use common::error::*;
 use common::internal::InstancePool;
 
 use std::cell::RefCell;
@@ -11,14 +12,14 @@ pub struct Iter {
 
 impl Iter {
     /// * `pool` has to be the base pool of a type heirarchy
-    pub fn new(pool: Rc<RefCell<InstancePool>>) -> Iter {
+    pub fn new(pool: Rc<RefCell<InstancePool>>) -> Result<Iter, SkillFail> {
         if !pool.borrow().is_base() {
-            panic!("The pool has to be a base pool");
+            return Err(SkillFail::internal(InternalFail::BasePoolRequired));
         }
-        Iter {
+        Ok(Iter {
             type_hierarchy_height: pool.borrow().type_hierarchy_height(),
             current: Some(pool.clone()),
-        }
+        })
     }
 }
 

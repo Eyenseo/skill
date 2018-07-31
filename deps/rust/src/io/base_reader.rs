@@ -1,7 +1,9 @@
-use common::SkillError;
+use common::error::*;
 
+use failure::Fail;
 use memmap::Mmap;
 
+use std::error::Error;
 use std::rc::Rc;
 
 // TODO fastpath for bigedian?
@@ -13,7 +15,7 @@ pub(crate) fn read_byte_unchecked(position: &mut usize, mmap: &Mmap) -> u8 {
 }
 
 // boolean
-pub fn read_bool(position: &mut usize, end: usize, mmap: &Mmap) -> Result<bool, SkillError> {
+pub fn read_bool(position: &mut usize, end: usize, mmap: &Mmap) -> Result<bool, SkillFail> {
     if *position < end {
         let val = read_byte_unchecked(position, mmap) == 0;
         trace!(
@@ -26,12 +28,12 @@ pub fn read_bool(position: &mut usize, end: usize, mmap: &Mmap) -> Result<bool, 
         );
         Ok(val)
     } else {
-        Err(SkillError::UnexpectedEndOfInput)
+        Err(SkillFail::internal(InternalFail::UnexpectedEndOfInput))
     }
 }
 
 // integer types
-pub fn read_i8(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i8, SkillError> {
+pub fn read_i8(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i8, SkillFail> {
     if *position < end {
         let val = read_byte_unchecked(position, mmap) as i8;
         trace!(
@@ -44,11 +46,11 @@ pub fn read_i8(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i8, Skil
         );
         Ok(val)
     } else {
-        Err(SkillError::UnexpectedEndOfInput)
+        Err(SkillFail::internal(InternalFail::UnexpectedEndOfInput))
     }
 }
 
-pub fn read_i16(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i16, SkillError> {
+pub fn read_i16(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i16, SkillFail> {
     if *position + 1 < end {
         let mut val: i16 = (i16::from(read_byte_unchecked(position, mmap))) << 8;
         val |= i16::from(read_byte_unchecked(position, mmap));
@@ -62,11 +64,11 @@ pub fn read_i16(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i16, Sk
         );
         Ok(val)
     } else {
-        Err(SkillError::UnexpectedEndOfInput)
+        Err(SkillFail::internal(InternalFail::UnexpectedEndOfInput))
     }
 }
 
-pub fn read_i32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i32, SkillError> {
+pub fn read_i32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i32, SkillFail> {
     if *position + 3 < end {
         let mut val: i32 = (i32::from(read_byte_unchecked(position, mmap))) << 24;
         val |= (i32::from(read_byte_unchecked(position, mmap))) << 16;
@@ -82,11 +84,11 @@ pub fn read_i32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i32, Sk
         );
         Ok(val)
     } else {
-        Err(SkillError::UnexpectedEndOfInput)
+        Err(SkillFail::internal(InternalFail::UnexpectedEndOfInput))
     }
 }
 
-pub fn read_i64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, SkillError> {
+pub fn read_i64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, SkillFail> {
     if *position + 7 < end {
         let mut val: i64 = (i64::from(read_byte_unchecked(position, mmap))) << 56;
         val |= (i64::from(read_byte_unchecked(position, mmap))) << 48;
@@ -106,11 +108,11 @@ pub fn read_i64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, Sk
         );
         Ok(val)
     } else {
-        Err(SkillError::UnexpectedEndOfInput)
+        Err(SkillFail::internal(InternalFail::UnexpectedEndOfInput))
     }
 }
 
-pub fn read_v64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, SkillError> {
+pub fn read_v64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, SkillFail> {
     let mut byte_val: i64 = 0;
     let mut val: i64 = 0;
     {
@@ -119,7 +121,7 @@ pub fn read_v64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, Sk
                 *v = read_byte_unchecked(position, mmap).into();
                 Ok(*v)
             } else {
-                Err(SkillError::UnexpectedEndOfInput)
+                Err(SkillFail::internal(InternalFail::UnexpectedEndOfInput))
             }
         };
 
@@ -163,7 +165,7 @@ pub fn read_v64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, Sk
 }
 
 // float types
-pub fn read_f32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<f32, SkillError> {
+pub fn read_f32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<f32, SkillFail> {
     #[repr(C)]
     union U {
         i: i32,
@@ -186,7 +188,7 @@ pub fn read_f32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<f32, Sk
     }
 }
 
-pub fn read_f64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<f64, SkillError> {
+pub fn read_f64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<f64, SkillFail> {
     #[repr(C)]
     union U {
         i: i64,
@@ -215,11 +217,11 @@ pub fn read_string(
     end: usize,
     mmap: &Mmap,
     length: u32,
-) -> Result<String, SkillError> {
+) -> Result<String, SkillFail> {
     let end_offset = *position + length as usize;
 
     if end_offset > end {
-        return Err(SkillError::UnexpectedEndOfInput);
+        return Err(SkillFail::internal(InternalFail::UnexpectedEndOfInput));
     }
 
     match String::from_utf8(mmap[*position..end_offset].to_vec()) {
@@ -235,6 +237,8 @@ pub fn read_string(
             );
             Ok(s)
         }
-        Err(_) => Err(SkillError::StringContainsInvalidUTF8),
+        Err(e) => Err(SkillFail::internal(InternalFail::StringDeserialization {
+            why: e.description().to_owned(),
+        })),
     }
 }

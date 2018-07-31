@@ -1,3 +1,4 @@
+use common::error::*;
 use common::internal::skill_object;
 use common::internal::SkillObject;
 
@@ -13,16 +14,18 @@ impl UndefinedObject {
         UndefinedObject { id: Cell::new(id) }
     }
 }
+
 impl SkillObject for UndefinedObject {
     fn get_skill_id(&self) -> usize {
         self.id.get()
     }
 
-    fn set_skill_id(&self, id: usize) {
+    fn set_skill_id(&self, id: usize) -> Result<(), SkillFail> {
         if id == skill_object::DELETE {
-            panic!("Tried to set the skill id to a reserved value")
+            return Err(SkillFail::internal(InternalFail::ReservedID { id }));
         }
         self.id.set(id);
+        Ok(())
     }
 
     fn mark_for_pruning(&self) {

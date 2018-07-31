@@ -1,11 +1,11 @@
 // TODO rename
+use common::error::*;
 use common::internal::InstancePool;
 use common::internal::SkillObject;
 use common::io::FileReader;
 use common::io::FileWriter;
 use common::iterator::static_data;
 use common::Ptr;
-use common::SkillError;
 use common::SkillString;
 use common::StringBlock;
 
@@ -101,7 +101,7 @@ pub trait FieldDeclaration {
         blocks: &Vec<Block>,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
         instances: &[Ptr<SkillObject>],
-    ) -> Result<(), SkillError>;
+    ) -> Result<(), SkillFail>;
 
     fn name(&self) -> &Rc<SkillString>;
     fn index(&self) -> usize;
@@ -117,6 +117,7 @@ pub trait FieldDeclaration {
         writer: &mut FileWriter,
         iter: static_data::Iter,
         offset: usize,
-    ) -> usize;
-    fn write_data(&self, writer: &mut FileWriter, iter: static_data::Iter);
+    ) -> Result<usize, SkillFail>;
+    fn write_data(&self, writer: &mut FileWriter, iter: static_data::Iter)
+        -> Result<(), SkillFail>;
 }

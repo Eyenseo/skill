@@ -40,7 +40,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
                    §use common::io::{FieldDeclaration, BlockIndex, FieldType, FileWriter, FileReader};
                    §use common::PoolMaker;
                    §use common::Ptr;
-                   §use common::SkillError;
+                   §use common::error::*;
                    §use common::SkillString;
                    §use common::StringBlock;
                    §use common::TypeBlock;
@@ -48,6 +48,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
                    §use memmap::Mmap;
                    §
                    §use std::cell::RefCell;
+                   §use std::error::Error;
                    §use std::rc::Rc;
                    §
                    §""".stripMargin('§')
@@ -103,23 +104,38 @@ trait SkillFileMaker extends GeneralOutputMaker {
     }
        §    }
        §
-       §    pub fn open(file: &str) -> Result<Self, SkillError> {
-       §        let f = ::std::fs::OpenOptions::new()
+       §    pub fn open(file: &str) -> Result<Self, SkillFail> {
+       §        let f = match ::std::fs::OpenOptions::new()
        §            .read(true)
        §            .write(true)
-       §            .open(&file)${
-      "" // FIXME handle errors better
-    }
-       §            .or(Err(SkillError::NotAFile))?;
+       §            .open(&file)
+       §        {
+       §            Ok(f) => Ok(f),
+       §            Err(e) => Err(SkillFail::internal(InternalFail::FailedToOpenFile {
+       §                file: file.to_owned(),
+       §                why: e.description().to_owned(),
+       §            })),
+       §        }?;
        §        let string_block = Rc::new(RefCell::new(StringBlock::new()));
        §        let mut type_pool = TypeBlock::new();
        §        let mut file_builder = SkillFileBuilder::new(string_block.clone());
        §        let mut data_chunk_reader = Vec::new();
-       §${
-      "" // FIXME handle errors better
-    }
-       §        if f.metadata().or(Err(SkillError::NotAFile))?.len() != 0 {
-       §            let mmap = unsafe { Mmap::map(&f) }.or(Err(SkillError::NotAFile))?;
+       §
+       §        let meta = match f.metadata() {
+       §            Ok(m) => Ok(m),
+       §            Err(e) => Err(SkillFail::internal(InternalFail::FailedToOpenFile {
+       §                file: file.to_owned(),
+       §                why: e.description().to_owned(),
+       §            })),
+       §        }?;
+       §
+       §        if meta.len() != 0 {
+       §            let mmap = match unsafe { Mmap::map(&f) }{
+       §                Ok(m) => Ok(m),
+       §                Err(e) => Err(SkillFail::internal(InternalFail::FailedToCreateMMap {
+       §                    why: e.description().to_owned(),
+       §                })),
+       §            }?;
        §            let rmmap = Rc::new(mmap);
        §            let mut block_index = BlockIndex::from(0);
        §            {
@@ -148,7 +164,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §                }
        §            }
        §        }
-       §        file_builder.allocate(&mut type_pool);
+       §        file_builder.allocate(&mut type_pool)?;
        §        file_builder.initialize(
        §            &type_pool,
        §            &data_chunk_reader,
@@ -168,19 +184,25 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        Ok(sf)
        §    }
        §
-       §    pub fn create(file: &str) -> Result<Self, SkillError> {
-       §        let f = ::std::fs::OpenOptions::new()
+       §    pub fn create(file: &str) -> Result<Self, SkillFail> {
+       §        let f = match ::std::fs::OpenOptions::new()
        §            .write(true)
        §            .read(true)
        §            .create(true)
        §            .open(&file)
-       §            .or(Err(SkillError::NotAFile))?;
+       §        {
+       §            Ok(f) => Ok(f),
+       §            Err(e) => Err(SkillFail::internal(InternalFail::FailedToCreateFile {
+       §                file: file.to_owned(),
+       §                why: e.description().to_owned(),
+       §            })),
+       §        }?;
        §        let string_block = Rc::new(RefCell::new(StringBlock::new()));
        §        let mut type_pool = TypeBlock::new();
        §        let mut file_builder = SkillFileBuilder::new(string_block.clone());
        §        let mut data_chunk_reader = Vec::new();
        §
-       §        file_builder.allocate(&mut type_pool);
+       §        file_builder.allocate(&mut type_pool)?;
        §        file_builder.initialize(
        §            &type_pool,
        §            &data_chunk_reader,
@@ -200,7 +222,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        Ok(sf)
        §    }
        §
-       §    pub fn write(&mut self) -> Result<(), SkillError> {
+       §    pub fn write(&mut self) -> Result<(), SkillFail> {
        §        // invariant -> size queries are constant time
        §        self.type_pool.set_invariant(true);
        §
@@ -214,7 +236,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        self.check()?;
        §
        §        // reorder
-       §        let local_bpos = self.type_pool.compress();
+       §        let local_bpos = self.type_pool.compress()?;
        §
        §        let mut writer = FileWriter::new(self.file.clone());
        §        self.strings.borrow().write_block(&mut writer)?;
@@ -225,13 +247,13 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        Ok(())
        §    }
        §
-       §    pub fn close(mut self) -> Result<(), SkillError> {${
+       §    pub fn close(mut self) -> Result<(), SkillFail> {${
       "" // TODO check if more has to be done?
     }
        §        self.write()
        §    }
        §
-       §    pub fn check(&self) -> Result<(), SkillError> {${
+       §    pub fn check(&self) -> Result<(), SkillFail> {${
       "" // TODO implement check
     }
        §        Ok(())
@@ -282,8 +304,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        }
        §    }
        §
-       §    fn allocate(&mut self, type_pool: &mut TypeBlock) {
-       §        self.string_block.borrow_mut().finalize();
+       §    fn allocate(&mut self, type_pool: &mut TypeBlock) -> Result<(), SkillFail> {
+       §        self.string_block.borrow_mut().finalize()?;
        §        ${
       (for (base ← IR) yield {
         e"""if self.${field(base)}.is_none() {
@@ -320,6 +342,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        for pool in self.undefined_pools.iter() {
        §            pool.borrow_mut().allocate();
        §        }
+       §        Ok(())
        §    }
        §
        §    fn initialize(
@@ -327,7 +350,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        type_pool: &TypeBlock,
        §        file_reader: &Vec<FileReader>,
        §        string_block: &StringBlock,
-       §    ) -> Result<(), SkillError> {
+       §    ) -> Result<(), SkillFail> {
        §        type_pool.initialize(string_block, file_reader)?;
        §        Ok(())
        §    }
@@ -341,7 +364,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        type_name: &Rc<SkillString>,
        §        type_id: usize,
        §        super_pool: Option<Rc<RefCell<InstancePool>>>,
-       §    ) -> Rc<RefCell<InstancePool>> {
+       §    ) -> Result<Rc<RefCell<InstancePool>>, SkillFail> {
        §        ${
       (for (base ← IR) yield {
         e"""if type_name.as_str() == self.string_block.borrow().lit().${field(base)}  {
@@ -357,23 +380,22 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §        if let Some(super_pool) = super_pool {
            §            let super_name = {
            §                let tmp = super_pool.borrow();
-           §                tmp.name().clone()
+           §                tmp.name().as_str().to_owned()
            §            };
            §            ${
           if (base.getSuperType == null) {
-            e"""panic!(
-               §    "The type '${base.getName.camel()}' aka '${name(base)}' does not expect a super type. Found:{}",
+            e"""return Err(SkillFail::internal(InternalFail::UnexpectedSuperType {
+               §    base: self.string_block.borrow().lit().${field(base)},
                §    super_name
-               §);
+               §}));
                §""".stripMargin('§').trim
           } else {
             e"""if super_name.as_str() != self.string_block.borrow().lit().${field(base.getSuperType)} {
-               §    panic!(
-               §        "Wrong super type for '${base.getName.camel()}' aka '${name(base)}' expect:${
-              field(base.getSuperType)
-            } found:{}",
-               §        super_name
-               §    );
+               §    return Err(SkillFail::internal(InternalFail::WrongSuperType {
+               §        base: self.string_block.borrow().lit().${field(base)},
+               §        expected: self.string_block.borrow().lit().${field(base.getSuperType)},
+               §        found: super_name,
+               §    }));
                §} else {
                §    super_pool.borrow_mut().add_sub(self.${field(base)}.as_ref().unwrap().clone());
                §    self.${field(base)}.as_ref().unwrap().borrow_mut().set_super(super_pool);
@@ -384,8 +406,11 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §        } ${
           if (base.getSuperType != null) {
             e"""else {
-               §            panic!("The type '${base.getName.camel()}' aka '${name(base)}' expects a supertype.");
-               §        }
+               §    return Err(SkillFail::internal(InternalFail::MissingSuperType {
+               §        base: self.string_block.borrow().lit().${field(base)},
+               §        expected: self.string_block.borrow().lit().${field(base.getSuperType)},
+               §    }));
+               §}
                §""".stripMargin('§').trim
           } else {
             ""
@@ -394,13 +419,13 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §    } else {
            §        panic!("Double creation of pool");
            §    }
-           §    self.${field(base)}.as_ref().unwrap().clone()
+           §    Ok(self.${field(base)}.as_ref().unwrap().clone())
            §} else """.stripMargin('§')
       }).mkString
     }{
        §            for pool in self.undefined_pools.iter() {
        §                if pool.borrow().get_type_id() == type_id {
-       §                    return pool.clone();
+       §                    return Ok(pool.clone());
        §                }
        §            }
        §            let pool = Rc::new(RefCell::new(UndefinedPool::new(
@@ -413,7 +438,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §                pool.borrow_mut().set_super(super_pool);
        §            }
        §            self.undefined_pools.push(pool.clone());
-       §            pool
+       §            Ok(pool)
        §        }
        §    }
        §

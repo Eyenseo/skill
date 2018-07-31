@@ -1,5 +1,5 @@
+use common::error::*;
 use common::internal::InstancePool;
-use common::SkillError;
 use common::SkillString;
 
 use std::cell::RefCell;
@@ -11,7 +11,7 @@ pub trait PoolMaker {
         type_name: &Rc<SkillString>,
         type_id: usize,
         super_pool: Option<Rc<RefCell<InstancePool>>>,
-    ) -> Rc<RefCell<InstancePool>>;
+    ) -> Result<Rc<RefCell<InstancePool>>, SkillFail>;
 
     fn get_pool(&self, type_name_index: usize) -> Option<Rc<RefCell<InstancePool>>>;
 }

@@ -1,72 +1,196 @@
-use std::error::Error as StdError;
-use std::fmt;
+use failure::{Backtrace, Fail};
 
-// TODO https://docs.serde.rs/src/serde_json/error.rs.html
-
-// TODO improve errors - include information - use Box?
-
-#[doc(hidden)]
-pub struct Void(());
-
-// TODO look up what this does
-use self::SkillError::{
-    BadSkillObjectID, NotAFile, RedefinitionOfType, StringContainsInvalidUTF8, StringTooShort,
-    UnexpectedEndOfInput, UnimplementedType, UnknownType,
-};
-
-// TODO prune unused errors
-#[derive(Debug)]
-pub enum SkillError {
+#[derive(Fail, Debug)]
+pub enum InternalFail {
+    #[fail(display = "The input stream ended even though more input was expected")]
     UnexpectedEndOfInput,
-    StringContainsInvalidUTF8,
+    #[fail(display = "The read string was too short, probably because the input ended to early.")]
     StringTooShort,
-    NotAFile,
-    RedefinitionOfType,
+    #[fail(display = "deserialization faild because:{}", why)]
+    StringDeserialization { why: String },
+    #[fail(
+        display = "The file '{}' couldn't be opened because:{}.",
+        file,
+        why,
+    )]
+    FailedToOpenFile { file: String, why: String },
+    #[fail(
+        display = "The file '{}' couldn't be created because:{}.",
+        file,
+        why,
+    )]
+    FailedToCreateFile { file: String, why: String },
+    #[fail(display = "The type '{}' was declared more than once.", name)]
+    RedefinitionOfType { name: String },
+    #[fail(display = "The type is not implemented.")]
     UnimplementedType,
-    UnknownType,
-    BadSkillObjectID,
-    // Io(IoError),
-    #[doc(hidden)] // TODO check what this does
-    _Nonexhaustive(Void),
+    #[fail(display = "The type with id:{} is unknown", id)]
+    UnknownType { id: usize },
+    #[fail(display = "The Field with id:{} is unknown", id)]
+    UnknownField { id: usize },
+    #[fail(display = "The type restriction:{} is unknown", id)]
+    UnknownTypeRestriction { id: usize },
+    #[fail(display = "The field restriction:{} is unknown", id)]
+    UnknownFieldRestriction { id: usize },
+    #[fail(
+        display = "Unordered type block; previous ID:{} < current ID:{} with type: {}",
+        previous,
+        current,
+        name,
+    )]
+    UnorderedTypeBlock {
+        previous: usize,
+        current: usize,
+        name: String,
+    },
+    #[fail(
+        display = "Found bad base pool offset of:{} super lbpo:{}",
+        local_bpo,
+        super_local_bpo,
+    )]
+    BadBasePoolOffset {
+        local_bpo: usize,
+        super_local_bpo: usize,
+    },
+    #[fail(
+        display = "Found bad field id; previous ID:{}, current ID:{}",
+        previous,
+        current,
+    )]
+    BadFieldID { previous: usize, current: usize },
+    #[fail(display = "Range restriction on non numeric type")]
+    BadRangeRestriction,
+
+    #[fail(
+        display = "The string:'{}' was already contained in the StringPool",
+        string
+    )]
+    DuplicatedString { string: String },
+    #[fail(display = "The ID:{} is reserved", id)]
+    ReservedID { id: usize },
+
+    #[fail(display = "The pool has to be a base pool but was not")]
+    BasePoolRequired,
+
+    #[fail(display = "Seeking filed because:{}", why)]
+    BadSeek { why: String },
+    #[fail(display = "Writing failed because:{}", why)]
+    BadWrite { why: String },
+
+    #[fail(display = "Flushing failed because:{}", why)]
+    BadFlush { why: String },
+
+    #[fail(display = "Expected an declaration chunk after compress!")]
+    BadChunk,
+
+    #[fail(display = "Failed to resize file because:{}", why)]
+    FailedToResizeFile { why: String },
+    #[fail(display = "Failed to create mmap because:{}", why)]
+    FailedToCreateMMap { why: String },
+
+    #[fail(
+        display = "Wrong Filed type Expected:{} Found:{}",
+        expected,
+        found
+    )]
+    BadFieldType {
+        expected: &'static str,
+        found: String,
+    },
+    #[fail(
+        display = "Wrong constant length of array Expected:{} Found:{}",
+        expected,
+        found
+    )]
+    BadConstantLength { expected: usize, found: usize },
+
+    #[fail(display = "Bad cast")]
+    BadCast,
+
+    #[fail(
+        display = "The type '{}' does not expect a super type. Found:'{}'",
+        base,
+        super_name
+    )]
+    UnexpectedSuperType {
+        base: &'static str,
+        super_name: String,
+    },
+
+    #[fail(
+        display = "The type '{}' expects a super type of '{}' but none was given",
+        base,
+        expected
+    )]
+    MissingSuperType {
+        base: &'static str,
+        expected: &'static str,
+    },
+    #[fail(
+        display = "Wrong super type for '{}' Expect:'{}' Found:'{}'",
+        base,
+        expected,
+        found
+    )]
+    WrongSuperType {
+        base: &'static str,
+        expected: &'static str,
+        found: String,
+    },
+
+    #[fail(
+        display = "The given SkillObjectID:{} doesn't match a SkillObject",
+        id
+    )]
+    BadSkillObjectID { id: usize },
 }
 
-// adapted from https://hyper.rs/hyper/v0.10.5/src/hyper/error.rs.html#32
-impl fmt::Debug for Void {
-    fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result {
-        unreachable!()
-    }
+#[derive(Fail, Debug)]
+pub enum UserFail {
+    #[fail(display = "The ID:{} is reserved", id)]
+    ReservedID { id: usize },
+
+    #[fail(display = "Access of deleted SkillObject")]
+    AccessDeleted,
+
+    #[fail(display = "Accessed object (ID:{}) of foreign type", id)]
+    BadCastID { id: usize },
+
+    #[fail(display = "Object (ID:{}) is unused / unknown", id)]
+    UnknownObjectID { id: usize },
+
+    #[fail(
+        display = "Object (ID:{}) was used while marking it for deletion",
+        id
+    )]
+    DeleteInUse { id: usize },
 }
-impl fmt::Display for SkillError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            //Io(ref e) => fmt::Display::fmt(e, f),
-            ref e => f.write_str(e.description()),
+
+#[derive(Fail, Debug)]
+pub enum SkillFail {
+    #[fail(display = "An internal error occured: {}", cause)]
+    Internal {
+        cause: InternalFail,
+        backtrace: failure::Backtrace,
+    },
+    #[fail(display = "An user caused error occured: {}", cause)]
+    User {
+        cause: UserFail,
+        backtrace: failure::Backtrace,
+    },
+}
+
+impl SkillFail {
+    pub fn internal(cause: InternalFail) -> SkillFail {
+        SkillFail::Internal {
+            cause,
+            backtrace: Backtrace::new(),
         }
     }
-}
-impl StdError for SkillError {
-    fn description(&self) -> &str {
-        match *self {
-            UnexpectedEndOfInput => "The input stream ended even though more input was expected",
-            StringTooShort => {
-                "The read string was too short, probably because the input ended to early."
-            }
-            StringContainsInvalidUTF8 => "The to be read string contained invalid UTF-8 coding.",
-            NotAFile => "The provided path doesn't point to a file.",
-            RedefinitionOfType => "A type was declared more than once.",
-            UnimplementedType => "The type is not implemented.",
-            UnknownType => "The specified type is unknown",
-            BadSkillObjectID => "The given SkillObjectID doesn't match a SkillObject",
-
-            //Io(ref e) => e.description(),
-            SkillError::_Nonexhaustive(..) => unreachable!(),
-        }
-    }
-
-    fn cause(&self) -> Option<&StdError> {
-        match *self {
-            //Io(ref error) => Some(error),
-            _ => None,
+    pub fn user(cause: UserFail) -> SkillFail {
+        SkillFail::User {
+            cause,
+            backtrace: Backtrace::new(),
         }
     }
 }

@@ -1,3 +1,4 @@
+use common::error::*;
 use common::internal::InstancePool;
 use common::internal::SkillObject;
 use common::io::{
@@ -6,7 +7,6 @@ use common::io::{
 };
 use common::iterator::static_data;
 use common::Ptr;
-use common::SkillError;
 use common::SkillString;
 use common::StringBlock;
 
@@ -39,7 +39,7 @@ impl FieldDeclaration for LazyFieldDeclaration {
         blocks: &Vec<Block>,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
         instances: &[Ptr<SkillObject>],
-    ) -> Result<(), SkillError> {
+    ) -> Result<(), SkillFail> {
         // FIXME
         Ok(())
     }
@@ -70,25 +70,30 @@ impl FieldDeclaration for LazyFieldDeclaration {
         writer: &mut FileWriter,
         iter: static_data::Iter,
         offset: usize,
-    ) -> usize {
-        writer.write_v64(self.index as i64);
-        writer.write_v64(self.name.get_skill_id() as i64);
-        writer.write_field_type(&self.field_type);
-        writer.write_i8(0); // TODO write restrictions
+    ) -> Result<usize, SkillFail> {
+        writer.write_v64(self.index as i64)?;
+        writer.write_v64(self.name.get_skill_id() as i64)?;
+        writer.write_field_type(&self.field_type)?;
+        writer.write_i8(0)?; // TODO write restrictions
         let end_offset = offset + self.offset(iter);
-        writer.write_v64(end_offset as i64);
+        writer.write_v64(end_offset as i64)?;
 
         match self.chunks.first_mut().unwrap() {
             FieldChunk::Declaration(ref mut dec) => {
                 dec.begin = offset;
                 dec.end = end_offset;
+                Ok(())
             }
-            _ => panic!("Expected an declaration chunk after compress!"),
-        };
+            _ => Err(SkillFail::internal(InternalFail::BadChunk)),
+        }?;
 
-        end_offset
+        Ok(end_offset)
     }
-    fn write_data(&self, writer: &mut FileWriter, iter: static_data::Iter) {
+    fn write_data(
+        &self,
+        writer: &mut FileWriter,
+        iter: static_data::Iter,
+    ) -> Result<(), SkillFail> {
         unimplemented!();
     }
 }

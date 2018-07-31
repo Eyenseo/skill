@@ -1,3 +1,4 @@
+use common::error::*;
 use common::internal::InstancePool;
 use common::internal::SkillObject;
 use common::iterator::type_hierarchy;
@@ -18,21 +19,21 @@ pub struct Iter {
 
 impl Iter {
     /// * `pool` has to be the base pool of a type hierarchy
-    pub fn new(pool: Rc<RefCell<InstancePool>>) -> Iter {
+    pub fn new(pool: Rc<RefCell<InstancePool>>) -> Result<Iter, SkillFail> {
         if !pool.borrow().is_base() {
-            panic!("The pool has to be a base pool");
+            return Err(SkillFail::internal(InternalFail::BasePoolRequired));
         }
 
         let mut iter = Iter {
             block_end: pool.borrow().blocks().len(),
-            type_hierarchy: type_hierarchy::Iter::new(pool.clone()),
+            type_hierarchy: type_hierarchy::Iter::new(pool.clone())?,
             current: Some(pool.clone()),
             instance_index: 0,
             block_index: 0,
             instance_end: 0,
         };
         iter.next_viable();
-        iter
+        Ok(iter)
     }
 
     fn next_viable(&mut self) {

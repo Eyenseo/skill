@@ -1,3 +1,4 @@
+use common::error::*;
 use common::internal::{InstancePool, SkillObject};
 use common::iterator::{static_data, type_hierarchy};
 use common::Ptr;
@@ -13,14 +14,14 @@ pub struct Iter {
 
 impl Iter {
     /// * `pool` has to be the base pool of a type hierarchy
-    pub fn new(pool: Rc<RefCell<InstancePool>>) -> Iter {
+    pub fn new(pool: Rc<RefCell<InstancePool>>) -> Result<Iter, SkillFail> {
         // check for pool happens in type_hierarchy already
         let mut iter = Iter {
-            type_hierarchy: type_hierarchy::Iter::new(pool.clone()),
+            type_hierarchy: type_hierarchy::Iter::new(pool.clone())?,
             static_data: None,
         };
         iter.next_viable();
-        iter
+        Ok(iter)
     }
 
     fn next_viable(&mut self) {

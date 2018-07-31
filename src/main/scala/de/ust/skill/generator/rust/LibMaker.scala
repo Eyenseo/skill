@@ -24,7 +24,9 @@ trait LibMaker extends GeneralOutputMaker {
 
     out.write(
                e"""// FIXME remove
-                  §#![allow(unused)]
+                  §#![allow(unused_imports)]
+                  §#![allow(unused_variables)]
+                  §#![allow(unused_mut)]
                   §#![allow(dead_code)]
                   §
                   §#![feature(coerce_unsized)]
@@ -38,6 +40,11 @@ trait LibMaker extends GeneralOutputMaker {
                   §#[macro_use]
                   §extern crate log;
                   §extern crate memmap;
+                  §
+                  §
+                  §extern crate failure;
+                  §#[macro_use]
+                  §extern crate failure_derive;
                   §
                   §#[macro_use]
                   §pub mod common;
@@ -88,6 +95,9 @@ trait LibMaker extends GeneralOutputMaker {
                   §[dependencies]
                   §memmap = "0.6.2"
                   §log = { version = "0.4.3", features = ["max_level_trace", "release_max_level_off"] }
+                  §#NOTE this has to be 0.1.2 - release due ...
+                  §failure = {git = "https://github.com/rust-lang-nursery/failure"}
+                  §failure_derive = "0.1.1"
                   §
                   §[dev-dependencies]
                   §env_logger = "0.5.11"

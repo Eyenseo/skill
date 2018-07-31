@@ -1,3 +1,4 @@
+use common::error::*;
 use common::internal::{
     InstancePool, LazyFieldDeclaration, ObjectReader, SkillObject, UndefinedObject,
 };
@@ -6,7 +7,6 @@ use common::io::{
 };
 use common::iterator::static_data;
 use common::Ptr;
-use common::SkillError;
 use common::SkillString;
 use common::StringBlock;
 
@@ -70,12 +70,13 @@ impl InstancePool for UndefinedPool {
         field_name: Rc<SkillString>,
         field_type: FieldType,
         chunk: FieldChunk,
-    ) {
+    ) -> Result<(), SkillFail> {
         let mut reader = Box::new(RefCell::new(LazyFieldDeclaration::new(
             field_name, index, field_type,
         )));
         reader.borrow_mut().add_chunk(chunk);
         self.fields.push(reader);
+        Ok(())
     }
     fn has_field(&self, name_id: usize) -> bool {
         for f in &self.fields {
@@ -89,15 +90,17 @@ impl InstancePool for UndefinedPool {
     fn field_amount(&self) -> usize {
         self.fields.len()
     }
-    fn add_chunk_to(&mut self, field_index: usize, chunk: FieldChunk) {
+    fn add_chunk_to(&mut self, field_index: usize, chunk: FieldChunk) -> Result<(), SkillFail> {
         for f in self.fields.iter() {
             let mut f = f.borrow_mut();
             if f.index() == field_index {
                 f.add_chunk(chunk);
-                return;
+                return Ok(());
             }
         }
-        panic!("No field with index:{}", field_index);
+        Err(SkillFail::internal(InternalFail::UnknownField {
+            id: field_index,
+        }))
     }
 
     fn set_type_id(&mut self, id: usize) {
@@ -146,31 +149,18 @@ impl InstancePool for UndefinedPool {
     }
 
     fn get_local_static_count(&self) -> usize {
-        if let Some(block) = self.blocks.last() {
-            return block.static_count;
-        }
-        panic!();
+        return self.blocks.last().unwrap().static_count;
     }
     fn set_local_static_count(&mut self, count: usize) {
-        if let Some(block) = self.blocks.last_mut() {
-            block.static_count = count
-        } else {
-            panic!();
-        }
+        self.blocks.last_mut().unwrap().static_count = count
     }
 
     fn get_local_dynamic_count(&self) -> usize {
-        if let Some(block) = self.blocks.last() {
-            return block.dynamic_count;
-        }
-        panic!();
+        return self.blocks.last().unwrap().dynamic_count;
     }
 
     fn get_local_bpo(&self) -> usize {
-        if let Some(block) = self.blocks.last() {
-            return block.bpo;
-        }
-        panic!();
+        self.blocks.last().unwrap().bpo
     }
 
     fn set_invariant(&mut self, invariant: bool) {
@@ -209,10 +199,12 @@ impl InstancePool for UndefinedPool {
     fn get_base_vec(&self) -> Rc<RefCell<Vec<Ptr<SkillObject>>>> {
         self.instances.clone()
     }
-    fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillError> {
-        assert!(index >= 1);
+    fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillFail> {
+        if index == 0 {
+            return Err(SkillFail::internal(InternalFail::ReservedID { id: 0 }));
+        }
         info!(
-            target:"SkillParsing",
+            target: "SkillParsing",
             "read user instance:{} from:{}",
             index,
             self.instances.borrow().len(),
@@ -225,7 +217,7 @@ impl InstancePool for UndefinedPool {
         file_reader: &Vec<FileReader>,
         string_block: &StringBlock,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
-    ) -> Result<(), SkillError> {
+    ) -> Result<(), SkillFail> {
         for f in self.fields.iter() {
             let instances = self.instances.borrow();
             f.borrow().read(
@@ -245,12 +237,12 @@ impl InstancePool for UndefinedPool {
             // TODO add extra Garbage / placeholder object
             let tmp = Ptr::new(UndefinedObject::new(0));
             info!(
-                target:"SkillParsing",
+                target: "SkillParsing",
                 "Allocate space for:UndefinedPool amount:{}",
                 self.get_global_cached_count(),
             );
             trace!(
-                target:"SkillParsing",
+                target: "SkillParsing",
                 "Allocate space for:UndefinedPool with:{:?}",
                 tmp,
             );
@@ -263,7 +255,7 @@ impl InstancePool for UndefinedPool {
         self.own_static_instances.reserve(self.static_count);
 
         info!(
-            target:"SkillParsing",
+            target: "SkillParsing",
             "Initialize UndefinedPool id:{}",
             self.get_type_id(),
         );
@@ -275,7 +267,7 @@ impl InstancePool for UndefinedPool {
                 if self.super_pool.is_some() {
                     let pool = self.super_pool.as_ref().unwrap().borrow();
                     trace!(
-                        target:"SkillParsing",
+                        target: "SkillParsing",
                         "UndefinedObject id:{} super:{:?} block:{:?}",
                         id,
                         pool.get_type_id(),
@@ -284,7 +276,7 @@ impl InstancePool for UndefinedPool {
                     self.own_static_instances.push(pool.make_instance(id));
                 } else {
                     trace!(
-                        target:"SkillParsing",
+                        target: "SkillParsing",
                         "UndefinedObject id:{} block:{:?}",
                         id,
                         block,
@@ -302,7 +294,7 @@ impl InstancePool for UndefinedPool {
             return pool.borrow().make_instance(id);
         }
         trace!(
-            target:"SkillParsing",
+            target: "SkillParsing",
             "Create new UndefinedObject",
         );
         Ptr::new(UndefinedObject::new(id))
@@ -324,7 +316,7 @@ impl InstancePool for UndefinedPool {
             dynamic_count: self.cached_count,
         });
         trace!(
-            target:"SkillWriting",
+            target: "SkillWriting",
             "Updated Block:{:?}",
             self.blocks.last().unwrap(),
         );
@@ -384,56 +376,66 @@ impl InstancePool for UndefinedPool {
             f.borrow_mut().compress_chunks(total_count);
         }
     }
-    fn write_type_meta(&self, writer: &mut FileWriter, local_bpos: &Vec<usize>) {
+    fn write_type_meta(
+        &self,
+        writer: &mut FileWriter,
+        local_bpos: &Vec<usize>,
+    ) -> Result<(), SkillFail> {
         info!(
-            target:"SkillWriting",
+            target: "SkillWriting",
             "~~~Write Meta Data for UndefinedPool:{} Instances; Static:{} Dynamic:{}",
             self.name.as_ref(),
             self.get_local_static_count(),
             self.get_local_dynamic_count(),
         );
 
-        writer.write_v64(self.name().get_skill_id() as i64);
-        writer.write_v64(self.get_local_dynamic_count() as i64);
+        writer.write_v64(self.name().get_skill_id() as i64)?;
+        writer.write_v64(self.get_local_dynamic_count() as i64)?;
         // FIXME restrictions
-        writer.write_v64(0);
+        writer.write_v64(0)?;
         if let Some(s) = self.get_super() {
-            writer.write_v64((s.borrow().get_type_id() - 32) as i64); // TODO +1?
+            writer.write_v64((s.borrow().get_type_id() - 32) as i64)?; // TODO +1?
             if self.get_local_dynamic_count() != 0 {
-                writer.write_v64(local_bpos[self.get_type_id() - 32] as i64);
+                writer.write_v64(local_bpos[self.get_type_id() - 32] as i64)?;
             }
         } else {
             // tiny optimisation
-            writer.write_i8(0);
+            writer.write_i8(0)?;
         }
-        writer.write_v64(self.field_amount() as i64);
+        writer.write_v64(self.field_amount() as i64)?;
+        Ok(())
     }
     fn write_field_meta(
         &self,
         writer: &mut FileWriter,
         iter: static_data::Iter,
         mut offset: usize,
-    ) -> usize {
+    ) -> Result<usize, SkillFail> {
         info!(
-            target:"SkillWriting",
+            target: "SkillWriting",
             "~~~Write Field Meta Data for UndefinedPool:{} Fields:{}",
             self.name.as_ref(),
             self.fields.len(),
         );
         for f in self.fields.iter() {
-            offset = f.borrow_mut().write_meta(writer, iter.clone(), offset);
+            offset = f.borrow_mut().write_meta(writer, iter.clone(), offset)?;
         }
-        offset
+        Ok(offset)
     }
-    fn write_field_data(&self, writer: &mut FileWriter, iter: static_data::Iter) {
+    fn write_field_data(
+        &self,
+        writer: &mut FileWriter,
+        iter: static_data::Iter,
+    ) -> Result<(), SkillFail> {
         info!(
-            target:"SkillWriting",
+            target: "SkillWriting",
             "~~~Write Field Data for UndefinedPool:{} Fields:{}",
             self.name.as_ref(),
             self.fields.len(),
         );
         for f in self.fields.iter() {
-            f.borrow().write_data(writer, iter.clone())
+            f.borrow().write_data(writer, iter.clone())?;
         }
+        Ok(())
     }
 }

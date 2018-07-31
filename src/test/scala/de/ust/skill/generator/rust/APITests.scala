@@ -134,11 +134,16 @@ class APITests extends common.GenericAPITests {
                    §#[cfg(test)]
                    §#[allow(non_snake_case)]
                    §#[allow(unused_must_use)]
+                   §#[allow(unused_imports)]
+                   §#[allow(unused_variables)]
                    §mod tests {
                    §    extern crate env_logger;
+                   §    extern crate failure;
                    §
                    §    use $pkgEsc::skill_file::SkillFile;
                    §    use $pkgEsc::*;
+                   §
+                   §    use self::failure::Fail;
                    §""".stripMargin('§').trim
               )
     rval
@@ -194,9 +199,17 @@ class APITests extends common.GenericAPITests {
                   §
                   §                    sf.close();
                   §                },
-                  §                Err(e) => panic!("{}", e)
+                  §                Err(e) => if let Some(bt) = e.backtrace() {
+                  §                    panic!("{}\n{}", e, bt)
+                  §                } else {
+                  §                    panic!("{}", e)
+                  §                }
                   §            },
-                  §            Err(e) => panic!("{}", e),
+                  §            Err(e) => if let Some(bt) = e.backtrace() {
+                  §                panic!("{}\n{}", e, bt)
+                  §            } else {
+                  §                panic!("{}", e)
+                  §            },
                   §        };
                   §
                   §        match SkillFile::open("/tmp/${funName}_$uuid.sf") {
@@ -207,9 +220,17 @@ class APITests extends common.GenericAPITests {
                   §                    // assert fields
                   §                    ${assertFields(root, tc)}
                   §                },
-                  §                Err(e) => panic!("{}", e)
+                  §                Err(e) => if let Some(bt) = e.backtrace() {
+                  §                    panic!("{}\n{}", e, bt)
+                  §                } else {
+                  §                    panic!("{}", e)
+                  §                }
                   §            },
-                  §            Err(e) => panic!("{}", e),
+                  §            Err(e) => if let Some(bt) = e.backtrace() {
+                  §                panic!("{}\n{}", e, bt)
+                  §            } else {
+                  §                panic!("{}", e)
+                  §            },
                   §        };
                   §    }""".stripMargin('§'))
     // TODO add writing, reading and verifying results

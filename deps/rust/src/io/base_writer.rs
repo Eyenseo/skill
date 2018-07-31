@@ -1,5 +1,6 @@
-use common::SkillError;
+use common::error::*;
 
+use std::error::Error;
 use std::io::Write;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::rc::Rc;
@@ -78,6 +79,7 @@ pub fn write_i64(position: &mut usize, out: &mut [u8], what: i64) {
     write_byte_unchecked(position, out, (what >> 8) as u8);
     write_byte_unchecked(position, out, what as u8);
 }
+
 pub fn write_v64(position: &mut usize, out: &mut [u8], what: i64) {
     trace!(
         target: "SkillBaseTypewriting",
@@ -171,7 +173,7 @@ pub fn write_f64(position: &mut usize, out: &mut [u8], what: f64) {
 
 // string
 // TODO replace String with lazy loading
-pub fn write_string(position: &mut usize, out: &mut [u8], what: &str) {
+pub fn write_string(position: &mut usize, out: &mut [u8], what: &str) -> Result<(), SkillFail> {
     trace!(
         target: "SkillBaseTypewriting",
         "#W# str:|{:?}| position:{:?} out:{:?}",
@@ -181,7 +183,12 @@ pub fn write_string(position: &mut usize, out: &mut [u8], what: &str) {
     );
     match (&mut out[*position..]).write_all(what.as_bytes()) {
         Ok(_) => {}
-        Err(_) => panic!("Couldn't write the complete string!"),
+        Err(e) => {
+            return Err(SkillFail::internal(InternalFail::BadWrite {
+                why: e.description().to_owned(),
+            }))
+        }
     }
     *position += what.len();
+    Ok(())
 }

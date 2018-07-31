@@ -1,3 +1,4 @@
+use common::error::*;
 use common::internal::{InstancePool, ObjectReader, SkillObject, UndefinedObject};
 use common::io::{
     Block, BlockIndex, BuildInType, ContinuationFieldChunk, DeclarationFieldChunk, FieldChunk,
@@ -6,13 +7,13 @@ use common::io::{
 use common::iterator::*;
 use common::PoolMaker;
 use common::Ptr;
-use common::SkillError;
 use common::StringBlock;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Default)]
+// TODO rename
 pub struct TypeBlock {
     pools: Vec<Rc<RefCell<InstancePool>>>,
 }
@@ -29,9 +30,9 @@ impl TypeBlock {
         pool_maker: &mut PoolMaker,
         string_pool: &Rc<RefCell<StringBlock>>,
         field_data: &mut Vec<FileReader>,
-    ) -> Result<(), SkillError> {
+    ) -> Result<(), SkillFail> {
         let mut block_local_pools = Vec::new();
-        let mut block_local_id_limit = 0;
+        let mut previous_type_id = 0;
         let mut seen_types = Vec::new();
 
         info!(target: "SkillParsing", "~Block Start~");
@@ -42,14 +43,16 @@ impl TypeBlock {
         info!(target: "SkillParsing", "~TypeData~");
         for _ in 0..type_amount {
             let type_name_index = reader.read_v64()? as u64;
+            let type_name = string_pool.borrow().get(type_name_index as usize)?;
+            info!(target: "SkillParsing", "~~TypeName: {}", type_name);
+
             if seen_types.contains(&type_name_index) {
-                // TODO This has to use a separate list for each block
-                return Err(SkillError::RedefinitionOfType);
+                return Err(SkillFail::internal(InternalFail::RedefinitionOfType {
+                    name: type_name.as_str().to_owned(),
+                }));
             }
             seen_types.push(type_name_index);
 
-            let type_name = string_pool.borrow().get(type_name_index as usize);
-            info!(target: "SkillParsing", "~~TypeName: {}", type_name);
             let instances = reader.read_v64()? as usize; // amount of instances
             info!(target: "SkillParsing", "~~TypeInstances: {:?}", instances);
 
@@ -70,13 +73,19 @@ impl TypeBlock {
                         0x5 => {
                             let default_value = reader.read_v64();
                         }
-                        _ => panic!("Unknown type restriction"),
+                        id => {
+                            return Err(SkillFail::internal(InternalFail::UnknownTypeRestriction {
+                                id: id as usize,
+                            }))
+                        }
                     }
                 }
 
                 let super_type = reader.read_v64()?; // super type index? id?
                 let super_pool = if super_type as usize > self.pools.len() {
-                    panic!("Unknown Supertype."); // TODO improve message
+                    return Err(SkillFail::internal(InternalFail::UnknownType {
+                        id: super_type as usize,
+                    }));
                 } else if super_type != 0 {
                     info!(
                         target: "SkillParsing",
@@ -84,13 +93,13 @@ impl TypeBlock {
                         self.pools[(super_type - 1) as usize].borrow().get_type_id(),
                         type_id
                     );
-                    // TODO check that this is the expected super type
+                    // TODO check that this is the expected super type?
                     Some(self.pools[(super_type - 1) as usize].clone())
                 } else {
                     None
                 };
 
-                let type_pool = pool_maker.make_pool(&type_name, type_id as usize, super_pool);
+                let type_pool = pool_maker.make_pool(&type_name, type_id as usize, super_pool)?;
                 self.pools.push(type_pool.clone());
                 type_pool
             };
@@ -98,15 +107,14 @@ impl TypeBlock {
             {
                 let mut type_pool = type_pool.borrow_mut();
 
-                if block_local_id_limit < type_pool.get_type_id() {
-                    block_local_id_limit = type_pool.get_type_id();
+                if previous_type_id < type_pool.get_type_id() {
+                    previous_type_id = type_pool.get_type_id();
                 } else {
-                    panic!(
-                        "Unordered type block; ID:{} < ID:{} of type: {}",
-                        block_local_id_limit,
-                        type_pool.get_type_id(),
-                        type_pool.name().as_str(),
-                    );
+                    return Err(SkillFail::internal(InternalFail::UnorderedTypeBlock {
+                        previous: previous_type_id,
+                        current: type_pool.get_type_id(),
+                        name: type_pool.name().as_str().to_owned(),
+                    }));
                 }
             }
             {
@@ -131,11 +139,10 @@ impl TypeBlock {
                         || super_pool.get_local_bpo() + super_pool.get_local_dynamic_count()
                             < local_bpo
                     {
-                        panic!(
-                            "Found broken base pool offset of:{:?} super lbpo:{:?}",
+                        return Err(SkillFail::internal(InternalFail::BadBasePoolOffset {
                             local_bpo,
-                            super_pool.get_local_bpo()
-                        );
+                            super_local_bpo: super_pool.get_local_bpo(),
+                        }));
                     }
                 }
 
@@ -184,13 +191,10 @@ impl TypeBlock {
         for (pool, field_count) in block_local_pools {
             let mut field_id_limit = 1 + pool.borrow().field_amount();
 
-            let type_name = string_pool
-                .borrow()
-                .get((pool.borrow().get_type_id() - 31) as usize);
             info!(
                 target: "SkillParsing",
                 "~~FieldMetaData for type: {} ID:{:?} Fields:{:?} Limit:{:?}",
-                type_name,
+                pool.borrow().name().as_str(),
                 pool.borrow().get_type_id(),
                 field_count,
                 field_id_limit,
@@ -200,7 +204,10 @@ impl TypeBlock {
                 let field_id = reader.read_v64()?; // field index
 
                 if field_id <= 0 || field_id_limit < field_id as usize {
-                    panic!("Illigal field id:{:?}", field_id_limit);
+                    return Err(SkillFail::internal(InternalFail::BadFieldID {
+                        previous: field_id_limit,
+                        current: field_id as usize,
+                    }));
                 }
 
                 if field_id as usize == field_id_limit {
@@ -210,7 +217,7 @@ impl TypeBlock {
                     info!(target: "SkillParsing", "~~~Field id: {:?}", field_id);
                     info!(target: "SkillParsing", "~~~Field name id: {:?}", field_name_id);
 
-                    let field_name = string_pool.borrow().get(field_name_id);
+                    let field_name = string_pool.borrow().get(field_name_id)?;
                     info!(target: "SkillParsing", "~~~Field name: {}", field_name);
 
                     //TODO add from for the enum and use that to match and throw an error?
@@ -281,12 +288,16 @@ impl TypeBlock {
                                             let min = reader.read_f64();
                                             let max = reader.read_f64();
                                         }
-                                        _ => panic!("Range restriction on non numeric type"),
+                                        _ => {
+                                            return Err(SkillFail::internal(
+                                                InternalFail::BadRangeRestriction,
+                                            ))
+                                        }
                                     },
                                     0x5 => {
                                         //Coding
                                         let coding_str_index = reader.read_v64()?;
-                                        string_pool.borrow().get(coding_str_index as usize);
+                                        string_pool.borrow().get(coding_str_index as usize)?;
                                     }
                                     0x7 => (), // Constant LengthPointer
                                     0x9 => {
@@ -297,7 +308,11 @@ impl TypeBlock {
                                     }
                                     i => {
                                         error!(target: "SkillParsing", "Unknown field restiction: {:?}", i);
-                                        panic!("Unknown field restriction")
+                                        return Err(SkillFail::internal(
+                                            InternalFail::UnknownFieldRestriction {
+                                                id: i as usize,
+                                            },
+                                        ));
                                     }
                                 }
                             }
@@ -325,7 +340,7 @@ impl TypeBlock {
                                 count: tmp_count,
                                 appearance: BlockIndex::from(tmp_blocks),
                             }),
-                        );
+                        )?;
                     }
                     data_start = data_end;
                 } else {
@@ -349,7 +364,7 @@ impl TypeBlock {
                                 count: tmp_count,
                                 bpo: tmp_bpo,
                             }),
-                        );
+                        )?;
                     }
                     data_start = data_end;
                 }
@@ -372,14 +387,14 @@ impl TypeBlock {
         &self,
         strings: &StringBlock,
         reader: &Vec<FileReader>,
-    ) -> Result<(), SkillError> {
+    ) -> Result<(), SkillFail> {
         for pool in self.pools.iter() {
             pool.borrow().initialize(reader, strings, &self.pools)?;
         }
         Ok(())
     }
 
-    pub fn compress(&mut self) -> Vec<usize> {
+    pub fn compress(&mut self) -> Result<Vec<usize>, SkillFail> {
         let mut local_bpos = Vec::new();
         local_bpos.reserve(self.pools.len());
         for _ in 0..self.pools.len() {
@@ -398,8 +413,8 @@ impl TypeBlock {
                     }
 
                     let mut id = 1;
-                    for i in type_order::Iter::new(p.clone()) {
-                        i.borrow().set_skill_id(id);
+                    for i in type_order::Iter::new(p.clone())? {
+                        i.borrow().set_skill_id(id)?;
                         vec[id - 1] = i;
                         id += 1;
                     }
@@ -407,71 +422,71 @@ impl TypeBlock {
 
                 // TODO does the reorder work?
                 let mut next = 0;
-                for p in type_hierarchy::Iter::new(p.clone()) {
+                for p in type_hierarchy::Iter::new(p.clone())? {
                     local_bpos[p.borrow().get_type_id() - 32] = next;
                     next += p.borrow().static_size() - p.borrow().deleted();
                     p.borrow_mut().compress_field_chunks(&local_bpos);
                 }
 
-                for p in type_hierarchy::Iter::new(p.clone()) {
+                for p in type_hierarchy::Iter::new(p.clone())? {
                     p.borrow_mut()
                         .update_after_compress(&local_bpos, vec.clone());
                 }
             }
         }
-        local_bpos
+        Ok(local_bpos)
     }
 
     pub fn write_block(
         &self,
         writer: &mut FileWriter,
         local_bpos: &Vec<usize>,
-    ) -> Result<(), SkillError> {
+    ) -> Result<(), SkillFail> {
         // How many types
         info!(
-            target:"SkillWriting",
+            target: "SkillWriting",
             "~Type Block Start~"
         );
         info!(
-            target:"SkillWriting",
+            target: "SkillWriting",
             "~Write {} types",
             self.pools.len(),
         );
-        writer.write_v64(self.pools.len() as i64);
+        writer.write_v64(self.pools.len() as i64)?;
 
         info!(
-            target:"SkillWriting",
+            target: "SkillWriting",
             "~~Write Type Meta Data",
         );
         // Write Type meta data
         for p in self.pools.iter() {
-            p.borrow().write_type_meta(writer, &local_bpos);
+            p.borrow().write_type_meta(writer, &local_bpos)?;
         }
 
         info!(
-            target:"SkillWriting",
+            target: "SkillWriting",
             "~~Write Type Field Meta Data",
         );
         // Write Field meta data
         let mut offset = 0;
         for p in self.pools.iter() {
-            offset = p
-                .borrow()
-                .write_field_meta(writer, static_data::Iter::new(p.clone()), offset);
+            offset =
+                p.borrow()
+                    .write_field_meta(writer, static_data::Iter::new(p.clone()), offset)?;
         }
 
         info!(
-            target:"SkillWriting",
+            target: "SkillWriting",
             "~~Write Type Field Data",
         );
         // Write Field data
         for p in self.pools.iter() {
             p.borrow()
-                .write_field_data(writer, static_data::Iter::new(p.clone()));
+                .write_field_data(writer, static_data::Iter::new(p.clone()))?;
         }
 
         info!(
-            target:"SkillWriting",
+            target: "SkillWriting",
             "~Type Block End~"
         );
 

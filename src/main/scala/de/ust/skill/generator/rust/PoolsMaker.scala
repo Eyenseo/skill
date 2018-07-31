@@ -50,7 +50,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §use common::io::{Block, FileWriter, BlockIndex, DeclarationFieldChunk, FileReader, FieldDeclaration, FieldChunk, BuildInType, FieldType};
        §use common::iterator::static_data;
        §use common::StringBlock;
-       §use common::SkillError;
+       §use common::error::*;
        §use common::SkillString;
        §use common::{Ptr, WeakPtr};
        §
@@ -214,11 +214,12 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    fn get_skill_id(&self) -> usize {
        §        self.id.get()
        §    }
-       §    fn set_skill_id(&self, id: usize) {
+       §    fn set_skill_id(&self, id: usize) -> Result<(), SkillFail> {
        §        if id == skill_object::DELETE {
-       §            panic!("Tried to set the skill id to a reserved value")
+       §            return Err(SkillFail::user(UserFail::ReservedID { id }));
        §        }
        §        self.id.set(id);
+       §        Ok(())
        §    }
        §
        §    fn mark_for_pruning(&self) {
@@ -373,21 +374,21 @@ trait PoolsMaker extends GeneralOutputMaker {
     }
        §    }
        §
-       §    pub fn get(&self, index: usize) -> Result<Ptr<${traitName(base)}>, SkillError> {
+       §    pub fn get(&self, index: usize) -> Result<Ptr<${traitName(base)}>, SkillFail> {
        §        if index == 0 {
-       §            panic!("Skill instance index starts at 1 not 0");
+       §            return Err(SkillFail::user(UserFail::ReservedID { id: 0 }));
        §        }
        §        match self.instances.borrow().get(index - 1) {
        §            Some(obj) => {
        §                if obj.borrow().get_skill_id() == skill_object::DELETE {
-       §                    panic!("Tried to access instance that is marked for deletion.");
+       §                    return Err(SkillFail::user(UserFail::AccessDeleted));
        §                }
        §                match obj.nucast::<${traitName(base)}>() {
        §                    Some(obj) => Ok(obj.clone()),
-       §                    None => panic!("Bad cast"),
+       §                    None => Err(SkillFail::user(UserFail::BadCastID { id:index })),
        §                }
        §            },
-       §            None => Err(SkillError::BadSkillObjectID),
+       §            None => Err(SkillFail::user(UserFail::UnknownObjectID { id:index })),
        §        }
        §    }
        §
@@ -397,7 +398,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        ret
        §    }
        §
-       §    pub fn delete(&mut self, ${field(base)}: Ptr<${name(base)}>) {${
+       §    pub fn delete(&mut self, ${field(base)}: Ptr<${name(base)}>) -> Result<(), SkillFail> {${
       "" // NOTE this is wrong after a compress but we consume the state on write, so its fine
     }
        §        // NOTE this is wrong after a compress but we consume the state on write, so its fine
@@ -408,10 +409,11 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            || (${field(base)}.borrow().get_skill_id() != 0 && ${field(base)}.strong_count() > 3)
        §            || ${field(base)}.strong_count() > 2
        §        {
-       §            panic!("Tried to mark object for pruning that s still in use");
+       §            return Err(SkillFail::user(UserFail::DeleteInUse { id: ${field(base)}.borrow().get_skill_id() }));
        §        }
        §        ${field(base)}.borrow().mark_for_pruning();
        §        self.deleted_count += 1;
+       §        Ok(())
        §    }
        §}""".stripMargin('§')
   }
@@ -425,7 +427,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        file_reader: &Vec<FileReader>,
        §        string_block: &StringBlock,
        §        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
-       §    ) -> Result<(), SkillError> {
+       §    ) -> Result<(), SkillFail> {
        §        for f in self.fields.iter() {
        §            let instances = self.instances.borrow();
        §            f.borrow().read(
@@ -500,14 +502,17 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        self.fields.len()
        §    }
        §
-       §    fn add_chunk_to(&mut self, field_index: usize, chunk: FieldChunk) {
+       §    fn add_chunk_to(&mut self, field_index: usize, chunk: FieldChunk) -> Result<(), SkillFail> {
        §        for f in &mut self.fields.iter() {
-       §            if f.borrow().index() == field_index {
-       §                f.borrow_mut().add_chunk(chunk);
-       §                return;
+       §            let mut f = f.borrow_mut();
+       §            if f.index() == field_index {
+       §                f.add_chunk(chunk);
+       §                return Ok(());
        §            }
        §        }
-       §        panic!("No field with index:{}", field_index);
+       §        Err(SkillFail::internal(InternalFail::UnknownField {
+       §            id: field_index,
+       §        }))
        §    }
        §
        §    fn set_type_id(&mut self, id: usize) {
@@ -525,8 +530,10 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        self.instances.clone()
        §    }
        §
-       §    fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillError> {
-       §        assert!(index >= 1);
+       §    fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillFail> {
+       §        if index == 0 {
+       §            return Err(SkillFail::internal(InternalFail::ReservedID { id: 0 }));
+       §        }
        §        info!(
        §            target:"SkillParsing",
        §            "read user instance:{} from:{}",
@@ -571,31 +578,18 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    }
        §
        §    fn get_local_static_count(&self) -> usize {
-       §        if let Some(block) = self.blocks.last() {
-       §            return block.static_count;
-       §        }
-       §        panic!();
+       §        return self.blocks.last().unwrap().static_count;
        §    }
        §    fn set_local_static_count(&mut self, count: usize) {
-       §        if let Some(block) = self.blocks.last_mut() {
-       §            block.static_count = count;
-       §        } else {
-       §            panic!();
-       §        }
+       §        self.blocks.last_mut().unwrap().static_count = count
        §    }
        §
        §    fn get_local_dynamic_count(&self) -> usize {
-       §        if let Some(block) = self.blocks.last() {
-       §            return block.dynamic_count;
-       §        }
-       §        panic!();
+       §        return self.blocks.last().unwrap().dynamic_count;
        §    }
        §
        §    fn get_local_bpo(&self) -> usize {
-       §        if let Some(block) = self.blocks.last() {
-       §            return block.bpo;
-       §        }
-       §        panic!();
+       §        self.blocks.last().unwrap().bpo
        §    }
        §
        §    fn set_invariant(&mut self, invariant: bool) {
@@ -712,7 +706,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            f.borrow_mut().compress_chunks(total_count);
        §        }
        §    }
-       §    fn write_type_meta(&self, writer: &mut FileWriter, local_bpos: &Vec<usize>) {
+       §    fn write_type_meta(&self, writer: &mut FileWriter, local_bpos: &Vec<usize>) -> Result<(), SkillFail> {
        §        info!(
        §            target:"SkillWriting",
        §            "~~~Write Meta Data for ${name(base)}:{} Instances; Static:{} Dynamic:{}",
@@ -721,22 +715,28 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            self.get_local_dynamic_count(),
        §        );
        §
-       §        writer.write_v64(self.name().get_skill_id() as i64);
-       §        writer.write_v64(self.get_local_dynamic_count() as i64);
+       §        writer.write_v64(self.name().get_skill_id() as i64)?;
+       §        writer.write_v64(self.get_local_dynamic_count() as i64)?;
        §        // FIXME restrictions
-       §        writer.write_v64(0);
+       §        writer.write_v64(0)?;
        §        if let Some(s) = self.get_super() {
-       §            writer.write_v64((s.borrow().get_type_id() - 32) as i64); // TODO +1?
+       §            writer.write_v64((s.borrow().get_type_id() - 32) as i64)?; // TODO +1?
        §            if self.get_local_dynamic_count() != 0 {
-       §                writer.write_v64(local_bpos[self.get_type_id() - 32] as i64);
+       §                writer.write_v64(local_bpos[self.get_type_id() - 32] as i64)?;
        §            }
        §        } else {
        §            // tiny optimisation
-       §            writer.write_i8(0);
+       §            writer.write_i8(0)?;
        §        }
-       §        writer.write_v64(self.field_amount() as i64);
+       §        writer.write_v64(self.field_amount() as i64)?;
+       §        Ok(())
        §    }
-       §    fn write_field_meta(&self, writer: &mut FileWriter, iter: static_data::Iter, mut offset: usize) -> usize {
+       §    fn write_field_meta(
+       §        &self,
+       §        writer: &mut FileWriter,
+       §        iter: static_data::Iter,
+       §        mut offset: usize
+       §    ) -> Result<usize, SkillFail> {
        §        info!(
        §            target:"SkillWriting",
        §            "~~~Write Field Meta Data for ${name(base)}:{} Fields:{}",
@@ -744,11 +744,15 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            self.fields.len(),
        §        );
        §        for f in self.fields.iter() {
-       §            offset = f.borrow_mut().write_meta(writer, iter.clone(), offset);
+       §            offset = f.borrow_mut().write_meta(writer, iter.clone(), offset)?;
        §        }
-       §        offset
+       §        Ok(offset)
        §    }
-       §    fn write_field_data(&self, writer: &mut FileWriter, iter: static_data::Iter) {
+       §    fn write_field_data(
+       §        &self,
+       §        writer: &mut FileWriter,
+       §        iter: static_data::Iter
+       §    ) -> Result<(), SkillFail> {
        §        info!(
        §            target:"SkillWriting",
        §            "~~~Write Field Data for ${name(base)}:{} Fields:{}",
@@ -756,8 +760,9 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            self.fields.len(),
        §        );
        §        for f in self.fields.iter() {
-       §            f.borrow().write_data(writer, iter.clone())
+       §            f.borrow().write_data(writer, iter.clone())?;
        §        }
+       §        Ok(())
        §    }
        §}""".stripMargin('§')
   }
@@ -770,7 +775,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    field_name: Rc<SkillString>,
        §    mut field_type: FieldType,
        §    chunk: FieldChunk,
-       §) {
+       §) -> Result<(), SkillFail> {
        §    ${
       (for (f ← base.getAllFields.asScala) yield {
         genPoolImplInstancePoolAddFieldField(base, f)
@@ -782,6 +787,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        reader.borrow_mut().add_chunk(chunk);
        §        self.fields.push(reader);
        §    }
+       §    Ok(())
        §}""".stripMargin('§')
   }
 
@@ -791,72 +797,41 @@ trait PoolsMaker extends GeneralOutputMaker {
     val userType = collectUserTypes(f.getType)
     e"""if self.string_block.borrow().lit().${field(f)} == field_name.as_str() {
        §    ${
-      f.getType match {
-        case t@(_: SingleBaseTypeContainer | _: MapType) ⇒
-          if (userType.isEmpty) {
-            e"""match field_type {
-               §    ${mapTypeToMagicMatch(t)} => {
-               §        ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(t)}
-               §    }
-               §    _ => panic!("Expected: ${mapTypeToUser(f.getType)} Found: {}", &field_type)
-               §};
-               §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
-               §    field_name,
-               §    index,
-               §    field_type,
-               §)));
-               §reader.borrow_mut().add_chunk(chunk);;
-               §self.fields.push(reader);
-               §""".stripMargin('§')
-          } else {
-            e"""let object_readers = match field_type {
-               §    ${mapTypeToMagicMatch(t)} => {
-               §        let mut object_readers: Vec<Rc<RefCell<InstancePool>>> = Vec::new();
-               §        object_readers.reserve(${userType.size});
-               §        ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(t)}
-               §        object_readers
-               §    }
-               §    _ => panic!("Expected: ${mapTypeToUser(f.getType)} Found: {}", &field_type)
-               §};
-               §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
-               §    field_name,
-               §    index,
-               §    field_type,
-               §    object_readers,
-               §)));
-               §reader.borrow_mut().add_chunk(chunk);;
-               §self.fields.push(reader);
-               §""".stripMargin('§')
-          }
-        case t: GroundType                               ⇒
-          e"""match field_type {
-             §    ${mapTypeToMagicMatch(t)} => {}
-             §    _ => panic!("Expected: ${mapTypeToUser(f.getType)} Found: {}", &field_type)
-             §}
-             §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
-             §    field_name,
-             §    index,
-             §    field_type,
-             §)));
-             §reader.borrow_mut().add_chunk(chunk);
-             §self.fields.push(reader);
-             §""".stripMargin('§')
-        case t: UserType                                 ⇒
-          e"""let pool = match field_type {
-             §    ${mapTypeToMagicMatch(t)} => pool.clone(),
-             §    _ => panic!("Expected: ${mapTypeToUser(f.getType)} Found: {}", &field_type)
-             §};
-             §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
-             §    field_name,
-             §    index,
-             §    field_type,
-             §    vec!(pool),
-             §)));
-             §reader.borrow_mut().add_chunk(chunk);
-             §self.fields.push(reader);
-             §""".stripMargin('§')
-        case _                                           ⇒
-          throw new GeneratorException("Unexpected field type")
+      if (userType.isEmpty) {
+        e"""match field_type {
+           §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(f.getType)},
+           §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
+           §        expected: "${mapTypeToUser(f.getType)}",
+           §        found: format!("{}", field_type)
+           §    })),
+           §}?;
+           §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
+           §    field_name,
+           §    index,
+           §    field_type,
+           §)));
+           §reader.borrow_mut().add_chunk(chunk);;
+           §self.fields.push(reader);
+           §""".stripMargin('§')
+      } else {
+        e"""let mut object_readers: Vec<Rc<RefCell<InstancePool>>> = Vec::new();
+           §object_readers.reserve(${userType.size});
+           §match field_type {
+           §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(f.getType)},
+           §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
+           §        expected: "${mapTypeToUser(f.getType)}",
+           §        found: format!("{}", field_type)
+           §    })),
+           §}?;
+           §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
+           §    field_name,
+           §    index,
+           §    field_type,
+           §    object_readers,
+           §)));
+           §reader.borrow_mut().add_chunk(chunk);;
+           §self.fields.push(reader);
+           §""".stripMargin('§')
       }
     }
        §} else """.stripMargin('§')
@@ -865,28 +840,44 @@ trait PoolsMaker extends GeneralOutputMaker {
   private final def genPoolImplInstancePoolAddFieldFieldUnwrapValidate(tt: Type): String = {
     tt match {
       case t: ConstantLengthArrayType ⇒
-        e"""if length != ${t.getLength} {
-           §    panic!("The length of the constant length ({}) array differs form the generated one (${
-          t.getLength
-        })!", length);
-           §}
-           §match **box_v {
-           §  ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(t.getBaseType)}
-           §  _ => panic!("Expected: ${mapTypeToUser(t.getBaseType)} Found: {}", **box_v)
+        e"""${mapTypeToMagicMatch(t)} => {
+           §    if length != ${t.getLength} {
+           §        return Err(SkillFail::internal(InternalFail::BadConstantLength {
+           §            expected: ${t.getLength},
+           §            found: length as usize,
+           §        }));
+           §    }
+           §    match **box_v {
+           §        ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(t.getBaseType)},
+           §        _ => Err(SkillFail::internal(InternalFail::BadFieldType {
+           §            expected: "${mapTypeToUser(t.getBaseType)}",
+           §            found: format!("{}", **box_v)
+           §        })),
+           §    }
            §}""".stripMargin('§')
       case t: SingleBaseTypeContainer ⇒
-        e"""match **box_v {
-           §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(t.getBaseType)}
-           §    _ => panic!("Expected: ${mapTypeToUser(t.getBaseType)} Found: {}", **box_v)
+        e"""${mapTypeToMagicMatch(t)} => {
+           §    match **box_v {
+           §        ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(t.getBaseType)},
+           §        _ => Err(SkillFail::internal(InternalFail::BadFieldType {
+           §            expected: "${mapTypeToUser(t.getBaseType)}",
+           §            found: format!("{}", **box_v)
+           §        })),
+           §    }
            §}""".stripMargin('§')
       case t: MapType                 ⇒
-        e"""${genPoolImplInstancePoolAddFieldFieldUnwrapValidateMap(t.getBaseTypes.asScala.toList)}
+        e"""${mapTypeToMagicMatch(t)} => {
+           §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidateMap(t.getBaseTypes.asScala.toList)}
+           §}
            §""".stripMargin('§')
       case t: GroundType              ⇒
-        e"""${mapTypeToMagicMatch(t)} => {},
+        e"""${mapTypeToMagicMatch(t)} => Ok(())
            §""".stripMargin('§')
       case _: UserType                ⇒
-        e"""FieldType::User(ref object_reader) => object_readers.push(object_reader.clone()),
+        e"""FieldType::User(ref object_reader) => {
+           §    object_readers.push(object_reader.clone());
+           §    Ok(())
+           §}
            §""".stripMargin('§')
       case _                          ⇒
         throw new GeneratorException("Unexpected field type")
@@ -897,9 +888,12 @@ trait PoolsMaker extends GeneralOutputMaker {
     val (key, remainder) = tts.splitAt(1)
 
     e"""match **key_box_v {
-       §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(key.head)}
-       §    _ => panic!("Expected: ${mapTypeToUser(key.head)} Found: {}", **key_box_v)
-       §}
+       §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(key.head)},
+       §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
+       §        expected: "${mapTypeToUser(key.head)}",
+       §        found: format!("{}", **key_box_v)
+       §    })),
+       §}?;
        §match **box_v {
        §    ${
       if (remainder.size >= 2) {
@@ -909,8 +903,11 @@ trait PoolsMaker extends GeneralOutputMaker {
       } else {
         genPoolImplInstancePoolAddFieldFieldUnwrapValidate(remainder.head)
       }
-    }
-       §    _ => panic!("Expected: ${mapTypeToUser(remainder.head)} Found: {}", **box_v)
+    },
+       §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
+       §        expected: "${mapTypeToUser(remainder.head)}",
+       §        found: format!("{}", **box_v)
+       §    })),
        §}
        §""".stripMargin('§')
   }.trim
@@ -924,7 +921,7 @@ trait PoolsMaker extends GeneralOutputMaker {
     for (field ← base.getAllFields.asScala) {
       ret.append(
                   e"""//----------------------------------------
-                     §// ${base.getName.camel()}${field.getName.capital()}FieldDeclaration aka ${
+                     §// ${base.getName.camel() + field.getName.capital()}FieldDeclaration aka ${
                     fieldDeclaration(base, field)
                   }
                      §//----------------------------------------
@@ -1006,7 +1003,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        blocks: &Vec<Block>,
        §        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
        §        instances: &[Ptr<SkillObject>],
-       §    ) -> Result<(), SkillError> {
+       §    ) -> Result<(), SkillFail> {
        §        let mut block_index = BlockIndex::from(0);
        §
        §        for chunk in self.chunks.iter() {
@@ -1038,7 +1035,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                                        obj.borrow_mut().set_${name(f)}(${
       genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
     }),
-       §                                    None => panic!("Casting error"), // FIXME
+       §                                    None => return Err(SkillFail::internal(InternalFail::BadCast)),
        §                                }
        §                            }
        §                        }
@@ -1068,7 +1065,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                                    obj.borrow_mut().set_${name(f)}(${
       genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
     }),
-       §                                None => panic!("Casting error"), // FIXME
+       §                                None => return Err(SkillFail::internal(InternalFail::BadCast)),
        §                            }
        §                        }
        §                    }
@@ -1100,16 +1097,16 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    fn offset(&self, iter: static_data::Iter) -> usize {
        §        ${genFieldDeclarationImplFieldDeclarationOffset(base, f)}
        §    }
-       §    fn write_meta(&mut self, writer: &mut FileWriter, iter: static_data::Iter, offset: usize) -> usize {
+       §    fn write_meta(&mut self, writer: &mut FileWriter, iter: static_data::Iter, offset: usize) -> Result<usize, SkillFail> {
        §        info!(
        §            target:"SkillWriting",
        §            "~~~~Write Field Meta Data for Field:{}",
        §            self.name.as_ref(),
        §        );
-       §        writer.write_v64(self.index as i64);
-       §        writer.write_v64(self.name.get_skill_id() as i64);
-       §        writer.write_field_type(&self.field_type);
-       §        writer.write_i8(0); // TODO write restrictions
+       §        writer.write_v64(self.index as i64)?;
+       §        writer.write_v64(self.name.get_skill_id() as i64)?;
+       §        writer.write_field_type(&self.field_type)?;
+       §        writer.write_i8(0)?; // TODO write restrictions
        §        let end_offset = offset + self.offset(iter.clone());
        §        info!(
        §            target:"SkillWriting",
@@ -1117,19 +1114,24 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            self.name.as_ref(),
        §            end_offset,
        §        );
-       §        writer.write_v64(end_offset as i64);
+       §        writer.write_v64(end_offset as i64)?;
        §
        §        match self.chunks.first_mut().unwrap() {
        §            FieldChunk::Declaration(ref mut dec) => {
        §                dec.begin = offset;
        §                dec.end = end_offset;
+       §                Ok(())
        §            }
-       §            _ => panic!("Expected an declaration chunk after compress!"),
-       §        };
+       §            _ => Err(SkillFail::internal(InternalFail::BadChunk)),
+       §        }?;
        §
-       §        end_offset
+       §        Ok(end_offset)
        §    }
-       §    fn write_data(&self, writer: &mut FileWriter, iter: static_data::Iter) {
+       §    fn write_data(
+       §        &self,
+       §        writer: &mut FileWriter,
+       §        iter: static_data::Iter
+       §    ) -> Result<(), SkillFail> {
        §       info!(
        §            target:"SkillWriting",
        §            "~~~~Write Field Data for Field:{}",
@@ -1141,6 +1143,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            let val = tmp.get_${field(f)}();
        §            ${genFieldDeclarationImplFieldDeclarationWrite(f.getType)}
        §        }
+       §        Ok(())
        §    }
        §}""".stripMargin('§')
   }
@@ -1344,36 +1347,36 @@ trait PoolsMaker extends GeneralOutputMaker {
       case ft: GroundType              ⇒
         ft.getSkillName match {
           case "bool"       ⇒
-            e"""writer.write_bool(val);
+            e"""writer.write_bool(val)?;
                §""".stripMargin('§')
           case "i8"         ⇒
-            e"""writer.write_i8(val);
+            e"""writer.write_i8(val)?;
                §""".stripMargin('§')
           case "i16"        ⇒
-            e"""writer.write_i16(val);
+            e"""writer.write_i16(val)?;
                §""".stripMargin('§')
           case "i32"        ⇒
-            e"""writer.write_i32(val);
+            e"""writer.write_i32(val)?;
                §""".stripMargin('§')
           case "f32"        ⇒
-            e"""writer.write_f32(val);
+            e"""writer.write_f32(val)?;
                §""".stripMargin('§')
           case "f64"        ⇒
-            e"""writer.write_f64(val);
+            e"""writer.write_f64(val)?;
                §""".stripMargin('§')
           case "i64"        ⇒
-            e"""writer.write_i64(val);
+            e"""writer.write_i64(val)?;
                §""".stripMargin('§')
           case "v64"        ⇒
-            e"""writer.write_v64(val as i64);
+            e"""writer.write_v64(val as i64)?;
                §""".stripMargin('§')
           case "string"     ⇒
-            e"""writer.write_v64(val.get_skill_id() as i64);
+            e"""writer.write_v64(val.get_skill_id() as i64)?;
                §""".stripMargin('§')
           case "annotation" ⇒
             e"""match val {
-               §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64),
-               §    None => writer.write_i8(0),
+               §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64)?,
+               §    None => writer.write_i8(0)?,
                §}
                §""".stripMargin('§')
           case _            ⇒
@@ -1385,7 +1388,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §}
            §""".stripMargin('§')
       case ft: SingleBaseTypeContainer ⇒
-        e"""writer.write_v64(val.len() as i64);
+        e"""writer.write_v64(val.len() as i64)?;
            §for val in val.iter() {
            §    ${genFieldDeclarationImplFieldDeclarationWriteInner(ft.getBaseType)};
            §}
@@ -1395,8 +1398,8 @@ trait PoolsMaker extends GeneralOutputMaker {
            §""".stripMargin('§')
       case _: UserType                 ⇒
         e"""match val {
-           §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64),
-           §    None => writer.write_i8(0),
+           §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64)?,
+           §    None => writer.write_i8(0)?,
            §}
            §""".stripMargin('§')
       case _                           ⇒
@@ -1409,36 +1412,36 @@ trait PoolsMaker extends GeneralOutputMaker {
       case ft: GroundType              ⇒
         ft.getSkillName match {
           case "bool"       ⇒
-            e"""writer.write_bool(*val);
+            e"""writer.write_bool(*val)?;
                §""".stripMargin('§')
           case "i8"         ⇒
-            e"""writer.write_i8(*val);
+            e"""writer.write_i8(*val)?;
                §""".stripMargin('§')
           case "i16"        ⇒
-            e"""writer.write_i16(*val);
+            e"""writer.write_i16(*val)?;
                §""".stripMargin('§')
           case "i32"        ⇒
-            e"""writer.write_i32(*val);
+            e"""writer.write_i32(*val)?;
                §""".stripMargin('§')
           case "f32"        ⇒
-            e"""writer.write_f32(*val);
+            e"""writer.write_f32(*val)?;
                §""".stripMargin('§')
           case "f64"        ⇒
-            e"""writer.write_f64(*val);
+            e"""writer.write_f64(*val)?;
                §""".stripMargin('§')
           case "i64"        ⇒
-            e"""writer.write_i64(*val);
+            e"""writer.write_i64(*val)?;
                §""".stripMargin('§')
           case "v64"        ⇒
-            e"""writer.write_v64(*val as i64);
+            e"""writer.write_v64(*val as i64)?;
                §""".stripMargin('§')
           case "string"     ⇒
-            e"""writer.write_v64(val.get_skill_id() as i64);
+            e"""writer.write_v64(val.get_skill_id() as i64)?;
                §""".stripMargin('§')
           case "annotation" ⇒
             e"""match val {
-               §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64),
-               §    None => writer.write_i8(0),
+               §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64)?,
+               §    None => writer.write_i8(0)?,
                §}
                §""".stripMargin('§')
           case _            ⇒
@@ -1450,7 +1453,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §}
            §""".stripMargin('§')
       case ft: SingleBaseTypeContainer ⇒
-        e"""writer.write_v64(val.len() as i64);
+        e"""writer.write_v64(val.len() as i64)?;
            §for val in val.iter() {
            §    ${genFieldDeclarationImplFieldDeclarationWrite(ft.getBaseType)};
            §}
@@ -1460,8 +1463,8 @@ trait PoolsMaker extends GeneralOutputMaker {
            §""".stripMargin('§')
       case _: UserType                 ⇒
         e"""match val {
-           §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64),
-           §    None => writer.write_i8(0),
+           §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64)?,
+           §    None => writer.write_i8(0)?,
            §}
            §""".stripMargin('§')
       case _                           ⇒
@@ -1498,7 +1501,7 @@ trait PoolsMaker extends GeneralOutputMaker {
     base match {
       case t: GroundType
         if t.getName.lower().equals("string")     ⇒
-        e"""string_block.get(reader.read_v64()? as usize)
+        e"""string_block.get(reader.read_v64()? as usize)?
            §""".stripMargin('§')
       case t: GroundType
         if t.getName.lower().equals("annotation") ⇒
@@ -1511,15 +1514,14 @@ trait PoolsMaker extends GeneralOutputMaker {
            §            .read_object(object)?
            §            .nucast::<SkillObject>()
            §        {
-           §            Some(object)
+           §            Ok(Some(object))
            §        } else {
-           §            // NOTE this should only be reached if the generated code is faulty
-           §            panic!("Failed to cast object to SkillObject");
+           §            Err(SkillFail::internal(InternalFail::BadCast))
            §        }
            §    } else {
-           §        None
+           §        Ok(None)
            §    }
-           §}
+           §}?
            §""".stripMargin('§').trim
       case t: GroundType                          ⇒
         e"""reader.read_${readName(t)}()?
@@ -1578,14 +1580,14 @@ trait PoolsMaker extends GeneralOutputMaker {
            §            .read_object(object)?
            §            .nucast::<${traitName(t)}>()
            §        {
-           §            Some(object)
+           §            Ok(Some(object))
            §        } else {
-           §            panic!("Failed to cast object to:${t.getName} aka ${traitName(t)}")
+           §            return Err(SkillFail::internal(InternalFail::BadCast))
            §        }
            §    } else {
-           §        None
+           §        Ok(None)
            §    }
-           §}
+           §}?
            §""".stripMargin('§').trim
       case _                                      ⇒
         throw new GeneratorException(s"Unknown type $base")
