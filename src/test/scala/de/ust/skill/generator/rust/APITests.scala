@@ -38,6 +38,7 @@ class APITests extends common.GenericAPITests {
                               // "custom", // TODO -  is this really successful?
                               // "empty",
                               // "floats",
+                              // "map3",
                               // "number",
                               // "unicode",
                               // "user",
@@ -50,7 +51,6 @@ class APITests extends common.GenericAPITests {
                               "graph", // FIXME broken generation
                               "graphInterface", // FIXME broken generation
                               "hintsAll", // FIXME runtime
-                              "map3", // FIXME runtime
                               "restrictionsAll", // FIXME broken generation
                               "restrictionsCore", // FIXME broken generation
                               "subtypes", // FIXME broken generation
@@ -295,7 +295,11 @@ class APITests extends common.GenericAPITests {
         case "f64"         ⇒ v.toString + " as f64"
 
         case "string" if null != v ⇒
-          s"""sf.strings.borrow_mut().add("${v.toString}")"""
+          s"""{
+             §    let mut sp = sf.strings.borrow_mut();
+             §    let s = sp.add("${v.toString}");
+             §    s
+             §}""".stripMargin('§')
 
         case _ ⇒
           if (null == v || v.toString.equals("null")) {
