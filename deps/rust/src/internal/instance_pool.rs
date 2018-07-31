@@ -66,7 +66,7 @@ pub trait InstancePool {
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<(), SkillFail>;
 
-    fn make_instance(&self, id: usize) -> Ptr<SkillObject>;
+    fn make_instance(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject>;
 
     fn set_next_pool(&mut self, Rc<RefCell<InstancePool>>);
     fn get_next_pool(&self) -> Option<Rc<RefCell<InstancePool>>>;

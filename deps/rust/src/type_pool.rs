@@ -409,7 +409,7 @@ impl TypeBlock {
                     vec.reserve(p.borrow().static_size());
                     for _ in 0..p.borrow().static_size() {
                         // TODO replace with garbage object
-                        vec.push(Ptr::new(UndefinedObject::new(0)));
+                        vec.push(Ptr::new(UndefinedObject::new(0, 0)));
                     }
 
                     let mut id = 1;

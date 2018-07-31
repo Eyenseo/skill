@@ -44,6 +44,10 @@ impl SkillString {
 }
 
 impl SkillObject for SkillString {
+    fn skill_type_id(&self) -> usize {
+        0
+    }
+
     fn get_skill_id(&self) -> usize {
         self.id.get()
     }

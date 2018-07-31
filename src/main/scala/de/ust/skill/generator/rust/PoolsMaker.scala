@@ -100,7 +100,8 @@ trait PoolsMaker extends GeneralOutputMaker {
   private final def genTypeStruct(base: UserType): String = {
     e"""#[derive(Default, Debug,  PartialEq)]
        §pub struct ${name(base)} {
-       §    id: Cell<usize>,
+       §    skill_id: Cell<usize>,
+       §    skill_type_id: usize,
        §    ${
       (for (f ← base.getAllFields.asScala) yield {
         e"""${name(f)}: ${mapType(f.getType)},
@@ -169,9 +170,10 @@ trait PoolsMaker extends GeneralOutputMaker {
   private final def genTypeImpl(base: UserType): String = {
     // gen New
     e"""impl ${name(base)} {
-       §    pub fn new(id: usize) -> ${name(base)} {
+       §    pub fn new(skill_id: usize, skill_type_id: usize) -> ${name(base)} {
        §        ${name(base)} {
-       §            id: Cell::new(id),
+       §            skill_id: Cell::new(skill_id),
+       §            skill_type_id,
        §            ${
       (for (f ← base.getAllFields.asScala) yield {
         e"""${name(f)}: ${defaultValue(f)},
@@ -211,22 +213,26 @@ trait PoolsMaker extends GeneralOutputMaker {
     }
        §
        §impl SkillObject for ${name(base)} {
-       §    fn get_skill_id(&self) -> usize {
-       §        self.id.get()
+       §    fn skill_type_id(&self) -> usize {
+       §        self.skill_type_id
        §    }
-       §    fn set_skill_id(&self, id: usize) -> Result<(), SkillFail> {
-       §        if id == skill_object::DELETE {
-       §            return Err(SkillFail::user(UserFail::ReservedID { id }));
+       §
+       §    fn get_skill_id(&self) -> usize {
+       §        self.skill_id.get()
+       §    }
+       §    fn set_skill_id(&self, skill_id: usize) -> Result<(), SkillFail> {
+       §        if skill_id == skill_object::DELETE {
+       §            return Err(SkillFail::user(UserFail::ReservedID { id: skill_id }));
        §        }
-       §        self.id.set(id);
+       §        self.skill_id.set(skill_id);
        §        Ok(())
        §    }
        §
        §    fn mark_for_pruning(&self) {
-       §        self.id.set(skill_object::DELETE);
+       §        self.skill_id.set(skill_object::DELETE);
        §    }
        §    fn to_prune(&self) -> bool {
-       §        self.id.get() == skill_object::DELETE
+       §        self.skill_id.get() == skill_object::DELETE
        §    }
        §}
        §""".stripMargin('§').trim
@@ -393,7 +399,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    }
        §
        §    pub fn add(&mut self) -> Ptr<${name(base)}> {
-       §        let ret = Ptr::new(${name(base)}::new(0));
+       §        let ret = Ptr::new(${name(base)}::new(0, self.type_id));
        §        self.own_new_instances.push(ret.clone());
        §        ret
        §    }
@@ -446,7 +452,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        if self.is_base() {${
       "" // TODO add garbage type
     }
-       §            let tmp = Ptr::new(UndefinedObject::new(0));
+       §            let tmp = Ptr::new(UndefinedObject::new(0, 0));
        §            info!(
        §                target:"SkillParsing",
        §                "Allocate space for:${base.getName} aka ${name(base)} amount:{}",
@@ -484,7 +490,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                    block,
        §                );
        §
-       §                self.own_static_instances.push(Ptr::new(${name(base)}::new(id)));
+       §                self.own_static_instances.push(Ptr::new(${name(base)}::new(id, self.type_id)));
        §                vec[id - 1] = self.own_static_instances.last().unwrap().clone();
        §            }
        §        }
@@ -626,12 +632,12 @@ trait PoolsMaker extends GeneralOutputMaker {
        §         self.cached_count = count;
        §    }
        §
-       §    fn make_instance(&self, id: usize) -> Ptr<SkillObject> {
+       §    fn make_instance(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
        §        trace!(
        §            target:"SkillParsing",
        §            "Create new ${name(base)}",
        §        );
-       §        Ptr::new(${name(base)}::new(id))
+       §        Ptr::new(${name(base)}::new(skill_id, skill_type_id))
        §    }
        §
        §    fn update_after_compress(
@@ -1188,8 +1194,11 @@ trait PoolsMaker extends GeneralOutputMaker {
                §    let tmp = i.nucast::<${name(base)}>().unwrap();
                §    let tmp = tmp.borrow(); // borrowing madness
                §    offset += match tmp.get_${field(f)}() {
-               §        Some(ref val) => bytes_v64(val.borrow().get_skill_id() as i64),
-               §        None => 1,
+               §        Some(ref val) => {
+               §          bytes_v64(val.borrow().skill_type_id() as i64)
+               §              + bytes_v64(val.borrow().get_skill_id() as i64)
+               §        },
+               §        None => 2,
                §    };
                §}
                §offset
@@ -1375,7 +1384,10 @@ trait PoolsMaker extends GeneralOutputMaker {
                §""".stripMargin('§')
           case "annotation" ⇒
             e"""match val {
-               §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64)?,
+               §    Some(ref val) => {
+               §        writer.write_v64(val.borrow().skill_type_id() as i64)?;
+               §        writer.write_v64(val.borrow().get_skill_id() as i64)?;
+               §    },
                §    None => writer.write_i8(0)?,
                §}
                §""".stripMargin('§')

@@ -31,6 +31,7 @@ class APITests extends common.GenericAPITests {
                             )
   val skipGeneration = Array(
                               // "age",
+                              // "annotation",
                               // "constants", // TODO -  is this really successful?
                               // "custom",  // TODO -  is this really successful?
                               // "empty",
@@ -39,7 +40,6 @@ class APITests extends common.GenericAPITests {
                               // "unicode",
                               // "user",
 
-                              "annotation", // FIXME broken generation
                               "auto", // FIXME broken generation
                               "basicTypes", // FIXME broken generation
                               "container", // FIXME broken generation
@@ -439,11 +439,14 @@ class APITests extends common.GenericAPITests {
             val getter = "get_" + snakeCase(gen.escaped(field.getName.camel()))
 
             field.getType match {
-              case t: GroundType if t.getName.getSkillName.equals("string") ⇒
-                e"""assert_eq!($name.borrow_mut().$getter(), &${value(objFieldNames.get(fieldName), field)});
+              case _: ReferenceType ⇒
+                e"""assert_eq!(*$name.borrow_mut().$getter(), ${value(objFieldNames.get(fieldName), field)});
                    §""".stripMargin('§')
-              case _                                                        ⇒
+              case _: GroundType    ⇒
                 e"""assert_eq!($name.borrow_mut().$getter(), ${value(objFieldNames.get(fieldName), field)});
+                   §""".stripMargin('§')
+              case _                ⇒
+                e"""assert_eq!(*$name.borrow_mut().$getter(), ${value(objFieldNames.get(fieldName), field)});
                    §""".stripMargin('§')
             }
           }).mkString

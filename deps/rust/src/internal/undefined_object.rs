@@ -6,32 +6,41 @@ use std::cell::Cell;
 
 #[derive(Default, Debug)]
 pub struct UndefinedObject {
-    id: Cell<usize>,
+    skill_id: Cell<usize>,
+    skill_type_id: usize,
 }
 
 impl UndefinedObject {
-    pub fn new(id: usize) -> UndefinedObject {
-        UndefinedObject { id: Cell::new(id) }
+    pub fn new(skill_id: usize, skill_type_id: usize) -> UndefinedObject {
+        UndefinedObject {
+            skill_id: Cell::new(skill_id),
+            skill_type_id,
+        }
     }
 }
 
 impl SkillObject for UndefinedObject {
+    fn skill_type_id(&self) -> usize {
+        self.skill_type_id
+    }
     fn get_skill_id(&self) -> usize {
-        self.id.get()
+        self.skill_id.get()
     }
 
-    fn set_skill_id(&self, id: usize) -> Result<(), SkillFail> {
-        if id == skill_object::DELETE {
-            return Err(SkillFail::internal(InternalFail::ReservedID { id }));
+    fn set_skill_id(&self, skill_id: usize) -> Result<(), SkillFail> {
+        if skill_id == skill_object::DELETE {
+            return Err(SkillFail::internal(InternalFail::ReservedID {
+                id: skill_id,
+            }));
         }
-        self.id.set(id);
+        self.skill_id.set(skill_id);
         Ok(())
     }
 
     fn mark_for_pruning(&self) {
-        self.id.set(skill_object::DELETE);
+        self.skill_id.set(skill_object::DELETE);
     }
     fn to_prune(&self) -> bool {
-        self.id.get() == skill_object::DELETE
+        self.skill_id.get() == skill_object::DELETE
     }
 }

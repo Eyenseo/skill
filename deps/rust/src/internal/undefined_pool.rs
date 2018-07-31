@@ -235,7 +235,7 @@ impl InstancePool for UndefinedPool {
         let mut vec = self.instances.borrow_mut();
         if self.is_base() {
             // TODO add extra Garbage / placeholder object
-            let tmp = Ptr::new(UndefinedObject::new(0));
+            let tmp = Ptr::new(UndefinedObject::new(0, 0));
             info!(
                 target: "SkillParsing",
                 "Allocate space for:UndefinedPool amount:{}",
@@ -273,7 +273,8 @@ impl InstancePool for UndefinedPool {
                         pool.get_type_id(),
                         block,
                     );
-                    self.own_static_instances.push(pool.make_instance(id));
+                    self.own_static_instances
+                        .push(pool.make_instance(id, self.type_id));
                 } else {
                     trace!(
                         target: "SkillParsing",
@@ -281,7 +282,7 @@ impl InstancePool for UndefinedPool {
                         id,
                         block,
                     );
-                    let tmp = self.make_instance(id);
+                    let tmp = self.make_instance(id, self.type_id);
                     self.own_static_instances.push(tmp);
                 }
                 vec[id - 1] = self.own_static_instances.last().unwrap().clone();
@@ -289,15 +290,15 @@ impl InstancePool for UndefinedPool {
         }
     }
 
-    fn make_instance(&self, id: usize) -> Ptr<SkillObject> {
+    fn make_instance(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
         if let Some(pool) = self.super_pool.as_ref() {
-            return pool.borrow().make_instance(id);
+            return pool.borrow().make_instance(skill_id, skill_type_id);
         }
         trace!(
             target: "SkillParsing",
             "Create new UndefinedObject",
         );
-        Ptr::new(UndefinedObject::new(id))
+        Ptr::new(UndefinedObject::new(skill_id, skill_type_id))
     }
     fn update_after_compress(
         &mut self,
