@@ -11,7 +11,7 @@ import de.ust.skill.generator.common
 import de.ust.skill.generator.common.IndenterLaw._
 import de.ust.skill.ir._
 import de.ust.skill.main.CommandLine
-import org.json.JSONObject
+import org.json.{JSONArray, JSONObject}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 
@@ -27,13 +27,15 @@ class APITests extends common.GenericAPITests {
   var generatedTests = new Array[String](0)
   var skipTestCases  = Array(
                               "restr", // FIXME restrictions are not implemented
-                              ""
+                              "fail_long_array", // NOTE this would fail to compile!
+                              "fail_short_array", // NOTE this would fail to compile!
                             )
   val skipGeneration = Array(
                               // "age",
                               // "annotation",
                               // "constants", // TODO -  is this really successful?
-                              // "custom",  // TODO -  is this really successful?
+                              // "container",
+                              // "custom", // TODO -  is this really successful?
                               // "empty",
                               // "floats",
                               // "number",
@@ -42,14 +44,13 @@ class APITests extends common.GenericAPITests {
 
                               "auto", // FIXME broken generation
                               "basicTypes", // FIXME broken generation
-                              "container", // FIXME broken generation
                               "enums", // FIXME broken generation
                               "escaping", // FIXME broken generation
                               "fancy", // FIXME broken generation
                               "graph", // FIXME broken generation
                               "graphInterface", // FIXME broken generation
-                              "hintsAll", // FIXME broken generation
-                              "map3", // FIXME broken generation
+                              "hintsAll", // FIXME runtime
+                              "map3", // FIXME runtime
                               "restrictionsAll", // FIXME broken generation
                               "restrictionsCore", // FIXME broken generation
                               "subtypes", // FIXME broken generation
@@ -144,6 +145,10 @@ class APITests extends common.GenericAPITests {
                    §    use $pkgEsc::*;
                    §
                    §    use self::failure::Fail;
+                   §
+                   §    use std::collections::HashSet;
+                   §    use std::collections::HashMap;
+                   §    use std::collections::LinkedList;
                    §""".stripMargin('§').trim
               )
     rval
@@ -276,7 +281,7 @@ class APITests extends common.GenericAPITests {
   private def value(v: Any, f: Field): String = value(v, f.getType)
 
   private def value(v: Any, t: Type): String = t match {
-    case t: GroundType ⇒
+    case t: GroundType              ⇒
       t.getSkillName match {
         case "i8"          ⇒ v.toString + " as i8"
         case "u8"          ⇒ v.toString + " as u8"
@@ -300,60 +305,96 @@ class APITests extends common.GenericAPITests {
             throw new GeneratorException("to be implemented")
           }
       }
+    case t: ConstantLengthArrayType ⇒
+      e"""{
+         §    let mut arr: ${gen.mapType(t)} = ${gen.defaultValue(t)};
+         §    ${
+        (for ((x, i) ← v.asInstanceOf[JSONArray].iterator().asScala.zipWithIndex) yield {
+          e"""arr[$i] = ${value(x, t.getBaseType)};
+             §""".stripMargin('§')
+        }).mkString.trim
+      }
+         §    arr
+         §}""".stripMargin('§')
+    case t: VariableLengthArrayType ⇒
+      e"""{
+         §    let mut vec = ${gen.defaultValue(t)};
+         §    vec.reserve(${v.asInstanceOf[JSONArray].length()});
+         §    ${
+        (for (x ← v.asInstanceOf[JSONArray].iterator().asScala) yield {
+          e"""vec.push(${value(x, t.getBaseType)});
+             §""".stripMargin('§')
+        }).mkString.trim
+      }
+         §    vec
+         §}""".stripMargin('§')
+    case t: SetType                 ⇒
+      e"""{
+         §    let mut set = ${gen.defaultValue(t)};
+         §    set.reserve(${v.asInstanceOf[JSONArray].length()});
+         §    ${
+        (for (x ← v.asInstanceOf[JSONArray].iterator().asScala) yield {
+          e"""set.insert(${value(x, t.getBaseType)});
+             §""".stripMargin('§')
+        }).mkString.trim
+      }
+         §    set
+         §}""".stripMargin('§')
 
-    // TODO container
-    case t: SingleBaseTypeContainer ⇒
-      throw new GeneratorException("to be implemented")
-    // locally {
-    //   var rval = t match {
-    //     case t: SetType ⇒ s"set<${gen.mapType(t.getBaseType)}>()"
-    //     case _          ⇒ s"array<${gen.mapType(t.getBaseType)}>()"
-    //   }
-    //   for (x ← v.asInstanceOf[JSONArray].iterator().asScala) {
-    //     rval = s"put<${gen.mapType(t.getBaseType)}>($rval, ${value(x, t.getBaseType)})"
-    //   }
-    //   rval
-    // }
-    // TODO container map
+    case t: ListType             ⇒
+      e"""{
+         §    let mut list = ${gen.defaultValue(t)};
+         §    ${
+        (for (x ← v.asInstanceOf[JSONArray].iterator().asScala) yield {
+          e"""list.push_back(${value(x, t.getBaseType)});
+             §""".stripMargin('§')
+        }).mkString.trim
+      }
+         §    list
+         §}""".stripMargin('§')
     case t: MapType if v != null ⇒
-      throw new GeneratorException("to be implemented")
-    // valueMap(v.asInstanceOf[JSONObject], t.getBaseTypes.asScala.toList)
-
-    // TODO user types
-    case t: UserType ⇒
-      throw new GeneratorException("to be implemented")
-    // if (null == v || v.toString().equals("null")) {
-    //   "std::ptr::null"
-    // } // TODO check
-    // else {
-    //   v.toString
-    // }
-    case _ ⇒
+      valueMap(v.asInstanceOf[JSONObject], t.getBaseTypes.asScala.toList)
+    case t: UserType             ⇒ ""
+      if (null == v || v.toString().equals("null")) {
+        "None"
+      } else {
+        // FIXME User Types have to be implemented
+        throw new GeneratorException("User Tpyes have to be implemented")
+        //       v.toString
+      }
+    case _                       ⇒
       throw new GeneratorException("Unknown Type")
   }
 
-  private def valueMap(v: Any, ts: List[Type]): String = {
-    if (1 == ts.length) {
-      value(v, ts.head)
-    } else {
-      var rval = s"map<${gen.mapType(ts.head)}, ${
-        ts.tail match {
-          case t if t.size >= 2 ⇒ t.map(gen.mapType).reduceRight((k, v) ⇒ s"::skill::api::Map<$k, $v>*")
-          case t                ⇒ gen.mapType(t.head)
-        }
-      }>()"
-      val root = v.asInstanceOf[JSONObject]
+  private def valueMap(v: Any, tts: List[Type]): String = {
+    val (key, remainder) = tts.splitAt(1)
 
-      for (name ← JSONObject.getNames(root)) {
-        rval = s"put<${gen.mapType(ts.head)}, ${
-          ts.tail match {
-            case t if t.size >= 2 ⇒ t.map(gen.mapType).reduceRight((k, v) ⇒ s"::skill::api::Map<$k, $v>*")
-            case t                ⇒ gen.mapType(t.head)
-          }
-        }>($rval, ${value(name, ts.head)}, ${valueMap(root.get(name), ts.tail)})"
+    if (remainder.size > 1) {
+      e"""{
+         §    let mut map = HashMap::default();
+         §    map.reserve(${v.asInstanceOf[JSONObject].length()});
+         §    ${
+        val root = v.asInstanceOf[JSONObject]
+        (for (name ← JSONObject.getNames(root)) yield {
+          e"""map.insert(${value(name, key.head)}, ${valueMap(root.get(name), remainder)});
+             §""".stripMargin('§')
+        }).mkString.trim
       }
-
-      rval
+         §    map
+         §}""".stripMargin('§')
+    } else {
+      e"""{
+         §    let mut map = HashMap::default();
+         §    map.reserve(${v.asInstanceOf[JSONObject].length()});
+         §    ${
+        val root = v.asInstanceOf[JSONObject]
+        (for (name ← JSONObject.getNames(root)) yield {
+          e"""map.insert(${value(name, key.head)}, ${value(root.get(name), remainder.head)});
+             §""".stripMargin('§')
+        }).mkString.trim
+      }
+         §    map
+         §}""".stripMargin('§')
     }
   }
 

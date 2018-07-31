@@ -132,12 +132,19 @@ trait PoolsMaker extends GeneralOutputMaker {
         }
 
         e"""${com}fn get_${name(f)}(&self) -> ${
-          if (returnByRef(f.getType)) {
+          if (f.getType.isInstanceOf[ReferenceType] || f.getType.isInstanceOf[ContainerType]) {
             "&" + mapType(f.getType)
           } else {
             mapType(f.getType)
           }
-        };
+        };${
+          if (f.getType.isInstanceOf[ReferenceType] || f.getType.isInstanceOf[ContainerType]) {
+            e"""
+               §fn get_${name(f)}_mut(&mut self) -> &mut ${mapType(f.getType)};""".stripMargin('§')
+          } else {
+            ""
+          }
+        }
            §${com}fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
            §
            §""".stripMargin('§')
@@ -148,20 +155,29 @@ trait PoolsMaker extends GeneralOutputMaker {
 
   private final def genGetSetImpl(field: Field): String = {
     e"""fn get_${name(field)}(&self) -> ${
-      if (returnByRef(field.getType)) {
+      if (field.getType.isInstanceOf[ReferenceType] || field.getType.isInstanceOf[ContainerType]) {
         "&" + mapType(field.getType)
       } else {
         mapType(field.getType)
       }
     } {
        §    ${
-      if (returnByRef(field.getType)) {
+      if (field.getType.isInstanceOf[ReferenceType] || field.getType.isInstanceOf[ContainerType]) {
         e"&self.${name(field)}"
       } else {
         e"self.${name(field)}"
       }
     }
-       §}
+       §}${
+      if (field.getType.isInstanceOf[ReferenceType] || field.getType.isInstanceOf[ContainerType]) {
+        e"""
+           §fn get_${name(field)}_mut(&mut self) -> &mut ${mapType(field.getType)} {
+           §    &mut self.${name(field)}
+           §}""".stripMargin('§')
+      } else {
+        ""
+      }
+    }
        §fn set_${name(field)}(&mut self, value: ${mapType(field.getType)}) {
        §    self.${name(field)} = value;
        §}""".stripMargin('§')
@@ -1406,8 +1422,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §}
            §""".stripMargin('§')
       case ft: MapType                 ⇒
-        e"""${genFieldDeclarationImplFieldDeclarationWriteMap(ft.getBaseTypes.asScala.toList)}
-           §""".stripMargin('§')
+        genFieldDeclarationImplFieldDeclarationWriteMap(ft.getBaseTypes.asScala.toList)
       case _: UserType                 ⇒
         e"""match val {
            §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64)?,
@@ -1471,8 +1486,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §}
            §""".stripMargin('§')
       case ft: MapType                 ⇒
-        e"""${genFieldDeclarationImplFieldDeclarationWriteMap(ft.getBaseTypes.asScala.toList)}
-           §""".stripMargin('§')
+        genFieldDeclarationImplFieldDeclarationWriteMap(ft.getBaseTypes.asScala.toList)
       case _: UserType                 ⇒
         e"""match val {
            §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64)?,
@@ -1488,7 +1502,8 @@ trait PoolsMaker extends GeneralOutputMaker {
     val (key, remainder) = tts.splitAt(1)
 
     if (remainder.size > 1) {
-      e"""for (key, val) in val.iter() {
+      e"""writer.write_v64(val.len() as i64)?;
+         §for (key, val) in val.iter() {
          §    {
          §        let val = key;
          §        ${genFieldDeclarationImplFieldDeclarationWriteInner(key.head)};
@@ -1497,7 +1512,8 @@ trait PoolsMaker extends GeneralOutputMaker {
          §}
          §""".stripMargin('§')
     } else {
-      e"""for (key, val) in val.iter() {
+      e"""writer.write_v64(val.len() as i64)?;
+         §for (key, val) in val.iter() {
          §    {
          §        let val = key;
          §        ${genFieldDeclarationImplFieldDeclarationWriteInner(key.head)};
@@ -1541,12 +1557,11 @@ trait PoolsMaker extends GeneralOutputMaker {
       case t: ConstantLengthArrayType             ⇒
         // TODO check that everything was read?
         e"""{
-           §    let mut vec = Vec::new();
-           §    vec.reserve(${t.getLength});
-           §    for _ in 0..${t.getLength} {
-           §        vec.push(${genFieldDeclarationImplFieldDeclarationRead(t.getBaseType, user)});
+           §    let mut arr:${mapType(t)} = ${defaultValue(t)};
+           §    for i in 0..${t.getLength} {
+           §        arr[i] = ${genFieldDeclarationImplFieldDeclarationRead(t.getBaseType, user)};
            §    }
-           §    vec
+           §    arr
            §}
            §""".stripMargin('§')
       case t: VariableLengthArrayType             ⇒
@@ -1739,21 +1754,5 @@ trait PoolsMaker extends GeneralOutputMaker {
     }
   }
 
-  private final def returnByRef(t: Type): Boolean = t match {
-    case t: GroundType ⇒ t.getSkillName match {
-      case "string"     ⇒ true
-      case "annotation" ⇒ true
-      case _            ⇒ false
-    }
-
-    case _: ConstantLengthArrayType ⇒ true
-    case _: VariableLengthArrayType ⇒ true
-    case _: ListType                ⇒ true
-    case _: SetType                 ⇒ true
-    case _: MapType                 ⇒ true
-
-    case _: UserType ⇒ true
-
-    case _ ⇒ throw new GeneratorException(s"Unknown type $t")
-  }
+  protected def defaultValue(t: Type): String
 }
