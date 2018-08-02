@@ -7,7 +7,7 @@ use common::Ptr;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Iter {
     type_hierarchy: type_hierarchy::Iter,
     current: Option<Rc<RefCell<InstancePool>>>,
@@ -18,12 +18,7 @@ pub struct Iter {
 }
 
 impl Iter {
-    /// * `pool` has to be the base pool of a type hierarchy
     pub fn new(pool: Rc<RefCell<InstancePool>>) -> Result<Iter, SkillFail> {
-        if !pool.borrow().is_base() {
-            return Err(SkillFail::internal(InternalFail::BasePoolRequired));
-        }
-
         let mut iter = Iter {
             block_end: pool.borrow().blocks().len(),
             type_hierarchy: type_hierarchy::Iter::new(pool.clone())?,

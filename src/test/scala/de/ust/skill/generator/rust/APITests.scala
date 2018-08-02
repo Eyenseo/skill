@@ -29,6 +29,9 @@ class APITests extends common.GenericAPITests {
                               "restr", // FIXME restrictions are not implemented
                               "fail_long_array", // NOTE this would fail to compile!
                               "fail_short_array", // NOTE this would fail to compile!
+                              "polyFail", // NOTE this would fail to compile!
+                              "poly_fail_1", // NOTE this would fail to compile!
+                              "poly_fail_2", // NOTE this would fail to compile!
                             )
   val skipGeneration = Array(
                               // "age",
@@ -40,6 +43,7 @@ class APITests extends common.GenericAPITests {
                               // "floats",
                               // "map3",
                               // "number",
+                              // "subtypes",
                               // "unicode",
                               // "user",
 
@@ -53,7 +57,6 @@ class APITests extends common.GenericAPITests {
                               "hintsAll", // FIXME runtime
                               "restrictionsAll", // FIXME broken generation
                               "restrictionsCore", // FIXME broken generation
-                              "subtypes", // FIXME broken generation
                               "unknown", // FIXME broken generation
                               "",
                             )
@@ -82,7 +85,6 @@ class APITests extends common.GenericAPITests {
 
   override def finalizeTests() {
     val pw = new PrintWriter(new File("testsuites/rust/Cargo.toml"))
-    // FIXME hardcoded path
     pw.write(
               """[workspace]
                 §members = [""".stripMargin('§')
@@ -134,13 +136,14 @@ class APITests extends common.GenericAPITests {
                    §
                    §#[cfg(test)]
                    §#[allow(non_snake_case)]
-                   §#[allow(unused_must_use)]
                    §#[allow(unused_imports)]
                    §#[allow(unused_variables)]
                    §mod tests {
                    §    extern crate env_logger;
                    §    extern crate failure;
                    §
+                   §    use $pkgEsc::common::error::*;
+                   §    use $pkgEsc::common::internal::SkillObject;
                    §    use $pkgEsc::skill_file::SkillFile;
                    §    use $pkgEsc::*;
                    §
@@ -185,7 +188,7 @@ class APITests extends common.GenericAPITests {
                   §
                   §    impl Drop for Cleanup${gen.camelCase(funName.capitalize)} {
                   §        fn drop(&mut self) {
-                  §            ::std::fs::remove_file("/tmp/${funName}_$uuid.sf");
+                  §            let _ignore = ::std::fs::remove_file("/tmp/${funName}_$uuid.sf");
                   §        }
                   §    }
                   §
@@ -194,16 +197,22 @@ class APITests extends common.GenericAPITests {
                   §        let _logger = env_logger::try_init();
                   §        let _cleanup = Cleanup${gen.camelCase(funName.capitalize)};
                   §
-                  §        match SkillFile::create("/tmp/${funName}_$uuid.sf") {
-                  §            Ok(sf) => match sf.check() {
-                  §                Ok(_) => {
-                  §                    // create objects
-                  §                    ${createObjects(root, tc, name)}
-                  §                    // set fields
-                  §                    ${setFields(root, tc)}
+                  §         ${objectIDs(root, tc)}
                   §
-                  §                    sf.close();
-                  §                },
+                  §        match SkillFile::create("/tmp/${funName}_$uuid.sf") {
+                  §            Ok(sf) => match || -> Result<(), SkillFail> {
+                  §                sf.check()?;
+                  §                // create objects
+                  §                ${createObjects(root, tc, name)}
+                  §                // set fields
+                  §                ${setFields(root, tc)}
+                  §                // serialize
+                  §                sf.close()?;
+                  §                // remember object IDs - type hierarchy makes them difficult to calculate for the generator
+                  §                ${rememberObjectIDs(root, tc)}
+                  §                Ok(())
+                  §            }() {
+                  §                Ok(_) => {},
                   §                Err(e) => if let Some(bt) = e.backtrace() {
                   §                    panic!("{}\n{}", e, bt)
                   §                } else {
@@ -238,16 +247,15 @@ class APITests extends common.GenericAPITests {
                   §            },
                   §        };
                   §    }""".stripMargin('§'))
-    // TODO add writing, reading and verifying results
   }
 
   private def getType(tc: TypeContext, name: String) = {
     val n = name.toLowerCase()
 
     try {
-      (tc.getUsertypes.asScala ++ tc.getInterfaces.asScala).find(_.getSkillName.equals(n)).get
+      (tc.getUsertypes.asScala ++ tc.getInterfaces.asScala).find(e ⇒ e.getSkillName.equals(n)).get
     } catch {
-      case e: NoSuchElementException ⇒ fail(s"Type '$n' does not exist, fix your test description!")
+      case _: NoSuchElementException ⇒ fail(s"Type '$n' does not exist, fix your test description!")
     }
   }
 
@@ -255,26 +263,9 @@ class APITests extends common.GenericAPITests {
     val t = getType(tc, typ)
     val fn = field.toLowerCase()
     try {
-      t.getAllFields.asScala.find(_.getSkillName.equals(fn)).get
+      t.getAllFields.asScala.find(e ⇒ e.getSkillName.equals(fn)).get
     } catch {
-      case e: NoSuchElementException ⇒ fail(s"Field '$fn' does not exist, fix your test description!")
-    }
-  }
-
-  private def getPoolName(tc: TypeContext, name: String): String = {
-    val n = name.toLowerCase()
-    try {
-      snakeCase(
-                 gen.escaped(
-                              (tc.getUsertypes.asScala ++ tc.getInterfaces.asScala)
-                                .filter(_.getSkillName.equals(n))
-                                .head
-                                .getName
-                                .camel()
-                            )
-               )
-    } catch {
-      case e: NoSuchElementException ⇒ fail(s"Type '$n' does not exist, fix your test description!")
+      case _: NoSuchElementException ⇒ fail(s"Field '$fn' does not exist, fix your test description!")
     }
   }
 
@@ -305,8 +296,8 @@ class APITests extends common.GenericAPITests {
           if (null == v || v.toString.equals("null")) {
             "None"
           } else {
-            // v.toString
-            throw new GeneratorException("to be implemented")
+            // NOTE all objects are read back so these names have to be valid
+            s"Some(${v.toString}.clone())"
           }
       }
     case t: ConstantLengthArrayType ⇒
@@ -358,13 +349,12 @@ class APITests extends common.GenericAPITests {
          §}""".stripMargin('§')
     case t: MapType if v != null ⇒
       valueMap(v.asInstanceOf[JSONObject], t.getBaseTypes.asScala.toList)
-    case t: UserType             ⇒ ""
-      if (null == v || v.toString().equals("null")) {
+    case _: UserType             ⇒
+      if (null == v || v.toString.equals("null")) {
         "None"
       } else {
-        // FIXME User Types have to be implemented
-        throw new GeneratorException("User Tpyes have to be implemented")
-        //       v.toString
+        // NOTE all objects are read back so these names have to be valid
+        s"Some(${v.toString}.clone())"
       }
     case _                       ⇒
       throw new GeneratorException("Unknown Type")
@@ -402,6 +392,29 @@ class APITests extends common.GenericAPITests {
     }
   }
 
+  private def objectIDs(root: JSONObject, tc: TypeContext): String = {
+    if (null == JSONObject.getNames(root)) {
+      ""
+    } else {
+      (for (name ← JSONObject.getNames(root)) yield {
+        e"""let mut ${name}_id = 0;
+           §""".stripMargin('§')
+      }).mkString
+    }
+  }.trim
+
+  private def rememberObjectIDs(root: JSONObject, tc: TypeContext): String = {
+    if (null == JSONObject.getNames(root)) {
+      ""
+    } else {
+      (for (name ← JSONObject.getNames(root)) yield {
+        e"""${name}_id = $name.borrow().get_skill_id();
+           §""".stripMargin('§')
+      }).mkString
+    }
+  }.trim
+
+
   private def createObjects(root: JSONObject,
                             tc: TypeContext,
                             packagePath: String): String = {
@@ -423,18 +436,12 @@ class APITests extends common.GenericAPITests {
     if (null == JSONObject.getNames(root)) {
       ""
     } else {
-      val idMap = collection.mutable.Map[Type, Int]()
-
       (for (name ← JSONObject.getNames(root)) yield {
         val obj = root.getJSONObject(name)
         val objType = getType(tc, JSONObject.getNames(obj).head)
         val pool = snakeCase(gen.escaped(objType.getName.camel()))
 
-        val objBase = objType.getBaseType
-        val id = idMap.getOrElse(objBase, 1)
-        idMap.update(objBase, id + 1)
-
-        e"""let $name = match sf.$pool.borrow().get($id) {
+        e"""let $name = match sf.$pool.borrow().get(${name}_id) {
            §    Ok(ptr) => ptr,
            §    Err(e) => panic!("Object $name was not retrieved because:{}", e),
            §};
@@ -483,14 +490,35 @@ class APITests extends common.GenericAPITests {
             val field = getField(tc, objTypeName, fieldName)
             val getter = "get_" + snakeCase(gen.escaped(field.getName.camel()))
 
+
+            def ptrUser(): String = {
+              val expected = value(objFieldNames.get(fieldName), field)
+              if (expected.equals("None")) {
+                e"""assert_eq!($name.borrow_mut().$getter().is_none(), true);
+                   §""".stripMargin('§')
+              } else {
+                e"""assert_eq!(
+                   §    $name.borrow_mut().$getter().is_some(), true);
+                   §assert_eq!(
+                   §    $name.borrow_mut().$getter().as_ref().unwrap().nucast::<SkillObject>(),
+                   §    $expected.unwrap().nucast::<SkillObject>(),
+                   §);
+                   §""".stripMargin('§')
+              }
+            }
+
             field.getType match {
-              case _: ReferenceType ⇒
+              case _: UserType                                             ⇒
+                ptrUser()
+              case t: GroundType if t.getName.camel().equals("annotation") ⇒
+                ptrUser()
+              case _: ReferenceType                                        ⇒
                 e"""assert_eq!(*$name.borrow_mut().$getter(), ${value(objFieldNames.get(fieldName), field)});
                    §""".stripMargin('§')
-              case _: GroundType    ⇒
+              case _: GroundType                                           ⇒
                 e"""assert_eq!($name.borrow_mut().$getter(), ${value(objFieldNames.get(fieldName), field)});
                    §""".stripMargin('§')
-              case _                ⇒
+              case _                                                       ⇒
                 e"""assert_eq!(*$name.borrow_mut().$getter(), ${value(objFieldNames.get(fieldName), field)});
                    §""".stripMargin('§')
             }

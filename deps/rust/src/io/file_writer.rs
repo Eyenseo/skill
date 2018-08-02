@@ -12,25 +12,50 @@ use std::error::Error;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::rc::Rc;
 
 const BUFFER_SIZE: usize = 4096;
 
 #[derive(Debug)]
-enum Out {
+enum Out<'v> {
     Buffer(Box<[u8]>),
     MMap(MmapMut),
+    View(&'v mut [u8]),
+}
+
+impl<'v> Deref for Out<'v> {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        match self {
+            Out::Buffer(buf) => buf.as_ref(),
+            Out::MMap(map) => &map[..],
+            Out::View(view) => view,
+        }
+    }
+}
+
+impl<'v> DerefMut for Out<'v> {
+    fn deref_mut(&mut self) -> &mut [u8] {
+        match self {
+            Out::Buffer(buf) => buf.as_mut(),
+            Out::MMap(map) => &mut map[..],
+            Out::View(view) => view,
+        }
+    }
 }
 
 #[derive(Debug)]
-pub struct FileWriter {
+pub struct FileWriter<'v> {
     file: Rc<RefCell<std::fs::File>>,
     buffer_position: usize,
-    out: Out,
+    out: Out<'v>,
 }
 
-impl FileWriter {
-    pub fn new(file: Rc<RefCell<std::fs::File>>) -> FileWriter {
+impl<'v> FileWriter<'v> {
+    pub fn new(file: Rc<RefCell<std::fs::File>>) -> FileWriter<'v> {
         FileWriter {
             file,
             buffer_position: 0,
@@ -38,7 +63,7 @@ impl FileWriter {
         }
     }
 
-    pub fn jump(&mut self, len: usize) -> Result<FileWriter, SkillFail> {
+    pub fn jump<'vv>(&'vv mut self, len: usize) -> Result<FileWriter<'v>, SkillFail> {
         self.flush()?;
 
         let new_pos = match self.file.borrow_mut().seek(SeekFrom::Current(len as i64)) {
@@ -76,6 +101,22 @@ impl FileWriter {
         Ok(writer)
     }
 
+    pub fn rel_view(&mut self, from: usize, to: usize) -> Result<FileWriter, SkillFail> {
+        match self.out {
+            Out::Buffer(_) => Err(SkillFail::internal(InternalFail::ViewOnBuffer)),
+            Out::MMap(ref mut map) => Ok(FileWriter {
+                file: self.file.clone(),
+                buffer_position: 0,
+                out: Out::View(&mut map[self.buffer_position + from..self.buffer_position + to]),
+            }),
+            Out::View(ref mut view) => Ok(FileWriter {
+                file: self.file.clone(),
+                buffer_position: 0,
+                out: Out::View(&mut view[self.buffer_position + from..self.buffer_position + to]),
+            }),
+        }
+    }
+
     fn require_buffer(&mut self, space: usize) -> Result<(), SkillFail> {
         // double matching can't be prevented because borrowing rules
         match self.out {
@@ -95,6 +136,7 @@ impl FileWriter {
                 }
             }
             Out::MMap(ref mut map) => {}
+            Out::View(ref mut view) => {}
         }
         Ok(())
     }
@@ -144,6 +186,10 @@ impl FileWriter {
                 }?;
                 Ok(map.len())
             }
+            Out::View(ref view) => {
+                // We are "flushed" automatically to the mmap we come from
+                Ok(view.len())
+            }
         }
     }
 
@@ -151,75 +197,51 @@ impl FileWriter {
     // boolean
     pub fn write_bool(&mut self, what: bool) -> Result<(), SkillFail> {
         self.require_buffer(1)?;
-        match &mut self.out {
-            Out::Buffer(ref mut buf) => write_bool(&mut self.buffer_position, buf, what),
-            Out::MMap(ref mut map) => write_bool(&mut self.buffer_position, &mut map[..], what),
-        }
+        write_bool(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
     // integer types
     pub fn write_i8(&mut self, what: i8) -> Result<(), SkillFail> {
         self.require_buffer(1)?;
-        match self.out {
-            Out::Buffer(ref mut buf) => write_i8(&mut self.buffer_position, buf, what),
-            Out::MMap(ref mut map) => write_i8(&mut self.buffer_position, &mut map[..], what),
-        }
+        write_i8(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
     pub fn write_i16(&mut self, what: i16) -> Result<(), SkillFail> {
         self.require_buffer(2)?;
-        match self.out {
-            Out::Buffer(ref mut buf) => write_i16(&mut self.buffer_position, buf, what),
-            Out::MMap(ref mut map) => write_i16(&mut self.buffer_position, &mut map[..], what),
-        }
+        write_i16(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
     pub fn write_i32(&mut self, what: i32) -> Result<(), SkillFail> {
         self.require_buffer(4)?;
-        match self.out {
-            Out::Buffer(ref mut buf) => write_i32(&mut self.buffer_position, buf, what),
-            Out::MMap(ref mut map) => write_i32(&mut self.buffer_position, &mut map[..], what),
-        }
+        write_i32(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
     pub fn write_i64(&mut self, what: i64) -> Result<(), SkillFail> {
         self.require_buffer(8)?;
-        match self.out {
-            Out::Buffer(ref mut buf) => write_i64(&mut self.buffer_position, buf, what),
-            Out::MMap(ref mut map) => write_i64(&mut self.buffer_position, &mut map[..], what),
-        }
+        write_i64(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
     pub fn write_v64(&mut self, what: i64) -> Result<(), SkillFail> {
         self.require_buffer(9)?;
-        match self.out {
-            Out::Buffer(ref mut buf) => write_v64(&mut self.buffer_position, buf, what),
-            Out::MMap(ref mut map) => write_v64(&mut self.buffer_position, &mut map[..], what),
-        }
+        write_v64(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
     // float types
     pub fn write_f32(&mut self, what: f32) -> Result<(), SkillFail> {
         self.require_buffer(4)?;
-        match self.out {
-            Out::Buffer(ref mut buf) => write_f32(&mut self.buffer_position, buf, what),
-            Out::MMap(ref mut map) => write_f32(&mut self.buffer_position, &mut map[..], what),
-        }
+        write_f32(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
     pub fn write_f64(&mut self, what: f64) -> Result<(), SkillFail> {
         self.require_buffer(8)?;
-        match self.out {
-            Out::Buffer(ref mut buf) => write_f64(&mut self.buffer_position, buf, what),
-            Out::MMap(ref mut map) => write_f64(&mut self.buffer_position, &mut map[..], what),
-        }
+        write_f64(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
@@ -252,6 +274,9 @@ impl FileWriter {
                 }
             }
             Out::MMap(ref mut map) => write_string(&mut self.buffer_position, &mut map[..], what)?,
+            Out::View(ref mut view) => {
+                write_string(&mut self.buffer_position, view.as_mut(), what)?
+            }
         }
         Ok(())
     }
@@ -363,7 +388,7 @@ impl FileWriter {
     }
 }
 
-impl Drop for FileWriter {
+impl<'v> Drop for FileWriter<'v> {
     fn drop(&mut self) {
         match self.flush() {
             Ok(_) => {}

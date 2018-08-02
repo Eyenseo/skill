@@ -2,6 +2,7 @@ use failure::{Backtrace, Fail};
 
 #[derive(Fail, Debug)]
 pub enum InternalFail {
+    // TODO sort the errors
     #[fail(display = "The input stream ended even though more input was expected")]
     UnexpectedEndOfInput,
     #[fail(display = "The read string was too short, probably because the input ended to early.")]
@@ -143,6 +144,9 @@ pub enum InternalFail {
         id
     )]
     BadSkillObjectID { id: usize },
+
+    #[fail(display = "Creating a relative view on a buffer is unsupported")]
+    ViewOnBuffer,
 }
 
 #[derive(Fail, Debug)]

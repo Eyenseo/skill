@@ -105,6 +105,10 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §    }
        §
        §    pub fn open(file: &str) -> Result<Self, SkillFail> {
+       §        info!(
+       §            target: "SkillWriting",
+       §            "Start opening"
+       §        );
        §        let f = match ::std::fs::OpenOptions::new()
        §            .read(true)
        §            .write(true)
@@ -181,10 +185,18 @@ trait SkillFileMaker extends GeneralOutputMaker {
     }
        §        };
        §        sf.complete();
+       §        info!(
+       §            target:"SkillWriting",
+       §            "Done opening"
+       §        );
        §        Ok(sf)
        §    }
        §
        §    pub fn create(file: &str) -> Result<Self, SkillFail> {
+       §        info!(
+       §            target: "SkillWriting",
+       §            "Start creating"
+       §        );
        §        let f = match ::std::fs::OpenOptions::new()
        §            .write(true)
        §            .read(true)
@@ -219,10 +231,18 @@ trait SkillFileMaker extends GeneralOutputMaker {
     }
        §        };
        §        sf.complete();
+       §        info!(
+       §            target: "SkillWriting",
+       §            "Done creating"
+       §        );
        §        Ok(sf)
        §    }
        §
        §    pub fn write(&mut self) -> Result<(), SkillFail> {
+       §        info!(
+       §            target: "SkillWriting",
+       §            "Start writing"
+       §        );
        §        // invariant -> size queries are constant time
        §        self.type_pool.set_invariant(true);
        §
@@ -243,14 +263,26 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        self.type_pool.write_block(&mut writer, &local_bpos)?;
        §
        §        self.type_pool.set_invariant(false);
-       §
+       §        info!(
+       §            target:"SkillWriting",
+       §            "Done writing"
+       §        );
        §        Ok(())
        §    }
        §
        §    pub fn close(mut self) -> Result<(), SkillFail> {${
       "" // TODO check if more has to be done?
     }
-       §        self.write()
+       §        info!(
+       §            target: "SkillWriting",
+       §            "Start closing"
+       §        );
+       §        self.write()?;
+       §        info!(
+       §            target:"SkillWriting",
+       §            "Done closing"
+       §        );
+       §        Ok(())
        §    }
        §
        §    pub fn check(&self) -> Result<(), SkillFail> {${
@@ -335,12 +367,22 @@ trait SkillFileMaker extends GeneralOutputMaker {
     }
        §        ${
       (for (base ← IR) yield {
-        e"""self.${field(base)}.as_ref().unwrap().borrow_mut().allocate();
+        e"""self.${field(base)}.as_ref().unwrap().borrow_mut().allocate();${
+          if (base.getBaseType.equals(base)) {
+            e"""
+               §self.${field(base)}.as_ref().unwrap().borrow_mut().set_next_pool(None);""".stripMargin('§')
+          } else {
+            ""
+          }
+        }
            §""".stripMargin('§')
       }).mkString.trim
     }
        §        for pool in self.undefined_pools.iter() {
        §            pool.borrow_mut().allocate();
+       §            if pool.borrow().is_base() {
+       §                pool.borrow_mut().set_next_pool(None);
+       §            }
        §        }
        §        Ok(())
        §    }
@@ -416,8 +458,6 @@ trait SkillFileMaker extends GeneralOutputMaker {
             ""
           }
         }
-           §    } else {
-           §        panic!("Double creation of pool");
            §    }
            §    Ok(self.${field(base)}.as_ref().unwrap().clone())
            §} else """.stripMargin('§')

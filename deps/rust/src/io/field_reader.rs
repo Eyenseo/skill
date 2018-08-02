@@ -4,7 +4,7 @@ use common::internal::InstancePool;
 use common::internal::SkillObject;
 use common::io::FileReader;
 use common::io::FileWriter;
-use common::iterator::static_data;
+use common::iterator::dynamic_data;
 use common::Ptr;
 use common::SkillString;
 use common::StringBlock;
@@ -109,15 +109,18 @@ pub trait FieldDeclaration {
     fn add_chunk(&mut self, chunk: FieldChunk);
 
     fn compress_chunks(&mut self, total_count: usize);
-    fn offset(&self, iter: static_data::Iter) -> usize;
+    fn offset(&self, iter: dynamic_data::Iter) -> usize;
 
     /// This call will also update the offsets of the chunk
     fn write_meta(
         &mut self,
         writer: &mut FileWriter,
-        iter: static_data::Iter,
+        iter: dynamic_data::Iter,
         offset: usize,
     ) -> Result<usize, SkillFail>;
-    fn write_data(&self, writer: &mut FileWriter, iter: static_data::Iter)
-        -> Result<(), SkillFail>;
+    fn write_data(
+        &self,
+        writer: &mut FileWriter,
+        iter: dynamic_data::Iter,
+    ) -> Result<(), SkillFail>;
 }

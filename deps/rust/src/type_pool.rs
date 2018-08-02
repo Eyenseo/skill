@@ -76,7 +76,7 @@ impl TypeBlock {
                         id => {
                             return Err(SkillFail::internal(InternalFail::UnknownTypeRestriction {
                                 id: id as usize,
-                            }))
+                            }));
                         }
                     }
                 }
@@ -291,7 +291,7 @@ impl TypeBlock {
                                         _ => {
                                             return Err(SkillFail::internal(
                                                 InternalFail::BadRangeRestriction,
-                                            ))
+                                            ));
                                         }
                                     },
                                     0x5 => {
@@ -389,6 +389,11 @@ impl TypeBlock {
         reader: &Vec<FileReader>,
     ) -> Result<(), SkillFail> {
         for pool in self.pools.iter() {
+            info!(
+                target: "SkillParsing",
+                "Initializing Pool {}",
+                pool.borrow().name().as_str(),
+            );
             pool.borrow().initialize(reader, strings, &self.pools)?;
         }
         Ok(())
@@ -406,8 +411,8 @@ impl TypeBlock {
                 let vec: Rc<RefCell<Vec<Ptr<SkillObject>>>> = Rc::new(RefCell::new(Vec::new()));
                 {
                     let mut vec = vec.borrow_mut();
-                    vec.reserve(p.borrow().static_size());
-                    for _ in 0..p.borrow().static_size() {
+                    vec.reserve(p.borrow().get_global_cached_count());
+                    for _ in 0..p.borrow().get_global_cached_count() {
                         // TODO replace with garbage object
                         vec.push(Ptr::new(UndefinedObject::new(0, 0)));
                     }
@@ -458,7 +463,6 @@ impl TypeBlock {
             target: "SkillWriting",
             "~~Write Type Meta Data",
         );
-        // Write Type meta data
         for p in self.pools.iter() {
             p.borrow().write_type_meta(writer, &local_bpos)?;
         }
@@ -467,29 +471,28 @@ impl TypeBlock {
             target: "SkillWriting",
             "~~Write Type Field Meta Data",
         );
-        // Write Field meta data
         let mut offset = 0;
         for p in self.pools.iter() {
             offset =
                 p.borrow()
-                    .write_field_meta(writer, static_data::Iter::new(p.clone()), offset)?;
+                    .write_field_meta(writer, dynamic_data::Iter::new(p.clone())?, offset)?;
         }
 
         info!(
             target: "SkillWriting",
-            "~~Write Type Field Data",
+            "~~Write Type Field Data for #{} pools",
+            self.pools.len()
         );
-        // Write Field data
+        let mut writer = writer.jump(offset)?;
         for p in self.pools.iter() {
             p.borrow()
-                .write_field_data(writer, static_data::Iter::new(p.clone()))?;
+                .write_field_data(&mut writer, dynamic_data::Iter::new(p.clone())?)?;
         }
 
         info!(
             target: "SkillWriting",
             "~Type Block End~"
         );
-
         Ok(())
     }
 

@@ -1,7 +1,7 @@
 use common::error::*;
 use common::internal::{ObjectReader, SkillObject};
 use common::io::{Block, FieldChunk, FieldDeclaration, FieldType, FileReader, FileWriter};
-use common::iterator::static_data;
+use common::iterator::dynamic_data;
 use common::Ptr;
 use common::SkillString;
 use common::StringBlock;
@@ -68,7 +68,7 @@ pub trait InstancePool {
 
     fn make_instance(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject>;
 
-    fn set_next_pool(&mut self, Rc<RefCell<InstancePool>>);
+    fn set_next_pool(&mut self, pool: Option<Rc<RefCell<InstancePool>>>);
     fn get_next_pool(&self) -> Option<Rc<RefCell<InstancePool>>>;
     fn type_hierarchy_height(&self) -> usize;
 
@@ -107,17 +107,17 @@ pub trait InstancePool {
         writer: &mut FileWriter,
         local_bpos: &Vec<usize>,
     ) -> Result<(), SkillFail>;
-    /// * `iter` is needed as self cant create a static_data::Iter instance
+    /// * `iter` is needed as self cant create a dynamic_data::Iter instance
     fn write_field_meta(
         &self,
         writer: &mut FileWriter,
-        iter: static_data::Iter,
+        iter: dynamic_data::Iter,
         offset: usize,
     ) -> Result<usize, SkillFail>;
-    /// * `iter` is needed as self cant create a static_data::Iter instance
+    /// * `iter` is needed as self cant create a dynamic_data::Iter instance
     fn write_field_data(
         &self,
         writer: &mut FileWriter,
-        iter: static_data::Iter,
+        iter: dynamic_data::Iter,
     ) -> Result<(), SkillFail>;
 }

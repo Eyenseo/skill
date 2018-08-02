@@ -4,18 +4,14 @@ use common::internal::InstancePool;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Iter {
     current: Option<Rc<RefCell<InstancePool>>>,
     type_hierarchy_height: usize,
 }
 
 impl Iter {
-    /// * `pool` has to be the base pool of a type heirarchy
     pub fn new(pool: Rc<RefCell<InstancePool>>) -> Result<Iter, SkillFail> {
-        if !pool.borrow().is_base() {
-            return Err(SkillFail::internal(InternalFail::BasePoolRequired));
-        }
         Ok(Iter {
             type_hierarchy_height: pool.borrow().type_hierarchy_height(),
             current: Some(pool.clone()),

@@ -73,12 +73,12 @@ trait GeneralOutputMaker extends Generator {
     val types = IR.map(_.getSkillName).toSet
     val fields =
       IR.flatMap(_.getFields.asScala)
-      .map(_.getSkillName).toSet ++
+        .map(_.getSkillName).toSet ++
       IR.flatMap(_.getFields.asScala)
-      .flatMap(_.getRestrictions.asScala)
-      .collect { case f: CodingRestriction ⇒ f }
-      .map(_.getValue)
-      .toSet --
+        .flatMap(_.getRestrictions.asScala)
+        .collect { case f: CodingRestriction ⇒ f }
+        .map(_.getValue)
+        .toSet --
       types
 
     (types, fields)
@@ -178,6 +178,18 @@ trait GeneralOutputMaker extends Generator {
   protected final def getAllSuperTypes(t: UserType): List[Type] = {
     if (t.getSuperType != null) {
       getAllSuperTypes(t.getSuperType) ::: List[UserType](t)
+    } else {
+      List[UserType](t)
+    }
+  }.distinct
+
+  /**
+    * @param t Type to get the list of super types for
+    * @return A list of all super types a given type t has
+    */
+  protected final def getAllSubTypes(t: UserType): List[Type] = {
+    if (t.getSubTypes != null) {
+      return List[UserType](t) ::: t.getSubTypes.asScala.toList.flatMap(t ⇒ getAllSubTypes(t))
     } else {
       List[UserType](t)
     }

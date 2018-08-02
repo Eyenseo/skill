@@ -40,19 +40,12 @@ trait PoolsMaker extends GeneralOutputMaker {
   //----------------------------------------
   private final def genUsage(base: UserType): String = {
     // TODO Sort
-    e"""use common::internal::InstancePool;
-       §use common::internal::LazyFieldDeclaration;
-       §use common::internal::ObjectReader;
-       §use common::internal::skill_object;
-       §use common::internal::SkillObject;
-       §use common::internal::UndefinedObject;
+    e"""use common::error::*;
+       §use common::internal::*;
        §use common::io::magic::bytes_v64;
-       §use common::io::{Block, FileWriter, BlockIndex, DeclarationFieldChunk, FileReader, FieldDeclaration, FieldChunk, BuildInType, FieldType};
-       §use common::iterator::static_data;
-       §use common::StringBlock;
-       §use common::error::*;
-       §use common::SkillString;
-       §use common::{Ptr, WeakPtr};
+       §use common::io::*;
+       §use common::iterator::*;
+       §use common::*;
        §
        §use skill_file::SkillFile;
        §
@@ -64,11 +57,11 @@ trait PoolsMaker extends GeneralOutputMaker {
 
   private final def getUsageUser(base: UserType): String = {
     IR
-    .filterNot(t ⇒ t.equals(base))
-    .toArray
-    .map(t ⇒ s"use ${snakeCase(storagePool(t))}::*;\n")
-    .sorted
-    .mkString
+      .filterNot(t ⇒ t.equals(base))
+      .toArray
+      .map(t ⇒ s"use ${snakeCase(storagePool(t))}::*;\n")
+      .sorted
+      .mkString
   }.trim
 
   private final def getUsageStd(): String = {
@@ -338,14 +331,14 @@ trait PoolsMaker extends GeneralOutputMaker {
        §
        §    pub fn complete(&mut self, file: &SkillFile) {
        §        ${
-      if (base.getAllFields.size() > 0) {
+      if (base.getFields.size() > 0) {
         e"""
-           §        let mut set = HashSet::with_capacity(${base.getAllFields.size()});
+           §        let mut set = HashSet::with_capacity(${base.getFields.size()});
            §        let mut string_pool = self.string_block.borrow_mut();
            §        {
            §            let lit = string_pool.lit();
            §            ${
-          (for (field ← base.getAllFields.asScala) yield {
+          (for (field ← base.getFields.asScala) yield {
             e"""set.insert(lit.${name(field)});
                §""".stripMargin('§')
           }).mkString.trim()
@@ -357,7 +350,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §        }
            §
            §        ${
-          (for (ft ← base.getAllFields.asScala) yield {
+          (for (ft ← base.getFields.asScala) yield {
             e"""if set.contains(string_pool.lit().${name(ft)}) {
                §    let index = self.fields.len() + 1;
                §    let name = string_pool.lit().${name(ft)};${
@@ -421,7 +414,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    }
        §
        §    pub fn delete(&mut self, ${field(base)}: Ptr<${name(base)}>) -> Result<(), SkillFail> {${
-      "" // NOTE this is wrong after a compress but we consume the state on write, so its fine
+      "" // NOTE this is wrong after a compress but we consume the state on write, so its "fine"
     }
        §        // NOTE this is wrong after a compress but we consume the state on write, so its fine
        §        // NOTE base array + own (book) array + parameter = 3 strong counts
@@ -586,6 +579,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            self.base_pool = pool.borrow().get_base(); // TODO check?
        §        }
        §        self.instances = self.base_pool.as_ref().unwrap().borrow().get_base_vec();
+       §        self.type_hierarchy_height = pool.borrow().type_hierarchy_height() + 1;
        §        self.super_pool = Some(pool);
        §    }
        §    fn get_super(&self) -> Option<Rc<RefCell<InstancePool>>> {
@@ -704,15 +698,21 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        self.deleted_count
        §    }
        §
-       §    fn set_next_pool(&mut self, pool: Rc<RefCell<InstancePool>>) {
+       §    fn set_next_pool(&mut self, pool: Option<Rc<RefCell<InstancePool>>>) {
        §        if self.sub_pools.len() > 0 {
        §            self.next_pool = Some(self.sub_pools.first().unwrap().clone());
        §            for i in 0..self.sub_pools.len() - 1 {
-       §                self.sub_pools[i].borrow_mut().set_next_pool(self.sub_pools[i + 1].clone());
+       §                self.sub_pools[i]
+       §                    .borrow_mut()
+       §                    .set_next_pool(Some(self.sub_pools[i + 1].clone()));
        §            }
-       §            self.sub_pools.last().unwrap().borrow_mut().set_next_pool(pool);
+       §            self.sub_pools
+       §                .last()
+       §                .unwrap()
+       §                .borrow_mut()
+       §                .set_next_pool(pool);
        §        } else {
-       §            self.next_pool = Some(pool);
+       §            self.next_pool = pool;
        §        }
        §    }
        §    fn get_next_pool(&self) -> Option<Rc<RefCell<InstancePool>>> {
@@ -742,7 +742,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        // FIXME restrictions
        §        writer.write_v64(0)?;
        §        if let Some(s) = self.get_super() {
-       §            writer.write_v64((s.borrow().get_type_id() - 32) as i64)?; // TODO +1?
+       §            writer.write_v64((s.borrow().get_type_id() - 31) as i64)?;
        §            if self.get_local_dynamic_count() != 0 {
        §                writer.write_v64(local_bpos[self.get_type_id() - 32] as i64)?;
        §            }
@@ -756,7 +756,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    fn write_field_meta(
        §        &self,
        §        writer: &mut FileWriter,
-       §        iter: static_data::Iter,
+       §        iter: dynamic_data::Iter,
        §        mut offset: usize
        §    ) -> Result<usize, SkillFail> {
        §        info!(
@@ -773,7 +773,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    fn write_field_data(
        §        &self,
        §        writer: &mut FileWriter,
-       §        iter: static_data::Iter
+       §        iter: dynamic_data::Iter
        §    ) -> Result<(), SkillFail> {
        §        info!(
        §            target:"SkillWriting",
@@ -799,7 +799,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    chunk: FieldChunk,
        §) -> Result<(), SkillFail> {
        §    ${
-      (for (f ← base.getAllFields.asScala) yield {
+      (for (f ← base.getFields.asScala) yield {
         genPoolImplInstancePoolAddFieldField(base, f)
       }).mkString.trim
     } {
@@ -940,7 +940,7 @@ trait PoolsMaker extends GeneralOutputMaker {
   private final def genFieldDeclaration(base: UserType): String = {
     val ret = new StringBuilder()
 
-    for (field ← base.getAllFields.asScala) {
+    for (field ← base.getFields.asScala) {
       ret.append(
                   e"""//----------------------------------------
                      §// ${base.getName.camel() + field.getName.capital()}FieldDeclaration aka ${
@@ -1116,10 +1116,10 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                appearance: BlockIndex::from(1),
        §            }));
        §    }
-       §    fn offset(&self, iter: static_data::Iter) -> usize {
+       §    fn offset(&self, iter: dynamic_data::Iter) -> usize {
        §        ${genFieldDeclarationImplFieldDeclarationOffset(base, f)}
        §    }
-       §    fn write_meta(&mut self, writer: &mut FileWriter, iter: static_data::Iter, offset: usize) -> Result<usize, SkillFail> {
+       §    fn write_meta(&mut self, writer: &mut FileWriter, iter: dynamic_data::Iter, offset: usize) -> Result<usize, SkillFail> {
        §        info!(
        §            target:"SkillWriting",
        §            "~~~~Write Field Meta Data for Field:{}",
@@ -1152,15 +1152,19 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    fn write_data(
        §        &self,
        §        writer: &mut FileWriter,
-       §        iter: static_data::Iter
+       §        iter: dynamic_data::Iter
        §    ) -> Result<(), SkillFail> {
        §       info!(
        §            target:"SkillWriting",
        §            "~~~~Write Field Data for Field:{}",
        §            self.name.as_ref(),
        §        );
+       §        let mut writer = match self.chunks.first().unwrap() {
+       §            FieldChunk::Declaration(ref chunk) => writer.rel_view(chunk.begin, chunk.end)?,
+       §            FieldChunk::Continuation(_) => panic!()
+       §        };
        §        for i in iter {
-       §            let tmp = i.nucast::<${name(base)}>().unwrap();
+       §            let tmp = i.nucast::<${traitName(base)}>().unwrap();
        §            let tmp = tmp.borrow(); // borrowing madness
        §            let val = tmp.get_${field(f)}();
        §            ${genFieldDeclarationImplFieldDeclarationWrite(f.getType)}
@@ -1189,7 +1193,7 @@ trait PoolsMaker extends GeneralOutputMaker {
           case "v64"         ⇒
             e"""let mut offset = 0;
                §for i in iter {
-               §    let tmp = i.nucast::<${name(base)}>().unwrap();
+               §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
                §    let tmp = tmp.borrow(); // borrowing madness
                §    offset += bytes_v64(tmp.get_${field(f)}() as i64);
                §}
@@ -1198,7 +1202,7 @@ trait PoolsMaker extends GeneralOutputMaker {
           case "string"      ⇒
             e"""let mut offset = 0;
                §for i in iter {
-               §    let tmp = i.nucast::<${name(base)}>().unwrap();
+               §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
                §    let tmp = tmp.borrow(); // borrowing madness
                §    offset += bytes_v64(tmp.get_${field(f)}().get_skill_id() as i64);
                §}
@@ -1207,7 +1211,7 @@ trait PoolsMaker extends GeneralOutputMaker {
           case "annotation"  ⇒
             e"""let mut offset = 0;
                §for i in iter {
-               §    let tmp = i.nucast::<${name(base)}>().unwrap();
+               §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
                §    let tmp = tmp.borrow(); // borrowing madness
                §    offset += match tmp.get_${field(f)}() {
                §        Some(ref val) => {
@@ -1225,7 +1229,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       case ft: ConstantLengthArrayType ⇒
         e"""let mut offset = 0;
            §for i in iter {
-           §    let tmp = i.nucast::<${name(base)}>().unwrap();
+           §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
            §    let tmp = tmp.borrow(); // borrowing madness
            §    for val in tmp.get_${field(f)}().iter() {
            §        offset += ${genFieldDeclarationImplFieldDeclarationOffsetInner(ft.getBaseType)};
@@ -1236,7 +1240,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       case ft: SingleBaseTypeContainer ⇒
         e"""let mut offset = 0;
            §for i in iter {
-           §    let tmp = i.nucast::<${name(base)}>().unwrap();
+           §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
            §    let tmp = tmp.borrow(); // borrowing madness
            §    offset += bytes_v64(tmp.get_${field(f)}().len() as i64);
            §    for val in tmp.get_${field(f)}().iter() {
@@ -1248,7 +1252,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       case ft: MapType                 ⇒
         e"""let mut offset = 0;
            §for i in iter {
-           §    let tmp = i.nucast::<${name(base)}>().unwrap();
+           §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
            §    let tmp = tmp.borrow(); // borrowing madness
            §    let val = tmp.get_${field(f)}();
            §    ${genFieldDeclarationImplFieldDeclarationOffsetMap(ft.getBaseTypes.asScala.toList)}
@@ -1258,7 +1262,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       case _: UserType                 ⇒
         e"""let mut offset = 0;
            §for i in iter {
-           §    let tmp = i.nucast::<${name(base)}>().unwrap();
+           §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
            §    let tmp = tmp.borrow(); // borrowing madness
            §    offset += match tmp.get_${field(f)}() {
            §        Some(ref val) => bytes_v64(val.borrow().get_skill_id() as i64),

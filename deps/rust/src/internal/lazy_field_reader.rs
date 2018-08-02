@@ -5,7 +5,7 @@ use common::io::{
     Block, BlockIndex, DeclarationFieldChunk, FieldChunk, FieldDeclaration, FieldType, FileReader,
     FileWriter,
 };
-use common::iterator::static_data;
+use common::iterator::dynamic_data;
 use common::Ptr;
 use common::SkillString;
 use common::StringBlock;
@@ -62,13 +62,13 @@ impl FieldDeclaration for LazyFieldDeclaration {
                 appearance: BlockIndex::from(1),
             }));
     }
-    fn offset(&self, iter: static_data::Iter) -> usize {
+    fn offset(&self, iter: dynamic_data::Iter) -> usize {
         unimplemented!();
     }
     fn write_meta(
         &mut self,
         writer: &mut FileWriter,
-        iter: static_data::Iter,
+        iter: dynamic_data::Iter,
         offset: usize,
     ) -> Result<usize, SkillFail> {
         writer.write_v64(self.index as i64)?;
@@ -92,7 +92,7 @@ impl FieldDeclaration for LazyFieldDeclaration {
     fn write_data(
         &self,
         writer: &mut FileWriter,
-        iter: static_data::Iter,
+        iter: dynamic_data::Iter,
     ) -> Result<(), SkillFail> {
         unimplemented!();
     }

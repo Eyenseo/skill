@@ -5,7 +5,7 @@ use common::internal::{
 use common::io::{
     Block, BlockIndex, FieldChunk, FieldDeclaration, FieldType, FileReader, FileWriter,
 };
-use common::iterator::static_data;
+use common::iterator::dynamic_data;
 use common::Ptr;
 use common::SkillString;
 use common::StringBlock;
@@ -131,6 +131,7 @@ impl InstancePool for UndefinedPool {
             self.base_pool = pool.borrow().get_base(); // TODO check?
         }
         self.instances = self.base_pool.as_ref().unwrap().borrow().get_base_vec();
+        self.type_hierarchy_height = pool.borrow().type_hierarchy_height() + 1;
         self.super_pool = Some(pool);
     }
     fn get_super(&self) -> Option<Rc<RefCell<InstancePool>>> {
@@ -348,13 +349,13 @@ impl InstancePool for UndefinedPool {
         self.deleted_count
     }
 
-    fn set_next_pool(&mut self, pool: Rc<RefCell<InstancePool>>) {
+    fn set_next_pool(&mut self, pool: Option<Rc<RefCell<InstancePool>>>) {
         if self.sub_pools.len() > 0 {
             self.next_pool = Some(self.sub_pools.first().unwrap().clone());
             for i in 0..self.sub_pools.len() - 1 {
                 self.sub_pools[i]
                     .borrow_mut()
-                    .set_next_pool(self.sub_pools[i + 1].clone());
+                    .set_next_pool(Some(self.sub_pools[i + 1].clone()));
             }
             self.sub_pools
                 .last()
@@ -362,7 +363,7 @@ impl InstancePool for UndefinedPool {
                 .borrow_mut()
                 .set_next_pool(pool);
         } else {
-            self.next_pool = Some(pool);
+            self.next_pool = pool;
         }
     }
     fn get_next_pool(&self) -> Option<Rc<RefCell<InstancePool>>> {
@@ -395,7 +396,7 @@ impl InstancePool for UndefinedPool {
         // FIXME restrictions
         writer.write_v64(0)?;
         if let Some(s) = self.get_super() {
-            writer.write_v64((s.borrow().get_type_id() - 32) as i64)?; // TODO +1?
+            writer.write_v64((s.borrow().get_type_id() - 31) as i64)?;
             if self.get_local_dynamic_count() != 0 {
                 writer.write_v64(local_bpos[self.get_type_id() - 32] as i64)?;
             }
@@ -409,7 +410,7 @@ impl InstancePool for UndefinedPool {
     fn write_field_meta(
         &self,
         writer: &mut FileWriter,
-        iter: static_data::Iter,
+        iter: dynamic_data::Iter,
         mut offset: usize,
     ) -> Result<usize, SkillFail> {
         info!(
@@ -426,7 +427,7 @@ impl InstancePool for UndefinedPool {
     fn write_field_data(
         &self,
         writer: &mut FileWriter,
-        iter: static_data::Iter,
+        iter: dynamic_data::Iter,
     ) -> Result<(), SkillFail> {
         info!(
             target: "SkillWriting",

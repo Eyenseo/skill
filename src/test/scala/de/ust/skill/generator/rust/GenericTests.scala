@@ -149,14 +149,15 @@ class GenericTests extends common.GenericTests {
                    §
                    §#[cfg(test)]
                    §#[allow(non_snake_case)]
-                   §#[allow(unused_must_use)]
                    §#[allow(unused_imports)]
                    §#[allow(unused_variables)]
                    §mod tests {
                    §    extern crate env_logger;
                    §    extern crate failure;
                    §
+                   §    use $pkgEsc::common::error::*;
                    §    use $pkgEsc::skill_file::SkillFile;
+                   §
                    §    use self::failure::Fail;""".stripMargin('§')
               )
     rval
@@ -188,7 +189,10 @@ class GenericTests extends common.GenericTests {
        §        let _logger = env_logger::try_init();
        §
        §        match SkillFile::open("../../../$escFilePath") {
-       §            Ok(sf) => match sf.check() {
+       §            Ok(sf) => match || -> Result<(), SkillFail> {
+       §                sf.check()?;
+       §                Ok(())
+       §            }() {
        §                Ok(_) => (),
        §                Err(e) => if let Some(bt) = e.backtrace() {
        §                    panic!("{}\n{}", e, bt)
