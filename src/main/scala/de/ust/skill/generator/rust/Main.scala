@@ -70,11 +70,15 @@ final class Main extends FakeMain
     case t: VariableLengthArrayType ⇒ s"Vec<${mapType(t.getBaseType)}>"
     case t: ListType                ⇒ s"LinkedList<${mapType(t.getBaseType)}>"
     case t: SetType                 ⇒ s"HashSet<${mapType(t.getBaseType)}>"
-    case t: MapType                 ⇒ t.getBaseTypes.asScala.map(mapType).reduceRight((k, v) ⇒ s"HashMap<$k, $v>")
+    case t: MapType                 ⇒ mapMapTypes(t.getBaseTypes.asScala.toList)
 
     case t: UserType ⇒ s"Option<Ptr<${traitName(t)}>>"
 
     case _ ⇒ throw new GeneratorException(s"Unknown type $t")
+  }
+
+  def mapMapTypes(tts: List[Type]): String = {
+    tts.map(mapType).reduceRight((k, v) ⇒ s"HashMap<$k, $v>")
   }
 
   override def makeHeader(headerInfo: HeaderInfo): String = headerInfo

@@ -36,28 +36,28 @@ class APITests extends common.GenericAPITests {
   val skipGeneration = Array(
                               // "age",
                               // "annotation",
+                              // "basicTypes",
                               // "constants", // TODO -  is this really successful?
                               // "container",
                               // "custom", // TODO -  is this really successful?
                               // "empty",
                               // "floats",
+                              // "graph",
+                              // "hintsAll", // TODO -  is this really successful?
                               // "map3",
                               // "number",
                               // "subtypes",
                               // "unicode",
                               // "user",
+                              // "unknown", // NOTE in this test there happens nothing "unknown"
 
-                              "auto", // FIXME broken generation
-                              "basicTypes", // FIXME broken generation
-                              "enums", // FIXME broken generation
+                              "auto", // FIXME bad test code - tests have to be adjusted for auto fields
+                              "enums", // FIXME test fail
                               "escaping", // FIXME broken generation
                               "fancy", // FIXME broken generation
-                              "graph", // FIXME broken generation
                               "graphInterface", // FIXME broken generation
-                              "hintsAll", // FIXME runtime
                               "restrictionsAll", // FIXME broken generation
                               "restrictionsCore", // FIXME broken generation
-                              "unknown", // FIXME broken generation
                               "",
                             )
 
@@ -142,6 +142,7 @@ class APITests extends common.GenericAPITests {
                    §    extern crate env_logger;
                    §    extern crate failure;
                    §
+                   §    use $pkgEsc::common::*;
                    §    use $pkgEsc::common::error::*;
                    §    use $pkgEsc::common::internal::SkillObject;
                    §    use $pkgEsc::skill_file::SkillFile;
@@ -152,6 +153,7 @@ class APITests extends common.GenericAPITests {
                    §    use std::collections::HashSet;
                    §    use std::collections::HashMap;
                    §    use std::collections::LinkedList;
+                   §    use std::rc::Rc;
                    §""".stripMargin('§').trim
               )
     rval
@@ -274,6 +276,7 @@ class APITests extends common.GenericAPITests {
   private def value(v: Any, t: Type): String = t match {
     case t: GroundType              ⇒
       t.getSkillName match {
+        case "bool"        ⇒ v.toString
         case "i8"          ⇒ v.toString + " as i8"
         case "u8"          ⇒ v.toString + " as u8"
         case "i16"         ⇒ v.toString + " as i16"
@@ -313,7 +316,7 @@ class APITests extends common.GenericAPITests {
          §}""".stripMargin('§')
     case t: VariableLengthArrayType ⇒
       e"""{
-         §    let mut vec = ${gen.defaultValue(t)};
+         §    let mut vec: ${gen.mapType(t)} = ${gen.defaultValue(t)};
          §    vec.reserve(${v.asInstanceOf[JSONArray].length()});
          §    ${
         (for (x ← v.asInstanceOf[JSONArray].iterator().asScala) yield {
@@ -325,7 +328,7 @@ class APITests extends common.GenericAPITests {
          §}""".stripMargin('§')
     case t: SetType                 ⇒
       e"""{
-         §    let mut set = ${gen.defaultValue(t)};
+         §    let mut set: ${gen.mapType(t)} = ${gen.defaultValue(t)};
          §    set.reserve(${v.asInstanceOf[JSONArray].length()});
          §    ${
         (for (x ← v.asInstanceOf[JSONArray].iterator().asScala) yield {
@@ -338,7 +341,7 @@ class APITests extends common.GenericAPITests {
 
     case t: ListType             ⇒
       e"""{
-         §    let mut list = ${gen.defaultValue(t)};
+         §    let mut list: ${gen.mapType(t)} = ${gen.defaultValue(t)};
          §    ${
         (for (x ← v.asInstanceOf[JSONArray].iterator().asScala) yield {
           e"""list.push_back(${value(x, t.getBaseType)});
@@ -365,7 +368,7 @@ class APITests extends common.GenericAPITests {
 
     if (remainder.size > 1) {
       e"""{
-         §    let mut map = HashMap::default();
+         §    let mut map: ${gen.mapMapTypes(tts)} = HashMap::default();
          §    map.reserve(${v.asInstanceOf[JSONObject].length()});
          §    ${
         val root = v.asInstanceOf[JSONObject]
@@ -378,7 +381,7 @@ class APITests extends common.GenericAPITests {
          §}""".stripMargin('§')
     } else {
       e"""{
-         §    let mut map = HashMap::default();
+         §    let mut map: ${gen.mapMapTypes(tts)} = HashMap::default();
          §    map.reserve(${v.asInstanceOf[JSONObject].length()});
          §    ${
         val root = v.asInstanceOf[JSONObject]

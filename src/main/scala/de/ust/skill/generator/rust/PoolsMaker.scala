@@ -1215,7 +1215,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                §    let tmp = tmp.borrow(); // borrowing madness
                §    offset += match tmp.get_${field(f)}() {
                §        Some(ref val) => {
-               §          bytes_v64(val.borrow().skill_type_id() as i64)
+               §          bytes_v64((val.borrow().skill_type_id() - 31) as i64)
                §              + bytes_v64(val.borrow().get_skill_id() as i64)
                §        },
                §        None => 2,
@@ -1300,8 +1300,10 @@ trait PoolsMaker extends GeneralOutputMaker {
                §""".stripMargin('§')
           case "annotation"  ⇒
             e"""match val {
-               §    Some(ref val) => bytes_v64(val.borrow().get_skill_id() as i64),
-               §    None => 1,
+               §    Some(ref val) =>
+               §          bytes_v64((val.borrow().skill_type_id() - 31) as i64)
+               §              + bytes_v64(val.borrow().get_skill_id() as i64),
+               §    None => 2,
                §}
                §""".stripMargin('§')
           case _             ⇒
@@ -1405,10 +1407,13 @@ trait PoolsMaker extends GeneralOutputMaker {
           case "annotation" ⇒
             e"""match val {
                §    Some(ref val) => {
-               §        writer.write_v64(val.borrow().skill_type_id() as i64)?;
+               §        writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
                §        writer.write_v64(val.borrow().get_skill_id() as i64)?;
                §    },
-               §    None => writer.write_i8(0)?,
+               §    None => {
+               §        writer.write_i8(0)?;
+               §        writer.write_i8(0)?;
+               §    },
                §}
                §""".stripMargin('§')
           case _            ⇒
@@ -1471,8 +1476,14 @@ trait PoolsMaker extends GeneralOutputMaker {
                §""".stripMargin('§')
           case "annotation" ⇒
             e"""match val {
-               §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64)?,
-               §    None => writer.write_i8(0)?,
+               §    Some(ref val) => {
+               §        writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
+               §        writer.write_v64(val.borrow().get_skill_id() as i64)?;
+               §    },
+               §    None => {
+               §        writer.write_i8(0)?;
+               §        writer.write_i8(0)?;
+               §    },
                §}
                §""".stripMargin('§')
           case _            ⇒

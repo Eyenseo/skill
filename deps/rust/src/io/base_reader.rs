@@ -17,7 +17,7 @@ pub(crate) fn read_byte_unchecked(position: &mut usize, mmap: &Mmap) -> u8 {
 // boolean
 pub fn read_bool(position: &mut usize, end: usize, mmap: &Mmap) -> Result<bool, SkillFail> {
     if *position < end {
-        let val = read_byte_unchecked(position, mmap) == 0;
+        let val = read_byte_unchecked(position, mmap) != 0;
         trace!(
             target: "SkillBaseTypeReading",
             "#R# Bool:|{:?}| position:{:?} end:{:?} mmap:{:?}",
