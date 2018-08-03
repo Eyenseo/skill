@@ -430,6 +430,13 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        self.deleted_count += 1;
        §        Ok(())
        §    }
+       §
+       §    /// This will delete an instance without checking if somewhere in the state another instance uses this one
+       §    pub fn delete_force(&mut self, ${field(base)}: Ptr<${name(base)}>) -> Result<(), SkillFail> {
+       §        ${field(base)}.borrow().mark_for_pruning();
+       §        self.deleted_count += 1;
+       §        Ok(())
+       §    }
        §}""".stripMargin('§')
   }
 
@@ -1214,9 +1221,11 @@ trait PoolsMaker extends GeneralOutputMaker {
                §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
                §    let tmp = tmp.borrow(); // borrowing madness
                §    offset += match tmp.get_${field(f)}() {
-               §        Some(ref val) => {
-               §          bytes_v64((val.borrow().skill_type_id() - 31) as i64)
-               §              + bytes_v64(val.borrow().get_skill_id() as i64)
+               §        Some(ref val) => if val.borrow().to_prune() {
+               §            2
+               §        } else {
+               §            bytes_v64((val.borrow().skill_type_id() - 31) as i64)
+               §                + bytes_v64(val.borrow().get_skill_id() as i64)
                §        },
                §        None => 2,
                §    };
@@ -1265,7 +1274,11 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
            §    let tmp = tmp.borrow(); // borrowing madness
            §    offset += match tmp.get_${field(f)}() {
-           §        Some(ref val) => bytes_v64(val.borrow().get_skill_id() as i64),
+           §        Some(ref val) => if val.borrow().to_prune() {
+           §            1
+           §        } else {
+           §            bytes_v64(val.borrow().get_skill_id() as i64)
+           §        },
            §        None => 1,
            §    };
            §}
@@ -1300,9 +1313,12 @@ trait PoolsMaker extends GeneralOutputMaker {
                §""".stripMargin('§')
           case "annotation"  ⇒
             e"""match val {
-               §    Some(ref val) =>
-               §          bytes_v64((val.borrow().skill_type_id() - 31) as i64)
-               §              + bytes_v64(val.borrow().get_skill_id() as i64),
+               §    Some(ref val) => if val.borrow().to_prune() {
+               §        2
+               §    } else {
+               §        bytes_v64((val.borrow().skill_type_id() - 31) as i64)
+               §            + bytes_v64(val.borrow().get_skill_id() as i64)
+               §    },
                §    None => 2,
                §}
                §""".stripMargin('§')
@@ -1337,7 +1353,11 @@ trait PoolsMaker extends GeneralOutputMaker {
            §""".stripMargin('§')
       case _: UserType                ⇒
         e"""match val {
-           §    Some(ref val) => bytes_v64(val.borrow().get_skill_id() as i64),
+           §    Some(ref val) => if val.borrow().to_prune() {
+           §        1
+           §    } else {
+           §        bytes_v64(val.borrow().get_skill_id() as i64)
+           §    }
            §    None => 1,
            §}
            §""".stripMargin('§')
@@ -1406,7 +1426,10 @@ trait PoolsMaker extends GeneralOutputMaker {
                §""".stripMargin('§')
           case "annotation" ⇒
             e"""match val {
-               §    Some(ref val) => {
+               §    Some(ref val) => if val.borrow().to_prune() {
+               §        writer.write_i8(0)?;
+               §        writer.write_i8(0)?;
+               §    } else {
                §        writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
                §        writer.write_v64(val.borrow().get_skill_id() as i64)?;
                §    },
@@ -1434,7 +1457,11 @@ trait PoolsMaker extends GeneralOutputMaker {
         genFieldDeclarationImplFieldDeclarationWriteMap(ft.getBaseTypes.asScala.toList)
       case _: UserType                 ⇒
         e"""match val {
-           §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64)?,
+           §    Some(ref val) => if val.borrow().to_prune() {
+           §        writer.write_i8(0)?
+           §    } else {
+           §        writer.write_v64(val.borrow().get_skill_id() as i64)?
+           §    },
            §    None => writer.write_i8(0)?,
            §}
            §""".stripMargin('§')
@@ -1476,7 +1503,10 @@ trait PoolsMaker extends GeneralOutputMaker {
                §""".stripMargin('§')
           case "annotation" ⇒
             e"""match val {
-               §    Some(ref val) => {
+               §    Some(ref val) => if val.borrow().to_prune() {
+               §        writer.write_i8(0)?;
+               §        writer.write_i8(0)?;
+               §    } else {
                §        writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
                §        writer.write_v64(val.borrow().get_skill_id() as i64)?;
                §    },
@@ -1504,7 +1534,11 @@ trait PoolsMaker extends GeneralOutputMaker {
         genFieldDeclarationImplFieldDeclarationWriteMap(ft.getBaseTypes.asScala.toList)
       case _: UserType                 ⇒
         e"""match val {
-           §    Some(ref val) => writer.write_v64(val.borrow().get_skill_id() as i64)?,
+           §    Some(ref val) => if val.borrow().to_prune() {
+           §        writer.write_i8(0)?
+           §    } else {
+           §        writer.write_v64(val.borrow().get_skill_id() as i64)?
+           §    },
            §    None => writer.write_i8(0)?,
            §}
            §""".stripMargin('§')
