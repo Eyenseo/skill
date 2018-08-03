@@ -29,6 +29,7 @@ trait LibMaker extends GeneralOutputMaker {
                   §#![allow(unused_mut)]
                   §#![allow(dead_code)]
                   §
+                  §#![feature(nll)]
                   §#![feature(coerce_unsized)]
                   §#![feature(unsize)]
                   §#![feature(box_into_raw_non_null)]

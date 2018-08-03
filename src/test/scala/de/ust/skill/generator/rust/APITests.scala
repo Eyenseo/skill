@@ -131,6 +131,7 @@ class APITests extends common.GenericAPITests {
     val rval = new PrintWriter(new BufferedWriter(new OutputStreamWriter(new FileOutputStream(f), "UTF-8")))
     rval.write(
                 e"""#![feature(test)]
+                   §#![feature(nll)]
                    §
                    §extern crate $pkgEsc;
                    §
@@ -289,6 +290,7 @@ class APITests extends common.GenericAPITests {
         case "f64"         ⇒ v.toString + " as f64"
 
         case "string" if null != v ⇒
+          // NOTE currently NLL doesn't fix this mess
           s"""{
              §    let mut sp = sf.strings.borrow_mut();
              §    let s = sp.add("${v.toString}");
