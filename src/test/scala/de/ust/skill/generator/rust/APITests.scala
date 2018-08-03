@@ -32,6 +32,8 @@ class APITests extends common.GenericAPITests {
                               "polyFail", // NOTE this would fail to compile!
                               "poly_fail_1", // NOTE this would fail to compile!
                               "poly_fail_2", // NOTE this would fail to compile!
+                              "boolean", // NOTE this would fail to compile!
+                              "bool", // NOTE this would fail to compile!
                             )
   val skipGeneration = Array(
                               // "age",
@@ -41,6 +43,7 @@ class APITests extends common.GenericAPITests {
                               // "container",
                               // "custom", // TODO -  is this really successful?
                               // "empty",
+                              // "escaping",
                               // "floats",
                               // "graph",
                               // "hintsAll", // TODO -  is this really successful?
@@ -53,7 +56,6 @@ class APITests extends common.GenericAPITests {
 
                               "auto", // FIXME bad test code - tests have to be adjusted for auto fields
                               "enums", // FIXME test fail
-                              "escaping", // FIXME broken generation
                               "fancy", // FIXME broken generation
                               "graphInterface", // FIXME broken generation
                               "restrictionsAll", // FIXME broken generation
@@ -174,7 +176,7 @@ class APITests extends common.GenericAPITests {
 
   override def makeRegularTest(out: PrintWriter, kind: String, name: String, testName: String, accept: Boolean,
                                IR: TypeContext, root: JSONObject) {
-    if (skipTestCases.contains(testName)) {
+    if (skipTestCases.contains(testName.toLowerCase)) {
       return
     }
 
