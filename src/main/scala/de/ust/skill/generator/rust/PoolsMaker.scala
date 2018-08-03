@@ -57,11 +57,11 @@ trait PoolsMaker extends GeneralOutputMaker {
 
   private final def getUsageUser(base: UserType): String = {
     IR
-      .filterNot(t ⇒ t.equals(base))
-      .toArray
-      .map(t ⇒ s"use ${snakeCase(storagePool(t))}::*;\n")
-      .sorted
-      .mkString
+    .filterNot(t ⇒ t.equals(base))
+    .toArray
+    .map(t ⇒ s"use ${snakeCase(storagePool(t))}::*;\n")
+    .sorted
+    .mkString
   }.trim
 
   private final def getUsageStd(): String = {
@@ -331,14 +331,15 @@ trait PoolsMaker extends GeneralOutputMaker {
        §
        §    pub fn complete(&mut self, file: &SkillFile) {
        §        ${
-      if (base.getFields.size() > 0) {
+      val fields = base.getFields.asScala.filterNot(_.isAuto).toList
+      if (fields.nonEmpty) {
         e"""
-           §        let mut set = HashSet::with_capacity(${base.getFields.size()});
+           §        let mut set = HashSet::with_capacity(${fields.size});
            §        let mut string_pool = self.string_block.borrow_mut();
            §        {
            §            let lit = string_pool.lit();
            §            ${
-          (for (field ← base.getFields.asScala) yield {
+          (for (field ← fields) yield {
             e"""set.insert(lit.${name(field)});
                §""".stripMargin('§')
           }).mkString.trim()
@@ -350,7 +351,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §        }
            §
            §        ${
-          (for (ft ← base.getFields.asScala) yield {
+          (for (ft ← fields) yield {
             e"""if set.contains(string_pool.lit().${name(ft)}) {
                §    let index = self.fields.len() + 1;
                §    let name = string_pool.lit().${name(ft)};${
@@ -806,7 +807,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    chunk: FieldChunk,
        §) -> Result<(), SkillFail> {
        §    ${
-      (for (f ← base.getFields.asScala) yield {
+      (for (f ← base.getFields.asScala.filterNot(_.isAuto)) yield {
         genPoolImplInstancePoolAddFieldField(base, f)
       }).mkString.trim
     } {
@@ -947,7 +948,7 @@ trait PoolsMaker extends GeneralOutputMaker {
   private final def genFieldDeclaration(base: UserType): String = {
     val ret = new StringBuilder()
 
-    for (field ← base.getFields.asScala) {
+    for (field ← base.getFields.asScala.filterNot(_.isAuto)) {
       ret.append(
                   e"""//----------------------------------------
                      §// ${base.getName.camel() + field.getName.capital()}FieldDeclaration aka ${

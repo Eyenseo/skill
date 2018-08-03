@@ -38,8 +38,8 @@ class APITests extends common.GenericAPITests {
   val skipGeneration = Array(
                               // "age",
                               // "annotation",
+                              // "auto",
                               // "basicTypes",
-                              // "constants", // TODO -  is this really successful?
                               // "container",
                               // "custom", // TODO -  is this really successful?
                               // "empty",
@@ -56,7 +56,9 @@ class APITests extends common.GenericAPITests {
                               // "user",
                               // "unknown", // NOTE in this test there happens nothing "unknown"
 
-                              "auto", // FIXME bad test code - tests have to be adjusted for auto fields
+                              // FIXME currently a setter is generated that is needed for the reader thus constant fields are not constant
+                              // FIXME the test pass so the generator has to be adjusted
+                              "constants",
                               "enums", // FIXME test fail
                               "restrictionsAll", // FIXME broken generation
                               "restrictionsCore", // FIXME broken generation
@@ -499,6 +501,14 @@ class APITests extends common.GenericAPITests {
             val field = getField(tc, objTypeName, fieldName)
             val getter = "get_" + snakeCase(gen.escaped(field.getName.camel()))
 
+            // In case the field is an auto field we expect the default value
+            def value(v: Any, f: Field): String = {
+              if (f.isAuto) {
+                gen.defaultValue(f.getType)
+              } else {
+                this.value(v, f.getType)
+              }
+            }
 
             def ptrUser(): String = {
               val expected = value(objFieldNames.get(fieldName), field)
