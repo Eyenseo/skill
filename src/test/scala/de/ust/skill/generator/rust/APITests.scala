@@ -44,8 +44,10 @@ class APITests extends common.GenericAPITests {
                               // "custom", // TODO -  is this really successful?
                               // "empty",
                               // "escaping",
+                              // "fancy",
                               // "floats",
                               // "graph",
+                              // "graphInterface",
                               // "hintsAll", // TODO -  is this really successful?
                               // "map3",
                               // "number",
@@ -56,8 +58,6 @@ class APITests extends common.GenericAPITests {
 
                               "auto", // FIXME bad test code - tests have to be adjusted for auto fields
                               "enums", // FIXME test fail
-                              "fancy", // FIXME broken generation
-                              "graphInterface", // FIXME broken generation
                               "restrictionsAll", // FIXME broken generation
                               "restrictionsCore", // FIXME broken generation
                               "",
@@ -148,7 +148,7 @@ class APITests extends common.GenericAPITests {
                    §    use $pkgEsc::common::*;
                    §    use $pkgEsc::common::error::*;
                    §    use $pkgEsc::common::internal::SkillObject;
-                   §    use $pkgEsc::skill_file::SkillFile;
+                   §    use $pkgEsc::skill_file::*;
                    §    use $pkgEsc::*;
                    §
                    §    use self::failure::Fail;
@@ -304,7 +304,8 @@ class APITests extends common.GenericAPITests {
             "None"
           } else {
             // NOTE all objects are read back so these names have to be valid
-            s"Some(${v.toString}.clone())"
+            // NOTE unwrapping is done to trigger a panic in case the cast ist illegal
+            e"Some(${v.toString}.clone().nucast::<SkillObject>().unwrap())"
           }
       }
     case t: ConstantLengthArrayType ⇒
@@ -361,7 +362,8 @@ class APITests extends common.GenericAPITests {
         "None"
       } else {
         // NOTE all objects are read back so these names have to be valid
-        s"Some(${v.toString}.clone())"
+        // NOTE unwrapping is done to trigger a panic in case the cast ist illegal
+        e"Some(${v.toString}.clone().nucast::<${gen.traitName(t)}>().unwrap())"
       }
     case _                       ⇒
       throw new GeneratorException("Unknown Type")
