@@ -6,6 +6,7 @@
 package de.ust.skill.generator.rust
 
 import java.io._
+import java.nio.file.Files
 
 import de.ust.skill.generator.common
 import de.ust.skill.generator.common.IndenterLaw._
@@ -25,6 +26,34 @@ class APITests extends common.GenericAPITests {
   var gen = new Main
 
   var generatedTests = new Array[String](0)
+
+  class ExtraTest(test: File, deps: Array[String]) {
+    def dependencies(): Array[String] = {
+      deps
+    }
+
+    def file(): File = {
+      test
+    }
+  }
+
+  // NOTE cyclic dependencies are not allowed
+  var extraTests = Array(
+                          new ExtraTest(
+                                         new File("deps/rust/tests/undefined_read_write_read.rs"),
+                                         Array(
+                                                "unknown",
+                                              )
+                                       ),
+                          new ExtraTest(
+                                         new File("deps/rust/tests/subtypes_undefined_subtypes.rs"),
+                                         Array(
+                                                "unknown",
+                                                "subtypes",
+                                              )
+                                       ),
+                        )
+
   var skipTestCases  = Array(
                               "restr", // FIXME restrictions are not implemented
                               "fail_long_array", // NOTE this would fail to compile!
@@ -118,12 +147,36 @@ class APITests extends common.GenericAPITests {
 
     generatedTests :+= pkgEsc
 
+    for (
+      test ← extraTests.filter(t ⇒ t.dependencies().toList.head.equals(packagePath))) {
+      val out = new File(s"testsuites/rust/$pkgEsc/tests/${test.file().getName}")
+
+      if (out.exists()) {
+        out.delete()
+      }
+      out.getParentFile.mkdirs()
+
+      if (test.dependencies().forall(d ⇒ !skipGeneration.contains(d))) {
+        Files.copy(test.file().toPath, out.toPath)
+
+        val fw = new FileWriter(s"testsuites/rust/$pkgEsc/Cargo.toml", true)
+        try {
+          for (d ← test.dependencies().filterNot(s ⇒ s.equals(packagePath))) {
+            fw.write(
+                      e"""skill_$d = { path = "../$d" }
+                         §""".stripMargin('§'))
+          }
+        } finally {
+          fw.close()
+        }
+      }
+    }
+
     val f = if (name.toLowerCase.equals("api")) {
       new File(s"testsuites/rust/$pkgEsc/tests/api.rs")
     } else {
       new File(s"testsuites/rust/$pkgEsc/tests/api_${escSnakeCase(name)}.rs")
     }
-
 
     f.getParentFile.mkdirs
     if (f.exists) {

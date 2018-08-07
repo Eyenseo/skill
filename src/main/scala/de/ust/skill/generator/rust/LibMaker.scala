@@ -93,14 +93,15 @@ trait LibMaker extends GeneralOutputMaker {
                   §test = true
                   §doctest = false
                   §
+                  §[dev-dependencies]
+                  §env_logger = "0.5.11"
+                  §
                   §[dependencies]
                   §memmap = "0.6.2"
                   §log = { version = "0.4.3", features = ["max_level_trace", "release_max_level_off"] }
                   §failure = "0.1.2"
                   §failure_derive = "0.1.2"
                   §
-                  §[dev-dependencies]
-                  §env_logger = "0.5.11"
                   §""".stripMargin('§')
              )
     out.close()
