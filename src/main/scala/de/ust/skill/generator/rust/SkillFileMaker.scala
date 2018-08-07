@@ -83,13 +83,15 @@ trait SkillFileMaker extends GeneralOutputMaker {
   private final def genSkillFileStruct(): String = {
     e"""pub struct SkillFile {
        §    file: Rc<RefCell<std::fs::File>>,
-       §    type_pool: TypeBlock,
+       §    pub block_reader: Rc<RefCell<Vec<FileReader>>>,
+       §    pub type_pool: TypeBlock,
        §    pub strings: Rc<RefCell<StringBlock>>,${
       (for (base ← IR) yield {
         e"""
            §pub ${field(base)}: Rc<RefCell<${storagePool(base)}>>,""".stripMargin('§')
       }).mkString
     }
+       §    undefined_pools: Vec<Rc<RefCell<UndefinedPool>>>
        §}""".stripMargin('§')
   }
 
@@ -176,6 +178,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        )?;
        §        let mut sf = SkillFile {
        §            file: Rc::new(RefCell::new(f)),
+       §            block_reader: Rc::new(RefCell::new(data_chunk_reader)),
        §            type_pool,
        §            strings: string_block,${
       (for (base ← IR) yield {
@@ -183,6 +186,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin('§')
       }).mkString
     }
+       §            undefined_pools: file_builder.undefined_pools,
        §        };
        §        sf.complete();
        §        info!(
@@ -222,6 +226,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        )?;
        §        let mut sf = SkillFile {
        §            file: Rc::new(RefCell::new(f)),
+       §            block_reader: Rc::new(RefCell::new(data_chunk_reader)),
        §            type_pool,
        §            strings: string_block,${
       (for (base ← IR) yield {
@@ -229,6 +234,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin('§')
       }).mkString
     }
+       §            undefined_pools: file_builder.undefined_pools,
        §        };
        §        sf.complete();
        §        info!(
@@ -247,10 +253,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        self.type_pool.set_invariant(true);
        §
        §        // Load lazy fields
-       §        // TODO Load lazy fields
-       §        ${
-      "" // TODO Load lazy fields
-    }
+       §        for pool in self.undefined_pools.iter() {
+       §            pool.borrow().deserialize(self)?;
+       §        }
        §
        §        // check
        §        self.check()?;
@@ -469,9 +474,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §                }
        §            }
        §            let pool = Rc::new(RefCell::new(UndefinedPool::new(
-       §                self.string_block.clone(),
        §                type_name.clone(),
-       §                type_id,
+       §                type_id
        §            )));
        §            if let Some(super_pool) = super_pool {
        §                super_pool.borrow_mut().add_sub(pool.clone());

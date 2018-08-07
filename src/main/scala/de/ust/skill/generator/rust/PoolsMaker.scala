@@ -82,17 +82,25 @@ trait PoolsMaker extends GeneralOutputMaker {
     e"""//----------------------------------------
        §// ${base.getName} aka ${name(base)}
        §//----------------------------------------
-       §${genTypeStruct(base)}
+       §${genTypeStruct(base, undefined = false)}
        §
        §${genTypeTrait(base)}
        §
-       §${genTypeImpl(base)}
+       §${genTypeImpl(base, undefined = false)}
+       §
+       §//----------------------------------------
+       §// Undefined sub type for ${base.getName} aka ${undefinedName(base)}
+       §//----------------------------------------
+       §${genTypeStruct(base, undefined = true)}
+       §
+       §${genTypeImpl(base, undefined = true)}
        §""".stripMargin('§')
   }.trim
 
-  private final def genTypeStruct(base: UserType): String = {
+
+  private final def genTypeStruct(base: UserType, undefined: Boolean): String = {
     e"""#[derive(Default, Debug,  PartialEq)]
-       §pub struct ${name(base)} {
+       §pub struct ${if (undefined) undefinedName(base) else name(base)} {
        §    skill_id: Cell<usize>,
        §    skill_type_id: usize,
        §    ${
@@ -100,6 +108,13 @@ trait PoolsMaker extends GeneralOutputMaker {
         e"""${name(f)}: ${mapType(f.getType)},
            §""".stripMargin('§')
       }).mkString.trim
+    }${
+      if (undefined) {
+        e"""
+           §undefined_data: Vec<UndefinedFieldData>,""".stripMargin('§')
+      } else {
+        ""
+      }
     }
        §}""".stripMargin('§')
   }
@@ -176,11 +191,13 @@ trait PoolsMaker extends GeneralOutputMaker {
        §}""".stripMargin('§')
   }
 
-  private final def genTypeImpl(base: UserType): String = {
+  private final def genTypeImpl(base: UserType, undefined: Boolean): String = {
     // gen New
-    e"""impl ${name(base)} {
-       §    pub fn new(skill_id: usize, skill_type_id: usize) -> ${name(base)} {
-       §        ${name(base)} {
+    e"""impl ${if (undefined) undefinedName(base) else name(base)} {
+       §    pub fn new(skill_id: usize, skill_type_id: usize) -> ${
+      if (undefined) undefinedName(base) else name(base)
+    } {
+       §        ${if (undefined) undefinedName(base) else name(base)} {
        §            skill_id: Cell::new(skill_id),
        §            skill_type_id,
        §            ${
@@ -188,12 +205,18 @@ trait PoolsMaker extends GeneralOutputMaker {
         e"""${name(f)}: ${defaultValue(f)},
            §""".stripMargin('§')
       }).mkString.trim
+    }${
+      if (undefined) {
+        "\nundefined_data: Vec::default(),"
+      } else {
+        ""
+      }
     }
        §        }
        §    }
        §}
        §
-       §impl ${traitName(base)} for ${name(base)} {
+       §impl ${traitName(base)} for ${if (undefined) undefinedName(base) else name(base)} {
        §    ${ // Impl base
       (for (f ← base.getFields.asScala) yield {
         e"""${genGetSetImpl(f)}
@@ -208,7 +231,7 @@ trait PoolsMaker extends GeneralOutputMaker {
 
       while (parent != null) {
         ret.append(
-                    e"""${genTypeImplSuper(base, parent)}
+                    e"""${genTypeImplSuper(base, parent, undefined)}
                        §
                        §""".stripMargin('§')
                   )
@@ -220,8 +243,22 @@ trait PoolsMaker extends GeneralOutputMaker {
         ""
       }
     }
-       §
-       §impl SkillObject for ${name(base)} {
+       §${
+      if (undefined) {
+        e"""impl UndefinedObjectT for ${undefinedName(base)} {
+           §    fn undefined_fields(&self) -> &Vec<UndefinedFieldData> {
+           §        &self.undefined_data
+           §    }
+           §    fn undefined_fields_mut(&mut self) -> &mut Vec<UndefinedFieldData> {
+           §        &mut self.undefined_data
+           §    }
+           §}
+           §""".stripMargin('§')
+      } else {
+        ""
+      }
+    }
+       §impl SkillObject for ${if (undefined) undefinedName(base) else name(base)} {
        §    fn skill_type_id(&self) -> usize {
        §        self.skill_type_id
        §    }
@@ -248,8 +285,8 @@ trait PoolsMaker extends GeneralOutputMaker {
   }
 
   private final def genTypeImplSuper(base: UserType,
-                                     parent: UserType): String = {
-    e"""impl ${traitName(parent)} for ${name(base)} {
+                                     parent: UserType, undefined: Boolean): String = {
+    e"""impl ${traitName(parent)} for ${if (undefined) undefinedName(base) else name(base)} {
        §    ${
       (for (f ← parent.getFields.asScala) yield {
         e"""${genGetSetImpl(f)}
@@ -297,6 +334,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    deleted_count: usize,
        §    type_hierarchy_height: usize,
        §    invariant: bool,
+       §    undefined_fields: bool,
        §}""".stripMargin('§')
   }
 
@@ -326,6 +364,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            deleted_count: 0,
        §            type_hierarchy_height: 0,
        §            invariant: false,
+       §            undefined_fields: false,
        §        }
        §    }
        §
@@ -447,18 +486,35 @@ trait PoolsMaker extends GeneralOutputMaker {
        §
        §    fn initialize(
        §        &self,
-       §        file_reader: &Vec<FileReader>,
+       §        block_reader: &Vec<FileReader>,
        §        string_block: &StringBlock,
        §        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
        §    ) -> Result<(), SkillFail> {
        §        for f in self.fields.iter() {
        §            let instances = self.instances.borrow();
        §            f.borrow().read(
-       §                file_reader,
+       §                block_reader,
        §                string_block,
        §                &self.blocks,
        §                type_pools,
        §                &instances
+       §            )?;
+       §        }
+       §        Ok(())
+       §    }
+       §
+       §    fn deserialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail> {
+       §        let block_reader = skill_file.block_reader.borrow();
+       §        let string_pool = skill_file.strings.borrow();
+       §
+       §        for f in self.fields.iter() {
+       §            let instances = self.instances.borrow();
+       §            f.borrow().deserialize(
+       §                &block_reader,
+       §                &string_pool,
+       §                &self.blocks,
+       §                skill_file.type_pool.pools(),
+       §                &instances,
        §            )?;
        §        }
        §        Ok(())
@@ -496,19 +552,37 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            self.get_type_id(),
        §        );
        §
-       §        for block in self.blocks.iter() {
-       §            let begin = block.bpo + 1;
-       §            let end = begin + block.static_count;
-       §            for id in begin..end {
-       §                trace!(
-       §                    target:"SkillParsing",
-       §                    "${name(base)} id:{} block:{:?}",
-       §                    id,
-       §                    block,
-       §                );
+       §        if !self.undefined_fields {
+       §            for block in self.blocks.iter() {
+       §                let begin = block.bpo + 1;
+       §                let end = begin + block.static_count;
+       §                for id in begin..end {
+       §                    trace!(
+       §                        target:"SkillParsing",
+       §                        "${name(base)} id:{} block:{:?}",
+       §                        id,
+       §                        block,
+       §                    );
        §
-       §                self.own_static_instances.push(Ptr::new(${name(base)}::new(id, self.type_id)));
-       §                vec[id - 1] = self.own_static_instances.last().unwrap().clone();
+       §                    self.own_static_instances.push(Ptr::new(${name(base)}::new(id, self.type_id)));
+       §                    vec[id - 1] = self.own_static_instances.last().unwrap().clone();
+       §                }
+       §            }
+       §        } else {
+       §            for block in self.blocks.iter() {
+       §                let begin = block.bpo + 1;
+       §                let end = begin + block.static_count;
+       §                for id in begin..end {
+       §                    trace!(
+       §                        target:"SkillParsing",
+       §                        "${undefinedName(base)} id:{} block:{:?}",
+       §                        id,
+       §                        block,
+       §                    );
+       §
+       §                    self.own_static_instances.push(Ptr::new(${undefinedName(base)}::new(id, self.type_id)));
+       §                    vec[id - 1] = self.own_static_instances.last().unwrap().clone();
+       §                }
        §            }
        §        }
        §    }
@@ -525,16 +599,16 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        self.fields.len()
        §    }
        §
-       §    fn add_chunk_to(&mut self, field_index: usize, chunk: FieldChunk) -> Result<(), SkillFail> {
+       §    fn add_chunk_to(&mut self, field_id: usize, chunk: FieldChunk) -> Result<(), SkillFail> {
        §        for f in &mut self.fields.iter() {
        §            let mut f = f.borrow_mut();
-       §            if f.index() == field_index {
+       §            if f.field_id() == field_id {
        §                f.add_chunk(chunk);
        §                return Ok(());
        §            }
        §        }
        §        Err(SkillFail::internal(InternalFail::UnknownField {
-       §            id: field_index,
+       §            id: field_id,
        §        }))
        §    }
        §
@@ -647,15 +721,15 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        self.cached_count
        §    }
        §    fn set_global_cached_count(&mut self, count: usize) {
-       §         self.cached_count = count;
+       §        self.cached_count = count;
        §    }
        §
-       §    fn make_instance(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
+       §    fn make_undefined(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
        §        trace!(
        §            target:"SkillParsing",
-       §            "Create new ${name(base)}",
+       §            "Create new ${undefinedName(base)}",
        §        );
-       §        Ptr::new(${name(base)}::new(skill_id, skill_type_id))
+       §        Ptr::new(${undefinedName(base)}::new(skill_id, skill_type_id))
        §    }
        §
        §    fn update_after_compress(
@@ -816,6 +890,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        ));
        §        reader.borrow_mut().add_chunk(chunk);
        §        self.fields.push(reader);
+       §        self.undefined_fields = true;
        §    }
        §    Ok(())
        §}""".stripMargin('§')
@@ -971,7 +1046,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                                             field: Field): String = {
     e"""struct ${fieldDeclaration(base, field)} {
        §    name: Rc<SkillString>,
-       §    index: usize, // Index into the pool fields vector
+       §    field_id: usize, // Index into the pool fields vector
        §    field_type: FieldType,
        §    chunks: Vec<FieldChunk>,${
       val userType = collectUserTypes(field.getType)
@@ -992,12 +1067,12 @@ trait PoolsMaker extends GeneralOutputMaker {
       e"""impl ${fieldDeclaration(base, field)} {
          §    fn new(
          §        name: Rc<SkillString>,
-         §        index: usize,
+         §        field_id: usize,
          §        field_type: FieldType,
          §    ) -> ${fieldDeclaration(base, field)} {
          §        ${fieldDeclaration(base, field)} {
          §            name,
-         §            index,
+         §            field_id,
          §            field_type,
          §            chunks: Vec::new(),
          §        }
@@ -1007,13 +1082,13 @@ trait PoolsMaker extends GeneralOutputMaker {
       e"""impl ${fieldDeclaration(base, field)} {
          §    fn new(
          §        name: Rc<SkillString>,
-         §        index: usize,
+         §        field_id: usize,
          §        field_type: FieldType,
          §        object_reader: Vec<Rc<RefCell<InstancePool>>>
          §    ) -> ${fieldDeclaration(base, field)} {
          §        ${fieldDeclaration(base, field)} {
          §            name,
-         §            index,
+         §            field_id,
          §            field_type,
          §            chunks: Vec::new(),
          §            object_reader,
@@ -1028,7 +1103,7 @@ trait PoolsMaker extends GeneralOutputMaker {
     e"""impl FieldDeclaration for ${fieldDeclaration(base, f)} {
        §    fn read(
        §        &self,
-       §        file_reader: &Vec<FileReader>,
+       §        block_reader: &Vec<FileReader>,
        §        string_block: &StringBlock,
        §        blocks: &Vec<Block>,
        §        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
@@ -1042,7 +1117,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                    block_index += chunk.appearance - 1;
        §
        §                    let block = &blocks[block_index.block];
-       §                    let mut reader = file_reader[block.block.block].rel_view(chunk.begin, chunk.end);
+       §                    let mut reader = block_reader[block.block.block].rel_view(chunk.begin, chunk.end);
        §                    block_index += 1;
        §
        §                    if chunk.count > 0 {
@@ -1073,7 +1148,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                },
        §                FieldChunk::Continuation(chunk) => {
        §                    let block = &blocks[block_index.block];
-       §                    let mut reader = file_reader[block.block.block].rel_view(chunk.begin, chunk.end);
+       §                    let mut reader = block_reader[block.block.block].rel_view(chunk.begin, chunk.end);
        §                    block_index += 1;
        §
        §                    if chunk.count > 0 {
@@ -1104,14 +1179,26 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        }
        §        Ok(())
        §    }
+       §
+       §    fn deserialize(
+       §        &self,
+       §        block_reader: &Vec<FileReader>,
+       §        string_block: &StringBlock,
+       §        blocks: &Vec<Block>,
+       §        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
+       §        instances: &[Ptr<SkillObject>],
+       §    ) -> Result<(), SkillFail> {
+       §        Ok(())
+       §    }
+       §
        §    fn add_chunk(&mut self, chunk: FieldChunk) {
        §        self.chunks.push(chunk);
        §    }
        §    fn name(&self) -> &Rc<SkillString> {
        §        &self.name
        §    }
-       §    fn index(&self) -> usize {
-       §        self.index
+       §    fn field_id(&self) -> usize {
+       §        self.field_id
        §    }
        §
        §    fn compress_chunks(&mut self, total_count: usize) {
@@ -1133,7 +1220,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            "~~~~Write Field Meta Data for Field:{}",
        §            self.name.as_ref(),
        §        );
-       §        writer.write_v64(self.index as i64)?;
+       §        writer.write_v64(self.field_id as i64)?;
        §        writer.write_v64(self.name.get_skill_id() as i64)?;
        §        writer.write_field_type(&self.field_type)?;
        §        writer.write_i8(0)?; // TODO write restrictions

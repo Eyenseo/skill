@@ -1,20 +1,179 @@
 use common::error::*;
-use common::internal::{
-    InstancePool, LazyFieldDeclaration, ObjectReader, SkillObject, UndefinedObject,
-};
-use common::io::{
-    Block, BlockIndex, FieldChunk, FieldDeclaration, FieldType, FileReader, FileWriter,
-};
+use common::internal::*;
+use common::io::*;
 use common::iterator::dynamic_data;
-use common::Ptr;
-use common::SkillString;
-use common::StringBlock;
+use common::*;
+use SkillFile;
 
+use std::cell::Cell;
 use std::cell::RefCell;
+use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
+pub enum UndefinedFieldData {
+    Bool(bool),
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
+    F32(f32),
+    F64(f64),
+    String(Rc<SkillString>),
+    Set(HashSet<UndefinedFieldData>),
+    Map(HashMap<UndefinedFieldData, UndefinedFieldData>),
+    Array(Vec<UndefinedFieldData>),
+    User(Option<Ptr<SkillObject>>),
+}
+
+impl PartialEq for UndefinedFieldData {
+    #[inline(always)]
+    fn eq(&self, other: &UndefinedFieldData) -> bool {
+        match &self {
+            UndefinedFieldData::Bool(val) => match other {
+                UndefinedFieldData::Bool(oval) => val == oval,
+                _ => false,
+            },
+            UndefinedFieldData::I8(val) => match other {
+                UndefinedFieldData::I8(oval) => val == oval,
+                _ => false,
+            },
+            UndefinedFieldData::I16(val) => match other {
+                UndefinedFieldData::I16(oval) => val == oval,
+                _ => false,
+            },
+            UndefinedFieldData::I32(val) => match other {
+                UndefinedFieldData::I32(oval) => val == oval,
+                _ => false,
+            },
+            UndefinedFieldData::I64(val) => match other {
+                UndefinedFieldData::I64(oval) => val == oval,
+                _ => false,
+            },
+            UndefinedFieldData::F32(val) => match other {
+                UndefinedFieldData::F32(oval) => *val as u32 == *oval as u32,
+                _ => false,
+            },
+            UndefinedFieldData::F64(val) => match other {
+                UndefinedFieldData::F64(oval) => *val as u64 == *oval as u64,
+                _ => false,
+            },
+            UndefinedFieldData::String(val) => match other {
+                UndefinedFieldData::String(oval) => val == oval,
+                _ => false,
+            },
+            UndefinedFieldData::Set(val) => match other {
+                UndefinedFieldData::Set(oval) => val == oval,
+                _ => false,
+            },
+            UndefinedFieldData::Map(val) => match other {
+                UndefinedFieldData::Map(oval) => val == oval,
+                _ => false,
+            },
+            UndefinedFieldData::Array(val) => match other {
+                UndefinedFieldData::Array(oval) => val == oval,
+                _ => false,
+            },
+            UndefinedFieldData::User(val) => match other {
+                UndefinedFieldData::User(oval) => val == oval,
+                _ => false,
+            },
+        }
+    }
+    #[inline(always)]
+    fn ne(&self, other: &UndefinedFieldData) -> bool {
+        !(self == other)
+    }
+}
+
+impl Eq for UndefinedFieldData {}
+impl Hash for UndefinedFieldData {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match &self {
+            UndefinedFieldData::Bool(val) => val.hash(state),
+            UndefinedFieldData::I8(val) => val.hash(state),
+            UndefinedFieldData::I16(val) => val.hash(state),
+            UndefinedFieldData::I32(val) => val.hash(state),
+            UndefinedFieldData::I64(val) => val.hash(state),
+            UndefinedFieldData::F32(val) => (*val as u32).hash(state),
+            UndefinedFieldData::F64(val) => (*val as u64).hash(state),
+            UndefinedFieldData::String(val) => val.hash(state),
+            UndefinedFieldData::Set(val) => (self as *const UndefinedFieldData).hash(state),
+            UndefinedFieldData::Map(val) => (self as *const UndefinedFieldData).hash(state),
+            UndefinedFieldData::Array(val) => (self as *const UndefinedFieldData).hash(state),
+            UndefinedFieldData::User(val) => val.hash(state),
+        }
+    }
+}
+
+impl fmt::Debug for UndefinedFieldData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Undefinded Data")
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct UndefinedObject {
+    skill_id: Cell<usize>,
+    skill_type_id: usize,
+    undefind_data: Vec<UndefinedFieldData>,
+}
+
+// FIXME *T == Object and * == Type(?)
+pub trait UndefinedObjectT: SkillObject {
+    fn undefined_fields(&self) -> &Vec<UndefinedFieldData>;
+    fn undefined_fields_mut(&mut self) -> &mut Vec<UndefinedFieldData>;
+}
+
+impl UndefinedObject {
+    pub fn new(skill_id: usize, skill_type_id: usize) -> UndefinedObject {
+        UndefinedObject {
+            skill_id: Cell::new(skill_id),
+            skill_type_id,
+            undefind_data: Vec::default(),
+        }
+    }
+}
+
+impl UndefinedObjectT for UndefinedObject {
+    fn undefined_fields(&self) -> &Vec<UndefinedFieldData> {
+        &self.undefind_data
+    }
+    fn undefined_fields_mut(&mut self) -> &mut Vec<UndefinedFieldData> {
+        &mut self.undefind_data
+    }
+}
+
+impl SkillObject for UndefinedObject {
+    fn skill_type_id(&self) -> usize {
+        self.skill_type_id
+    }
+    fn get_skill_id(&self) -> usize {
+        self.skill_id.get()
+    }
+
+    fn set_skill_id(&self, skill_id: usize) -> Result<(), SkillFail> {
+        if skill_id == skill_object::DELETE {
+            return Err(SkillFail::internal(InternalFail::ReservedID {
+                id: skill_id,
+            }));
+        }
+        self.skill_id.set(skill_id);
+        Ok(())
+    }
+
+    fn mark_for_pruning(&self) {
+        self.skill_id.set(skill_object::DELETE);
+    }
+    fn to_prune(&self) -> bool {
+        self.skill_id.get() == skill_object::DELETE
+    }
+}
+
 pub struct UndefinedPool {
-    string_block: Rc<RefCell<StringBlock>>,
     instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
     own_static_instances: Vec<Ptr<SkillObject>>,
     own_new_instances: Vec<Ptr<SkillObject>>,
@@ -35,13 +194,8 @@ pub struct UndefinedPool {
 }
 
 impl UndefinedPool {
-    pub fn new(
-        string_block: Rc<RefCell<StringBlock>>,
-        name: Rc<SkillString>,
-        type_id: usize,
-    ) -> UndefinedPool {
+    pub fn new(name: Rc<SkillString>, type_id: usize) -> UndefinedPool {
         UndefinedPool {
-            string_block,
             instances: Rc::default(),
             own_static_instances: Vec::new(),
             own_new_instances: Vec::new(),
@@ -66,13 +220,13 @@ impl UndefinedPool {
 impl InstancePool for UndefinedPool {
     fn add_field(
         &mut self,
-        index: usize,
+        field_id: usize,
         field_name: Rc<SkillString>,
         field_type: FieldType,
         chunk: FieldChunk,
     ) -> Result<(), SkillFail> {
         let mut reader = Box::new(RefCell::new(LazyFieldDeclaration::new(
-            field_name, index, field_type,
+            field_name, field_id, field_type,
         )));
         reader.borrow_mut().add_chunk(chunk);
         self.fields.push(reader);
@@ -90,16 +244,16 @@ impl InstancePool for UndefinedPool {
     fn field_amount(&self) -> usize {
         self.fields.len()
     }
-    fn add_chunk_to(&mut self, field_index: usize, chunk: FieldChunk) -> Result<(), SkillFail> {
+    fn add_chunk_to(&mut self, field_id: usize, chunk: FieldChunk) -> Result<(), SkillFail> {
         for f in self.fields.iter() {
             let mut f = f.borrow_mut();
-            if f.index() == field_index {
+            if f.field_id() == field_id {
                 f.add_chunk(chunk);
                 return Ok(());
             }
         }
         Err(SkillFail::internal(InternalFail::UnknownField {
-            id: field_index,
+            id: field_id,
         }))
     }
 
@@ -215,17 +369,24 @@ impl InstancePool for UndefinedPool {
 
     fn initialize(
         &self,
-        file_reader: &Vec<FileReader>,
-        string_block: &StringBlock,
-        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
+        _block_reader: &Vec<FileReader>,
+        _string_block: &StringBlock,
+        _type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<(), SkillFail> {
+        // NOTE this is defered until writing - see the deserialize method
+        Ok(())
+    }
+    fn deserialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail> {
+        let block_reader = skill_file.block_reader.borrow();
+        let string_pool = skill_file.strings.borrow();
+
         for f in self.fields.iter() {
             let instances = self.instances.borrow();
-            f.borrow().read(
-                file_reader,
-                string_block,
+            f.borrow().deserialize(
+                &block_reader,
+                &string_pool,
                 &self.blocks,
-                type_pools,
+                skill_file.type_pool.pools(),
                 &instances,
             )?;
         }
@@ -247,8 +408,8 @@ impl InstancePool for UndefinedPool {
                 "Allocate space for:UndefinedPool with:{:?}",
                 tmp,
             );
-            vec.reserve(self.get_global_cached_count()); // FIXME check if dynamic count is the correct one
-                                                         // TODO figure out a better way - set_len doesn't wrk as dtor will be called on garbage data
+            vec.reserve(self.get_global_cached_count());
+            // TODO figure out a better way - set_len doesn't wrk as dtor will be called on garbage data
             for _ in 0..self.get_global_cached_count() {
                 vec.push(tmp.clone());
             }
@@ -275,7 +436,7 @@ impl InstancePool for UndefinedPool {
                         block,
                     );
                     self.own_static_instances
-                        .push(pool.make_instance(id, self.type_id));
+                        .push(pool.make_undefined(id, self.type_id));
                 } else {
                     trace!(
                         target: "SkillParsing",
@@ -283,7 +444,7 @@ impl InstancePool for UndefinedPool {
                         id,
                         block,
                     );
-                    let tmp = self.make_instance(id, self.type_id);
+                    let tmp = self.make_undefined(id, self.type_id);
                     self.own_static_instances.push(tmp);
                 }
                 vec[id - 1] = self.own_static_instances.last().unwrap().clone();
@@ -291,9 +452,9 @@ impl InstancePool for UndefinedPool {
         }
     }
 
-    fn make_instance(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
+    fn make_undefined(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
         if let Some(pool) = self.super_pool.as_ref() {
-            return pool.borrow().make_instance(skill_id, skill_type_id);
+            return pool.borrow().make_undefined(skill_id, skill_type_id);
         }
         trace!(
             target: "SkillParsing",

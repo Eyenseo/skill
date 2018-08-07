@@ -33,6 +33,8 @@ trait PtrMaker extends GeneralOutputMaker {
     ret.append(
                 e"""use common::Ptr;
                    §use common::internal::SkillObject;
+                   §use common::internal::UndefinedObject;
+                   §use common::internal::UndefinedObjectT;
                    §
                    §use std::any::TypeId;
                    §
@@ -44,6 +46,7 @@ trait PtrMaker extends GeneralOutputMaker {
 
       ret.append(
                   e"""use $mod::${name(base)};
+                     §use $mod::${undefinedName(base)};
                      §use $mod::${traitName(base)};
                      §""".stripMargin('§')
                 )
@@ -58,9 +61,32 @@ trait PtrMaker extends GeneralOutputMaker {
     e"""ptr_cast_able!(SkillObject =
        §    ${
       (for (t ← IR) yield {
-        genNucastTraitInner(t)
+        e"""${genNucastTraitInner(t, undefined = false)}
+           §${genNucastTraitInner(t, undefined = true)}
+           §""".stripMargin('§')
       }).mkString.trim
     }
+       §    UndefinedObject: {
+       §        SkillObject,
+       §        UndefinedObjectT,
+       §    },
+       §);
+       §
+       §ptr_cast_able!(UndefinedObject = {
+       §    SkillObject,
+       §    UndefinedObjectT,
+       §});
+       §ptr_cast_able!(UndefinedObjectT =
+       §    ${
+      (for (t ← IR) yield {
+        e"""${genNucastTraitInner(t, undefined = true)}
+           §""".stripMargin('§')
+      }).mkString.trim
+    }
+       §    UndefinedObject: {
+       §        SkillObject,
+       §        UndefinedObjectT,
+       §    },
        §);
        §
        §${
@@ -77,7 +103,7 @@ trait PtrMaker extends GeneralOutputMaker {
     e"""${genNucastStruct(base)}
        §${genNucastTrait(base)}
        §""".stripMargin('§')
-  }
+  }.trim
 
   def genNucastStruct(base: UserType): String = {
     e"""ptr_cast_able!(${name(base)} = {
@@ -89,21 +115,33 @@ trait PtrMaker extends GeneralOutputMaker {
       }).mkString.trim
     }
        §});
-       §""".stripMargin('§').trim
-  }
+       §ptr_cast_able!(${undefinedName(base)} = {
+       §    SkillObject,
+       §    ${
+      (for (sub ← getAllSuperTypes(base)) yield {
+        e"""${traitName(sub)},
+           §""".stripMargin('§')
+      }).mkString.trim
+    }
+       §    UndefinedObjectT,
+       §});
+       §""".stripMargin('§')
+  }.trim
 
   def genNucastTrait(base: UserType): String = {
     e"""ptr_cast_able!(${traitName(base)} =
        §    ${
       (for (t ← (getAllSuperTypes(base) ::: getAllSubTypes(base)).distinct) yield {
-        genNucastTraitInner(t)
+        e"""${genNucastTraitInner(t, undefined = false)}
+           §${genNucastTraitInner(t, undefined = true)}
+           §""".stripMargin('§')
       }).mkString.trim
     }
        §);
-       §""".stripMargin('§').trim
-  }
+       §""".stripMargin('§')
+  }.trim
 
-  def genNucastTraitInner(base: Type): String = {
+  def genNucastTraitInner(base: Type, undefined: Boolean): String = {
     val t = {
       val t = IR.filter(u ⇒ u == base)
       if (t.size != 1) {
@@ -112,15 +150,21 @@ trait PtrMaker extends GeneralOutputMaker {
       t.head
     }
 
-    e"""${name(base)}: {
+    e"""${if (undefined) undefinedName(base) else name(base)}: {
        §    SkillObject,
        §    ${
       (for (base ← getAllSuperTypes(t)) yield {
         e"""${traitName(base)},
            §""".stripMargin('§')
       }).mkString.trim
+    }${
+      if (undefined) {
+        "\nUndefinedObjectT,"
+      } else {
+        ""
+      }
     }
        §},
        §""".stripMargin('§')
-  }
+  }.trim
 }

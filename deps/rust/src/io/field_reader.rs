@@ -102,9 +102,17 @@ pub trait FieldDeclaration {
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
         instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillFail>;
+    fn deserialize(
+        &self,
+        block_reader: &Vec<FileReader>,
+        string_block: &StringBlock,
+        blocks: &Vec<Block>,
+        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
+        instances: &[Ptr<SkillObject>],
+    ) -> Result<(), SkillFail>;
 
     fn name(&self) -> &Rc<SkillString>;
-    fn index(&self) -> usize;
+    fn field_id(&self) -> usize;
 
     fn add_chunk(&mut self, chunk: FieldChunk);
 

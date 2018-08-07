@@ -23,6 +23,10 @@ impl TypeBlock {
         TypeBlock { pools: Vec::new() }
     }
 
+    pub fn pools(&self) -> &Vec<Rc<RefCell<InstancePool>>> {
+        &self.pools
+    }
+
     pub fn read_type_block(
         &mut self,
         block: BlockIndex,

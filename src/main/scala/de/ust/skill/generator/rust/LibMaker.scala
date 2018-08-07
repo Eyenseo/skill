@@ -36,12 +36,10 @@ trait LibMaker extends GeneralOutputMaker {
                   §#![feature(specialization)]
                   §#![feature(core_intrinsics)]
                   §#![feature(extern_prelude)]
-                  §#![feature(slice_index_methods)]
                   §
                   §#[macro_use]
                   §extern crate log;
                   §extern crate memmap;
-                  §
                   §
                   §extern crate failure;
                   §#[macro_use]
@@ -52,6 +50,8 @@ trait LibMaker extends GeneralOutputMaker {
                   §
                   §pub mod skill_file;
                   §pub mod ptr;
+                  §
+                  §pub use self::skill_file::SkillFile;
                   §
                   §${genModuleUsage()}
                   §""".stripMargin('§')
