@@ -88,7 +88,7 @@ class GenericTests extends common.GenericTests {
     import scala.reflect.io.Directory
 
     val pkgEsc = escSnakeCase(out.split("/").map(EscapeFunction.apply).mkString("_"))
-    Directory(new File(s"testsuites/rust/$pkgEsc", out)).deleteRecursively
+    Directory(new File(s"testsuites/rust/$pkgEsc")).deleteRecursively
   }
 
   override def callMainFor(name: String,
