@@ -504,12 +504,17 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    }
        §
        §    fn deserialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail> {
-       §        let block_reader = skill_file.block_reader.borrow();
+       §        info!(
+       §            target:"SkillWriting",
+       §            "~~~Deserialize undefind Data for ${name(base)}",
+       §        );
+       §
+       §        let block_reader =  skill_file.block_reader.borrow();
        §        let string_pool = skill_file.strings.borrow();
        §
        §        for f in self.fields.iter() {
        §            let instances = self.instances.borrow();
-       §            f.borrow().deserialize(
+       §            f.borrow_mut().deserialize(
        §                &block_reader,
        §                &string_pool,
        §                &self.blocks,
@@ -1181,7 +1186,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    }
        §
        §    fn deserialize(
-       §        &self,
+       §        &mut self,
        §        block_reader: &Vec<FileReader>,
        §        string_block: &StringBlock,
        §        blocks: &Vec<Block>,
@@ -1211,7 +1216,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                appearance: BlockIndex::from(1),
        §            }));
        §    }
-       §    fn offset(&self, iter: dynamic_data::Iter) -> usize {
+       §    fn offset(&self, iter: dynamic_data::Iter) -> Result<usize, SkillFail> {
        §        ${genFieldDeclarationImplFieldDeclarationOffset(base, f)}
        §    }
        §    fn write_meta(&mut self, writer: &mut FileWriter, iter: dynamic_data::Iter, offset: usize) -> Result<usize, SkillFail> {
@@ -1224,7 +1229,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        writer.write_v64(self.name.get_skill_id() as i64)?;
        §        writer.write_field_type(&self.field_type)?;
        §        writer.write_i8(0)?; // TODO write restrictions
-       §        let end_offset = offset + self.offset(iter.clone());
+       §        let end_offset = offset + self.offset(iter.clone())?;
        §        info!(
        §            target:"SkillWriting",
        §            "~~~~Field:{} end offset:{}",
@@ -1256,7 +1261,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        );
        §        let mut writer = match self.chunks.first().unwrap() {
        §            FieldChunk::Declaration(ref chunk) => writer.rel_view(chunk.begin, chunk.end)?,
-       §            FieldChunk::Continuation(_) => panic!()
+       §            FieldChunk::Continuation(_) => Err(SkillFail::internal(InternalFail::OnlyOneChunk))?,
        §        };
        §        for i in iter {
        §            let tmp = i.nucast::<${traitName(base)}>().unwrap();
@@ -1274,16 +1279,16 @@ trait PoolsMaker extends GeneralOutputMaker {
       case ft: GroundType              ⇒
         ft.getSkillName match {
           case "bool" | "i8" ⇒
-            e"""iter.count()
+            e"""Ok(iter.count())
                §""".stripMargin('§')
           case "i16"         ⇒
-            e"""2 * iter.count()
+            e"""Ok(2 * iter.count())
                §""".stripMargin('§')
           case "i32" | "f32" ⇒
-            e"""4 * iter.count()
+            e"""Ok(4 * iter.count())
                §""".stripMargin('§')
           case "f64" | "i64" ⇒
-            e"""8 * iter.count()
+            e"""Ok(8 * iter.count())
                §""".stripMargin('§')
           case "v64"         ⇒
             e"""let mut offset = 0;
@@ -1292,7 +1297,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                §    let tmp = tmp.borrow(); // borrowing madness
                §    offset += bytes_v64(tmp.get_${field(f)}() as i64);
                §}
-               §offset
+               §Ok(offset)
                §""".stripMargin('§')
           case "string"      ⇒
             e"""let mut offset = 0;
@@ -1301,7 +1306,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                §    let tmp = tmp.borrow(); // borrowing madness
                §    offset += bytes_v64(tmp.get_${field(f)}().get_skill_id() as i64);
                §}
-               §offset
+               §Ok(offset)
                §""".stripMargin('§')
           case "annotation"  ⇒
             e"""let mut offset = 0;
@@ -1318,7 +1323,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                §        None => 2,
                §    };
                §}
-               §offset
+               §Ok(offset)
                §""".stripMargin('§')
           case _             ⇒
             throw new GeneratorException(s"Unhandled type $ft")
@@ -1332,7 +1337,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §        offset += ${genFieldDeclarationImplFieldDeclarationOffsetInner(ft.getBaseType)};
            §    }
            §}
-           §offset
+           §Ok(offset)
            §""".stripMargin('§')
       case ft: SingleBaseTypeContainer ⇒
         e"""let mut offset = 0;
@@ -1344,7 +1349,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §        offset += ${genFieldDeclarationImplFieldDeclarationOffsetInner(ft.getBaseType)};
            §    }
            §}
-           §offset
+           §Ok(offset)
            §""".stripMargin('§')
       case ft: MapType                 ⇒
         e"""let mut offset = 0;
@@ -1354,7 +1359,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    let val = tmp.get_${field(f)}();
            §    ${genFieldDeclarationImplFieldDeclarationOffsetMap(ft.getBaseTypes.asScala.toList)}
            §}
-           §offset
+           §Ok(offset)
            §""".stripMargin('§')
       case _: UserType                 ⇒
         e"""let mut offset = 0;
@@ -1370,7 +1375,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §        None => 1,
            §    };
            §}
-           §offset
+           §Ok(offset)
            §""".stripMargin('§')
       case ft                          ⇒
         throw new GeneratorException(s"Unknown type $ft")

@@ -105,7 +105,7 @@ mod tests {
         }
 
         let a_id = 1;
-        let c_id = 9; // NOTE Blocks were merged
+        let c_id = 12; // NOTE Blocks were merged
 
         match SkillFile::open(
             "/tmp/api_unknown_accept_read_write_read_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",

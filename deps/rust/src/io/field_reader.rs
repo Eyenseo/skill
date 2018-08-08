@@ -103,7 +103,7 @@ pub trait FieldDeclaration {
         instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillFail>;
     fn deserialize(
-        &self,
+        &mut self,
         block_reader: &Vec<FileReader>,
         string_block: &StringBlock,
         blocks: &Vec<Block>,
@@ -117,7 +117,7 @@ pub trait FieldDeclaration {
     fn add_chunk(&mut self, chunk: FieldChunk);
 
     fn compress_chunks(&mut self, total_count: usize);
-    fn offset(&self, iter: dynamic_data::Iter) -> usize;
+    fn offset(&self, iter: dynamic_data::Iter) -> Result<usize, SkillFail>;
 
     /// This call will also update the offsets of the chunk
     fn write_meta(

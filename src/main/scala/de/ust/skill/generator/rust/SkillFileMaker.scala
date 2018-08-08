@@ -253,7 +253,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        self.type_pool.set_invariant(true);
        §
        §        // Load lazy fields
-       §        for pool in self.undefined_pools.iter() {
+       §        for pool in self.type_pool.pools().iter() {
        §            pool.borrow().deserialize(self)?;
        §        }
        §

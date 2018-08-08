@@ -147,6 +147,19 @@ pub enum InternalFail {
 
     #[fail(display = "Creating a relative view on a buffer is unsupported")]
     ViewOnBuffer,
+
+    #[fail(
+        display = "Inconsistent undefined field indexis found. old:{}, new{}",
+        old,
+        new
+    )]
+    InconsistentUndefinedIndex { old: usize, new: usize },
+
+    #[fail(display = "Wrong type of undefined filed")]
+    WorngUndefinedFieldType,
+
+    #[fail(display = "After a compress there should only be one declaration chunk")]
+    OnlyOneChunk,
 }
 
 #[derive(Fail, Debug)]

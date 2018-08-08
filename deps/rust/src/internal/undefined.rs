@@ -377,12 +377,18 @@ impl InstancePool for UndefinedPool {
         Ok(())
     }
     fn deserialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail> {
+        info!(
+            target:"SkillWriting",
+            "~~~Deserialize undefind Data for UndefinedPool aka {}",
+            self.name.as_str(),
+        );
+
         let block_reader = skill_file.block_reader.borrow();
         let string_pool = skill_file.strings.borrow();
 
         for f in self.fields.iter() {
             let instances = self.instances.borrow();
-            f.borrow().deserialize(
+            f.borrow_mut().deserialize(
                 &block_reader,
                 &string_pool,
                 &self.blocks,
