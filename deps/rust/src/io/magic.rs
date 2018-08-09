@@ -24,6 +24,7 @@ pub enum BuildInType {
     Tarray(Box<FieldType>),
     Tlist(Box<FieldType>),
     Tset(Box<FieldType>),
+    // TODO this should be changed to a vec - the encapulation is not needed
     Tmap(Box<FieldType>, Box<FieldType>),
     // NOTE user types start from >32
 }

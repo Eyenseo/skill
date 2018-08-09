@@ -9,18 +9,7 @@ pub enum InternalFail {
     StringTooShort,
     #[fail(display = "deserialization faild because:{}", why)]
     StringDeserialization { why: String },
-    #[fail(
-        display = "The file '{}' couldn't be opened because:{}.",
-        file,
-        why,
-    )]
-    FailedToOpenFile { file: String, why: String },
-    #[fail(
-        display = "The file '{}' couldn't be created because:{}.",
-        file,
-        why,
-    )]
-    FailedToCreateFile { file: String, why: String },
+
     #[fail(display = "The type '{}' was declared more than once.", name)]
     RedefinitionOfType { name: String },
     #[fail(display = "The type is not implemented.")]
@@ -147,10 +136,35 @@ pub enum InternalFail {
 
     #[fail(display = "Creating a relative view on a buffer is unsupported")]
     ViewOnBuffer,
+
+    #[fail(
+        display = "Inconsistent undefined field indexis found. old:{}, new{}",
+        old,
+        new
+    )]
+    InconsistentUndefinedIndex { old: usize, new: usize },
+
+    #[fail(display = "Wrong type of undefined filed")]
+    WorngUndefinedFieldType,
+
+    #[fail(display = "After a compress there should only be one declaration chunk")]
+    OnlyOneChunk,
 }
 
 #[derive(Fail, Debug)]
 pub enum UserFail {
+    #[fail(
+        display = "The file '{}' couldn't be created because:{}.",
+        file,
+        why,
+    )]
+    FailedToCreateFile { file: String, why: String },
+    #[fail(
+        display = "The file '{}' couldn't be opened because:{}.",
+        file,
+        why,
+    )]
+    FailedToOpenFile { file: String, why: String },
     #[fail(display = "The ID:{} is reserved", id)]
     ReservedID { id: usize },
 

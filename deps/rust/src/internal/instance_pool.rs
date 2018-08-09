@@ -5,6 +5,7 @@ use common::iterator::dynamic_data;
 use common::Ptr;
 use common::SkillString;
 use common::StringBlock;
+use SkillFile;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -16,7 +17,7 @@ pub trait InstancePool {
     fn add_chunk_to(&mut self, name_id: usize, chunk: FieldChunk) -> Result<(), SkillFail>;
     fn add_field(
         &mut self,
-        index: usize,
+        field_id: usize,
         field_name: Rc<SkillString>,
         field_type: FieldType,
         chunk: FieldChunk,
@@ -61,12 +62,13 @@ pub trait InstancePool {
     fn allocate(&mut self);
     fn initialize(
         &self,
-        file_reader: &Vec<FileReader>,
+        block_reader: &Vec<FileReader>,
         string_block: &StringBlock,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<(), SkillFail>;
+    fn deserialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail>;
 
-    fn make_instance(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject>;
+    fn make_undefined(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject>;
 
     fn set_next_pool(&mut self, pool: Option<Rc<RefCell<InstancePool>>>);
     fn get_next_pool(&self) -> Option<Rc<RefCell<InstancePool>>>;
@@ -93,6 +95,7 @@ pub trait InstancePool {
     /// # NOTE named size in C++
     fn dynamic_size(&self) -> usize;
 
+    // TODO add prune method that removes non-held references
     fn deleted(&self) -> usize;
 
     fn update_after_compress(
