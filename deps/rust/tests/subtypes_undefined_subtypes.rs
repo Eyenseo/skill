@@ -11,12 +11,6 @@ mod tests {
     extern crate env_logger;
     extern crate failure;
 
-    use unknown::common::error::*;
-    use unknown::common::internal::SkillObject;
-    use unknown::common::*;
-    use unknown::skill_file::*;
-    use unknown::*;
-
     use self::failure::Fail;
 
     use std::collections::HashMap;

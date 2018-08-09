@@ -117,7 +117,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §            .open(&file)
        §        {
        §            Ok(f) => Ok(f),
-       §            Err(e) => Err(SkillFail::internal(InternalFail::FailedToOpenFile {
+       §            Err(e) => Err(SkillFail::user(UserFail::FailedToOpenFile {
        §                file: file.to_owned(),
        §                why: e.description().to_owned(),
        §            })),
@@ -129,7 +129,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §
        §        let meta = match f.metadata() {
        §            Ok(m) => Ok(m),
-       §            Err(e) => Err(SkillFail::internal(InternalFail::FailedToOpenFile {
+       §            Err(e) => Err(SkillFail::user(UserFail::FailedToOpenFile {
        §                file: file.to_owned(),
        §                why: e.description().to_owned(),
        §            })),
@@ -208,7 +208,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §            .open(&file)
        §        {
        §            Ok(f) => Ok(f),
-       §            Err(e) => Err(SkillFail::internal(InternalFail::FailedToCreateFile {
+       §            Err(e) => Err(SkillFail::user(UserFail::FailedToCreateFile {
        §                file: file.to_owned(),
        §                why: e.description().to_owned(),
        §            })),

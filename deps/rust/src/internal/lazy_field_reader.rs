@@ -25,6 +25,7 @@ impl<'a> Iterator for SingleItemIter<'a> {
     type Item = &'a UndefinedFieldData;
     fn next(&mut self) -> Option<&'a UndefinedFieldData> {
         if let Some(item) = self.item {
+            self.item = None;
             Some(item)
         } else {
             None

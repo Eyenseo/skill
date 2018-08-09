@@ -52,6 +52,13 @@ class APITests extends common.GenericAPITests {
                                                 "subtypes",
                                               )
                                        ),
+                          new ExtraTest(
+                                         new File("deps/rust/tests/basic_types_undefined_basic_types.rs"),
+                                         Array(
+                                                "unknown",
+                                                "basicTypes",
+                                              )
+                                       ),
                         )
 
   var skipTestCases  = Array(
@@ -67,7 +74,7 @@ class APITests extends common.GenericAPITests {
   val skipGeneration = Array(
                               // "age",
                               // "annotation",
-                              // "auto",
+                              // "auto", // FIXME check - has to fail if bin has auto as normal field! -> FieldDeclel check => error
                               // "basicTypes",
                               // "container",
                               // "custom", // TODO -  is this really successful?
@@ -163,7 +170,7 @@ class APITests extends common.GenericAPITests {
         try {
           for (d ← test.dependencies().filterNot(s ⇒ s.equals(packagePath))) {
             fw.write(
-                      e"""skill_$d = { path = "../$d" }
+                      e"""skill_${gen.snakeCase(d)} = { path = "../${gen.snakeCase(d)}" }
                          §""".stripMargin('§'))
           }
         } finally {

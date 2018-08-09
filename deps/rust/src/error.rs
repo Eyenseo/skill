@@ -9,18 +9,7 @@ pub enum InternalFail {
     StringTooShort,
     #[fail(display = "deserialization faild because:{}", why)]
     StringDeserialization { why: String },
-    #[fail(
-        display = "The file '{}' couldn't be opened because:{}.",
-        file,
-        why,
-    )]
-    FailedToOpenFile { file: String, why: String },
-    #[fail(
-        display = "The file '{}' couldn't be created because:{}.",
-        file,
-        why,
-    )]
-    FailedToCreateFile { file: String, why: String },
+
     #[fail(display = "The type '{}' was declared more than once.", name)]
     RedefinitionOfType { name: String },
     #[fail(display = "The type is not implemented.")]
@@ -164,6 +153,18 @@ pub enum InternalFail {
 
 #[derive(Fail, Debug)]
 pub enum UserFail {
+    #[fail(
+        display = "The file '{}' couldn't be created because:{}.",
+        file,
+        why,
+    )]
+    FailedToCreateFile { file: String, why: String },
+    #[fail(
+        display = "The file '{}' couldn't be opened because:{}.",
+        file,
+        why,
+    )]
+    FailedToOpenFile { file: String, why: String },
     #[fail(display = "The ID:{} is reserved", id)]
     ReservedID { id: usize },
 
