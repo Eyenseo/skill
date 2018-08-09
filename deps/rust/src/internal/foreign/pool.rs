@@ -212,7 +212,7 @@ impl InstancePool for Pool {
     fn initialize(
         &self,
         _block_reader: &Vec<FileReader>,
-        _string_block: &StringBlock,
+        _string_pool: &StringBlock,
         _type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<(), SkillFail> {
         // NOTE this is defered until writing - see the deserialize method

@@ -2,7 +2,7 @@ use common::error::*;
 use common::io::base_writer::*;
 use common::io::magic::*;
 use common::Ptr;
-use common::StringBlock;
+use common::internal::StringBlock;
 
 use memmap::MmapMut;
 use memmap::MmapOptions;

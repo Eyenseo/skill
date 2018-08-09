@@ -316,7 +316,7 @@ trait PoolsMaker extends GeneralOutputMaker {
   private final def genPoolStruct(base: UserType): String = {
     e"""#[derive(Default)]
        §pub struct ${storagePool(base)} {
-       §    string_block: Rc<RefCell<StringBlock>>,
+       §    string_pool: Rc<RefCell<StringBlock>>,
        §    instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
        §    own_static_instances: Vec<Ptr<SkillObject>>,
        §    own_new_instances: Vec<Ptr<SkillObject>>,
@@ -341,12 +341,12 @@ trait PoolsMaker extends GeneralOutputMaker {
   private final def genPoolImpl(base: UserType): String = {
     e"""impl ${storagePool(base)} {
        §    pub fn new(
-       §        string_block: Rc<RefCell<StringBlock>>,
+       §        string_pool: Rc<RefCell<StringBlock>>,
        §        name: Rc<SkillString>,
        §        type_id: usize,
        §    ) -> ${storagePool(base)} {
        §        ${storagePool(base)} {
-       §            string_block,
+       §            string_pool,
        §            instances: Rc::default(),
        §            own_static_instances: Vec::new(),
        §            own_new_instances: Vec::new(),
@@ -374,7 +374,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       if (fields.nonEmpty) {
         e"""
            §        let mut set = HashSet::with_capacity(${fields.size});
-           §        let mut string_pool = self.string_block.borrow_mut();
+           §        let mut string_pool = self.string_pool.borrow_mut();
            §        {
            §            let lit = string_pool.lit();
            §            ${
@@ -487,14 +487,14 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    fn initialize(
        §        &self,
        §        block_reader: &Vec<FileReader>,
-       §        string_block: &StringBlock,
+       §        string_pool: &StringBlock,
        §        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
        §    ) -> Result<(), SkillFail> {
        §        for f in self.fields.iter() {
        §            let instances = self.instances.borrow();
        §            f.borrow().read(
        §                block_reader,
-       §                string_block,
+       §                string_pool,
        §                &self.blocks,
        §                type_pools,
        §                &instances
@@ -905,7 +905,7 @@ trait PoolsMaker extends GeneralOutputMaker {
   private final def genPoolImplInstancePoolAddFieldField(base: UserType,
                                                          f: Field): String = {
     val userType = collectUserTypes(f.getType)
-    e"""if self.string_block.borrow().lit().${field(f)} == field_name.as_str() {
+    e"""if self.string_pool.borrow().lit().${field(f)} == field_name.as_str() {
        §    ${
       if (userType.isEmpty) {
         e"""match field_type {
@@ -1109,7 +1109,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    fn read(
        §        &self,
        §        block_reader: &Vec<FileReader>,
-       §        string_block: &StringBlock,
+       §        string_pool: &StringBlock,
        §        blocks: &Vec<Block>,
        §        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
        §        instances: &[Ptr<SkillObject>],
@@ -1188,7 +1188,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    fn deserialize(
        §        &mut self,
        §        block_reader: &Vec<FileReader>,
-       §        string_block: &StringBlock,
+       §        string_pool: &StringBlock,
        §        blocks: &Vec<Block>,
        §        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
        §        instances: &[Ptr<SkillObject>],
@@ -1671,7 +1671,7 @@ trait PoolsMaker extends GeneralOutputMaker {
     base match {
       case t: GroundType
         if t.getName.lower().equals("string")     ⇒
-        e"""string_block.get(reader.read_v64()? as usize)?
+        e"""string_pool.get(reader.read_v64()? as usize)?
            §""".stripMargin('§')
       case t: GroundType
         if t.getName.lower().equals("annotation") ⇒

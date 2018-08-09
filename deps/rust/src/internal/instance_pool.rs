@@ -4,7 +4,7 @@ use common::io::{Block, FieldChunk, FieldDeclaration, FieldType, FileReader, Fil
 use common::iterator::dynamic_data;
 use common::Ptr;
 use common::SkillString;
-use common::StringBlock;
+use common::internal::StringBlock;
 use SkillFile;
 
 use std::cell::RefCell;
@@ -63,7 +63,7 @@ pub trait InstancePool {
     fn initialize(
         &self,
         block_reader: &Vec<FileReader>,
-        string_block: &StringBlock,
+        string_pool: &StringBlock,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<(), SkillFail>;
     fn deserialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail>;

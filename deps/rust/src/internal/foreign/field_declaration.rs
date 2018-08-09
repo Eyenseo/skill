@@ -56,7 +56,7 @@ impl FieldDeclaration {
     fn read_foreign_field(
         field: &FieldType,
         reader: &mut FileReader,
-        string_block: &StringBlock,
+        string_pool: &StringBlock,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<foreign::FieldData, SkillFail> {
         Ok(match field {
@@ -84,7 +84,7 @@ impl FieldDeclaration {
                     }
                 }),
                 BuildInType::Tstring => {
-                    foreign::FieldData::String(string_block.get(reader.read_v64()? as usize)?)
+                    foreign::FieldData::String(string_pool.get(reader.read_v64()? as usize)?)
                 }
                 BuildInType::ConstTarray(length, box_v) => foreign::FieldData::Array({
                     let mut arr = Vec::with_capacity(*length as usize);
@@ -92,7 +92,7 @@ impl FieldDeclaration {
                         arr[i] = FieldDeclaration::read_foreign_field(
                             &*box_v,
                             reader,
-                            string_block,
+                            string_pool,
                             type_pools,
                         )?;
                     }
@@ -105,7 +105,7 @@ impl FieldDeclaration {
                         vec.push(FieldDeclaration::read_foreign_field(
                             &*box_v,
                             reader,
-                            string_block,
+                            string_pool,
                             type_pools,
                         )?);
                     }
@@ -118,7 +118,7 @@ impl FieldDeclaration {
                         vec.push(FieldDeclaration::read_foreign_field(
                             &*box_v,
                             reader,
-                            string_block,
+                            string_pool,
                             type_pools,
                         )?);
                     }
@@ -132,7 +132,7 @@ impl FieldDeclaration {
                         set.insert(FieldDeclaration::read_foreign_field(
                             &*box_v,
                             reader,
-                            string_block,
+                            string_pool,
                             type_pools,
                         )?);
                     }
@@ -147,13 +147,13 @@ impl FieldDeclaration {
                             FieldDeclaration::read_foreign_field(
                                 &*key_box_v,
                                 reader,
-                                string_block,
+                                string_pool,
                                 type_pools,
                             )?,
                             FieldDeclaration::read_foreign_field(
                                 &*box_v,
                                 reader,
-                                string_block,
+                                string_pool,
                                 type_pools,
                             )?,
                         );
@@ -495,7 +495,7 @@ impl io::field_declaration::FieldDeclaration for FieldDeclaration {
     fn read(
         &self,
         block_reader: &Vec<FileReader>,
-        string_block: &StringBlock,
+        string_pool: &StringBlock,
         blocks: &Vec<Block>,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
         instances: &[Ptr<SkillObject>],
@@ -506,7 +506,7 @@ impl io::field_declaration::FieldDeclaration for FieldDeclaration {
     fn deserialize(
         &mut self,
         block_reader: &Vec<FileReader>,
-        string_block: &StringBlock,
+        string_pool: &StringBlock,
         blocks: &Vec<Block>,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
         instances: &[Ptr<SkillObject>],
@@ -561,7 +561,7 @@ impl io::field_declaration::FieldDeclaration for FieldDeclaration {
                                             FieldDeclaration::read_foreign_field(
                                                 &self.field_type,
                                                 &mut reader,
-                                                string_block,
+                                                string_pool,
                                                 type_pools,
                                             )?,
                                         )
@@ -610,7 +610,7 @@ impl io::field_declaration::FieldDeclaration for FieldDeclaration {
                                         FieldDeclaration::read_foreign_field(
                                             &self.field_type,
                                             &mut reader,
-                                            string_block,
+                                            string_pool,
                                             type_pools,
                                         )?,
                                     )

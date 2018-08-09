@@ -8,7 +8,7 @@ use common::io::{
 use common::iterator::*;
 use common::PoolMaker;
 use common::Ptr;
-use common::StringBlock;
+use common::internal::StringBlock;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -28,7 +28,7 @@ impl TypeBlock {
         &self.pools
     }
 
-    pub fn read_type_block(
+    pub fn read_type_pool(
         &mut self,
         block: BlockIndex,
         reader: &mut FileReader,

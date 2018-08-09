@@ -43,8 +43,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
                    §use common::Ptr;
                    §use common::error::*;
                    §use common::SkillString;
-                   §use common::StringBlock;
-                   §use common::TypeBlock;
+                   §use common::internal::StringBlock;
+                   §use common::internal::TypeBlock;
                    §
                    §use memmap::Mmap;
                    §
@@ -123,9 +123,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §                why: e.description().to_owned(),
        §            })),
        §        }?;
-       §        let string_block = Rc::new(RefCell::new(StringBlock::new()));
+       §        let string_pool = Rc::new(RefCell::new(StringBlock::new()));
        §        let mut type_pool = TypeBlock::new();
-       §        let mut file_builder = SkillFileBuilder::new(string_block.clone());
+       §        let mut file_builder = SkillFileBuilder::new(string_pool.clone());
        §        let mut data_chunk_reader = Vec::new();
        §
        §        let meta = match f.metadata() {
@@ -156,12 +156,12 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §                    );
        §
        §                    // TODO implement blocks
-       §                    string_block.borrow_mut().read_string_block(&mut reader)?;
-       §                    type_pool.read_type_block(
+       §                    string_pool.borrow_mut().read_string_pool(&mut reader)?;
+       §                    type_pool.read_type_pool(
        §                        block_index,
        §                        &mut reader,
        §                        &mut file_builder,
-       §                        &string_block,
+       §                        &string_pool,
        §                        &mut data_chunk_reader,
        §                    )?;
        §                    if reader.is_empty() {
@@ -175,13 +175,13 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        file_builder.initialize(
        §            &type_pool,
        §            &data_chunk_reader,
-       §            &string_block.borrow(),
+       §            &string_pool.borrow(),
        §        )?;
        §        let mut sf = SkillFile {
        §            file: Rc::new(RefCell::new(f)),
        §            block_reader: Rc::new(RefCell::new(data_chunk_reader)),
        §            type_pool,
-       §            strings: string_block,${
+       §            strings: string_pool,${
       (for (base ← IR) yield {
         e"""
            §${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin('§')
@@ -214,22 +214,22 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §                why: e.description().to_owned(),
        §            })),
        §        }?;
-       §        let string_block = Rc::new(RefCell::new(StringBlock::new()));
+       §        let string_pool = Rc::new(RefCell::new(StringBlock::new()));
        §        let mut type_pool = TypeBlock::new();
-       §        let mut file_builder = SkillFileBuilder::new(string_block.clone());
+       §        let mut file_builder = SkillFileBuilder::new(string_pool.clone());
        §        let mut data_chunk_reader = Vec::new();
        §
        §        file_builder.allocate(&mut type_pool)?;
        §        file_builder.initialize(
        §            &type_pool,
        §            &data_chunk_reader,
-       §            &string_block.borrow(),
+       §            &string_pool.borrow(),
        §        )?;
        §        let mut sf = SkillFile {
        §            file: Rc::new(RefCell::new(f)),
        §            block_reader: Rc::new(RefCell::new(data_chunk_reader)),
        §            type_pool,
-       §            strings: string_block,${
+       §            strings: string_pool,${
       (for (base ← IR) yield {
         e"""
            §${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin('§')
@@ -323,13 +323,13 @@ trait SkillFileMaker extends GeneralOutputMaker {
       }).mkString.trim
     }
        §    foreign_pools: Vec<Rc<RefCell<foreign::Pool>>>,
-       §    string_block: Rc<RefCell<StringBlock>>,
+       §    string_pool: Rc<RefCell<StringBlock>>,
        §}""".stripMargin('§')
   }
 
   private final def genSkillFileBuilderImpl(): String = {
     e"""impl SkillFileBuilder {
-       §    pub fn new(string_block: Rc<RefCell<StringBlock>>) -> SkillFileBuilder {
+       §    pub fn new(string_pool: Rc<RefCell<StringBlock>>) -> SkillFileBuilder {
        §        SkillFileBuilder {
        §            ${
       (for (base ← IR) yield {
@@ -338,20 +338,20 @@ trait SkillFileMaker extends GeneralOutputMaker {
       }).mkString.trim
     }
        §            foreign_pools: Vec::new(),
-       §            string_block,
+       §            string_pool,
        §        }
        §    }
        §
        §    fn allocate(&mut self, type_pool: &mut TypeBlock) -> Result<(), SkillFail> {
-       §        self.string_block.borrow_mut().finalize()?;
+       §        self.string_pool.borrow_mut().finalize()?;
        §        ${
       (for (base ← IR) yield {
         e"""if self.${field(base)}.is_none() {
-           §    let name = self.string_block.borrow().lit().${field(base)};
-           §    let name = self.string_block.borrow_mut().add(name);
+           §    let name = self.string_pool.borrow().lit().${field(base)};
+           §    let name = self.string_pool.borrow_mut().add(name);
            §    let pool = Rc::new(RefCell::new(
            §        ${storagePool(base)}::new(
-           §            self.string_block.clone(),
+           §            self.string_pool.clone(),
            §            name,
            §            type_pool.len() + 32,
            §        )
@@ -397,9 +397,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        &self,
        §        type_pool: &TypeBlock,
        §        file_reader: &Vec<FileReader>,
-       §        string_block: &StringBlock,
+       §        string_pool: &StringBlock,
        §    ) -> Result<(), SkillFail> {
-       §        type_pool.initialize(string_block, file_reader)?;
+       §        type_pool.initialize(string_pool, file_reader)?;
        §        Ok(())
        §    }
        §}""".stripMargin('§')
@@ -415,11 +415,11 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §    ) -> Result<Rc<RefCell<InstancePool>>, SkillFail> {
        §        ${
       (for (base ← IR) yield {
-        e"""if type_name.as_str() == self.string_block.borrow().lit().${field(base)}  {
+        e"""if type_name.as_str() == self.string_pool.borrow().lit().${field(base)}  {
            §    if self.${field(base)}.is_none() {
            §        self.${field(base)} = Some(Rc::new(RefCell::new(
            §            ${storagePool(base)}::new(
-           §                self.string_block.clone(),
+           §                self.string_pool.clone(),
            §                type_name.clone(),
            §                type_id,
            §            )
@@ -433,15 +433,15 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §            ${
           if (base.getSuperType == null) {
             e"""return Err(SkillFail::internal(InternalFail::UnexpectedSuperType {
-               §    base: self.string_block.borrow().lit().${field(base)},
+               §    base: self.string_pool.borrow().lit().${field(base)},
                §    super_name
                §}));
                §""".stripMargin('§').trim
           } else {
-            e"""if super_name.as_str() != self.string_block.borrow().lit().${field(base.getSuperType)} {
+            e"""if super_name.as_str() != self.string_pool.borrow().lit().${field(base.getSuperType)} {
                §    return Err(SkillFail::internal(InternalFail::WrongSuperType {
-               §        base: self.string_block.borrow().lit().${field(base)},
-               §        expected: self.string_block.borrow().lit().${field(base.getSuperType)},
+               §        base: self.string_pool.borrow().lit().${field(base)},
+               §        expected: self.string_pool.borrow().lit().${field(base.getSuperType)},
                §        found: super_name,
                §    }));
                §} else {
@@ -455,8 +455,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
           if (base.getSuperType != null) {
             e"""else {
                §    return Err(SkillFail::internal(InternalFail::MissingSuperType {
-               §        base: self.string_block.borrow().lit().${field(base)},
-               §        expected: self.string_block.borrow().lit().${field(base.getSuperType)},
+               §        base: self.string_pool.borrow().lit().${field(base)},
+               §        expected: self.string_pool.borrow().lit().${field(base.getSuperType)},
                §    }));
                §}
                §""".stripMargin('§').trim

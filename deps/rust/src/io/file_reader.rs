@@ -3,7 +3,7 @@ use common::internal::InstancePool;
 use common::io::base_reader::*;
 use common::io::magic::*;
 use common::Ptr;
-use common::StringBlock;
+use common::internal::StringBlock;
 
 use memmap::Mmap;
 
