@@ -5,7 +5,7 @@
 \*                                                                            */
 package de.ust.skill.generator.rust
 
-import de.ust.skill.generator.common.Indenter._
+import de.ust.skill.generator.common.IndenterLaw._
 
 trait LibMaker extends GeneralOutputMaker {
 
@@ -24,28 +24,37 @@ trait LibMaker extends GeneralOutputMaker {
 
     out.write(
                e"""// FIXME remove
-                  |#![allow(unused)]
-                  |#![allow(dead_code)]
-                  |
-                  |#![feature(coerce_unsized)]
-                  |#![feature(unsize)]
-                  |#![feature(box_into_raw_non_null)]
-                  |#![feature(specialization)]
-                  |#![feature(core_intrinsics)]
-                  |#![feature(extern_prelude)]
-                  |
-                  |#[macro_use]
-                  |extern crate log;
-                  |extern crate memmap;
-                  |
-                  |#[macro_use]
-                  |pub mod common;
-                  |
-                  |pub mod skill_file;
-                  |pub mod ptr;
-                  |
-                  |${genModuleUsage()}
-                  |""".stripMargin
+                  §#![allow(unused_imports)]
+                  §#![allow(unused_variables)]
+                  §#![allow(unused_mut)]
+                  §#![allow(dead_code)]
+                  §
+                  §#![feature(nll)]
+                  §#![feature(coerce_unsized)]
+                  §#![feature(unsize)]
+                  §#![feature(box_into_raw_non_null)]
+                  §#![feature(specialization)]
+                  §#![feature(core_intrinsics)]
+                  §#![feature(extern_prelude)]
+                  §
+                  §#[macro_use]
+                  §extern crate log;
+                  §extern crate memmap;
+                  §
+                  §extern crate failure;
+                  §#[macro_use]
+                  §extern crate failure_derive;
+                  §
+                  §#[macro_use]
+                  §pub mod common;
+                  §
+                  §pub mod skill_file;
+                  §pub mod ptr;
+                  §
+                  §pub use self::skill_file::SkillFile;
+                  §
+                  §${genModuleUsage()}
+                  §""".stripMargin('§')
              )
 
     out.close()
@@ -60,7 +69,8 @@ trait LibMaker extends GeneralOutputMaker {
 
       ret.append(
                   e"""pub mod $low_base;
-                     |""".stripMargin
+                     §pub use $low_base::*;
+                     §""".stripMargin('§')
                 )
     }
     ret.mkString.trim
@@ -74,22 +84,25 @@ trait LibMaker extends GeneralOutputMaker {
     val out = files.openRaw("Cargo.toml")
     out.write(
                e"""[package]
-                  |name = "skill-${snakeCase(packageName)}-tests"
-                  |version = "0.1.0"
-                  |publish = false
-                  |
-                  |[lib]
-                  |name = "${snakeCase(packageName)}"
-                  |test = true
-                  |doctest = false
-                  |
-                  |[dependencies]
-                  |memmap = "0.6.2"
-                  |log = { version = "0.4", features = ["max_level_trace", "release_max_level_off"] }
-                  |
-                  |[dev-dependencies]
-                  |env_logger = "0.5.10"
-                  |""".stripMargin
+                  §name = "skill_${snakeCase(packageName)}"
+                  §version = "0.1.0"
+                  §publish = false
+                  §
+                  §[lib]
+                  §name = "${snakeCase(packageName)}"
+                  §test = true
+                  §doctest = false
+                  §
+                  §[dev-dependencies]
+                  §env_logger = "0.5.11"
+                  §
+                  §[dependencies]
+                  §memmap = "0.6.2"
+                  §log = { version = "0.4.3", features = ["max_level_trace", "release_max_level_off"] }
+                  §failure = "0.1.2"
+                  §failure_derive = "0.1.2"
+                  §
+                  §""".stripMargin('§')
              )
     out.close()
   }

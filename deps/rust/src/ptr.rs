@@ -381,7 +381,7 @@ macro_rules! ptr_cast_able {
     (@gen_for_trait $self:ident, $id:ident, ($struct:ty : $traits:tt, $($in:tt)*) -> ($($out:tt)*)) => {
         ptr_cast_able!(@gen_for_trait $self, $id, ($($in)*) -> (
             $($out)*
-            if $self.type_id() == ::std::any::TypeId::of::<$struct>() {
+            if $self.ptr_type_id() == ::std::any::TypeId::of::<$struct>() {
                 ptr_cast_able!(@gen_vtable $id, $struct, $traits)
             } else )
         );
@@ -449,18 +449,7 @@ where
         }
     }
 
-    pub fn cast<U: 'static>(&self) -> Ptr<U> {
-        unsafe {
-            let meta = self.meta.as_ref();
-            meta.strong.set(meta.strong.get() + 1);
-            Ptr {
-                meta: self.meta,
-                value: Box::into_raw_non_null(Box::from_raw(self.value.as_ptr() as *mut U)),
-            }
-        }
-    }
-
-    pub fn type_id(&self) -> TypeId {
+    pub fn ptr_type_id(&self) -> TypeId {
         unsafe { self.meta.as_ref().type_id }
     }
 

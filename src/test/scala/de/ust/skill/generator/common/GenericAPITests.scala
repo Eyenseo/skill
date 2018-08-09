@@ -57,47 +57,48 @@ abstract class GenericAPITests extends GenericTests {
     val IR = parse(spec).removeTypedefs().removeEnums()
 
     val out = newTestFile(name, "API")
+    if (out != null) {
+      println(spec.getName)
 
-    println(spec.getName)
+      // create tests
+      for (f ← tests) {
+        println(s"  - ${f.getName}")
 
-    // create tests
-    for (f ← tests) {
-      println(s"  - ${f.getName}")
+        val test = new JSONObject(new JSONTokener(new java.io.FileInputStream(f)))
 
-      val test = new JSONObject(new JSONTokener(new java.io.FileInputStream(f)))
-
-      val skipped = try {
-        test.getJSONArray("skip").iterator().contains(language)
-      } catch {
-        case e : Exception ⇒ false;
-      }
-
-      val accept = try {
-        test.getString("should").toLowerCase match {
-          case "fail" ⇒ false
-          case "skip" ⇒ skipped
-          case _      ⇒ true
+        val skipped = try {
+          test.getJSONArray("skip").iterator().contains(language)
+        } catch {
+          case e : Exception ⇒ false;
         }
-      } catch {
-        case e : Exception ⇒ true;
-      }
 
-      val kind = try {
-        val v = test.getString("kind")
-        if (null == v) "core" else v
-      } catch {
-        case e : Exception ⇒ "core";
-      }
+        val accept = try {
+          test.getString("should").toLowerCase match {
+            case "fail" ⇒ false
+            case "skip" ⇒ skipped
+            case _      ⇒ true
+          }
+        } catch {
+          case e : Exception ⇒ true;
+        }
 
-      val testName = f.getName.replace(".json", "");
+        val kind = try {
+          val v = test.getString("kind")
+          if (null == v) "core" else v
+        } catch {
+          case e : Exception ⇒ "core";
+        }
 
-      if (skipped) {
-        makeSkipTest(out, kind, name, testName, accept);
-      } else {
-        makeRegularTest(out, kind, name, testName, accept, IR, test.getJSONObject("obj"));
+        val testName = f.getName.replace(".json", "");
+
+        if (skipped) {
+          makeSkipTest(out, kind, name, testName, accept);
+        } else {
+          makeRegularTest(out, kind, name, testName, accept, IR, test.getJSONObject("obj"));
+        }
       }
+      closeTestFile(out)
     }
-    closeTestFile(out)
   }
 
   override def finalizeTests {

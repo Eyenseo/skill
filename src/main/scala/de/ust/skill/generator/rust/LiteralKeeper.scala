@@ -5,7 +5,9 @@
 \*                                                                            */
 package de.ust.skill.generator.rust
 
-import de.ust.skill.generator.common.Indenter._
+import de.ust.skill.generator.common.IndenterLaw._
+
+import scala.collection.JavaConverters._
 
 trait LiteralKeeper extends GeneralOutputMaker {
   abstract override def make {
@@ -19,9 +21,9 @@ trait LiteralKeeper extends GeneralOutputMaker {
 
     out.write(
                e"""${genUsage()}
-                  |
-                  |${genLiteralKeeper()}
-                  |""".stripMargin
+                  §
+                  §${genLiteralKeeper()}
+                  §""".stripMargin('§')
              )
 
     out.close()
@@ -31,10 +33,12 @@ trait LiteralKeeper extends GeneralOutputMaker {
   // Usage
   //----------------------------------------
   private final def genUsage(): String = {
-    e"""use std::borrow::Cow;
-       |use std::collections::HashSet;
-       |use std::rc::Rc;
-       |""".stripMargin
+    e"""use common::SkillString;
+       §
+       §use std::borrow::Cow;
+       §use std::collections::HashSet;
+       §use std::rc::Rc;
+       §""".stripMargin('§')
   }.trim
 
   //----------------------------------------
@@ -42,79 +46,96 @@ trait LiteralKeeper extends GeneralOutputMaker {
   //----------------------------------------
   private final def genLiteralKeeper(): String = {
     e"""//----------------------------------------
-       |// LiteralKeeper
-       |//----------------------------------------
-       |${genLiteralKeeperStruct()}
-       |
-       |${genLiteralKeeperImpl()}
-       |
-       |${genLiteralKeeperImplDefault()}
-       |""".stripMargin
+       §// LiteralKeeper
+       §//----------------------------------------
+       §${genLiteralKeeperStruct()}
+       §
+       §${genLiteralKeeperImpl()}
+       §
+       §${genLiteralKeeperImplDefault()}
+       §""".stripMargin('§')
   }.trim
 
   def genLiteralKeeperStruct(): String = {
     e"""#[derive(Debug)]
-       |pub struct LiteralKeeper {
-       |   ${
-      (for (s ← allStrings._1; name = literal_field(s)) yield {
+       §pub struct LiteralKeeper {
+       §   ${
+      (for (s ← allStrings._1; name = getName(s)) yield {
         e"""pub $name: &'static str,
-           |""".mkString
+           §""".stripMargin('§')
       }).mkString
     }${
-      (for (s ← allStrings._2; name = literal_field(s)) yield {
+      (for (s ← allStrings._2; name = getName(s)) yield {
         e"""pub $name: &'static str,
-           |""".mkString
+           §""".stripMargin('§')
       }).mkString.trim
     }
-       |   set: HashSet<Rc<String>>,
-       |}
-       |""".stripMargin
+       §   set: HashSet<Rc<SkillString>>,
+       §}
+       §""".stripMargin('§')
   }.trim
 
   def genLiteralKeeperImpl(): String = {
     e"""impl LiteralKeeper {
-       |    pub fn get(&mut self, lit: &str) -> Option<Rc<String>> {
-       |        self.set.take(&String::from(Cow::Borrowed(lit)))
-       |    }
-       |
-       |    pub fn get_rest(&mut self) -> Vec<Rc<String>> {
-       |        self.set.drain().collect()
-       |    }
-       |}
-       |""".stripMargin
+       §    pub fn get(&mut self, lit: &Rc<SkillString>) -> Option<Rc<SkillString>> {
+       §        self.set.take(lit)
+       §    }
+       §
+       §    pub fn get_rest(&mut self) -> Vec<Rc<SkillString>> {
+       §        self.set.drain().collect()
+       §    }
+       §}
+       §""".stripMargin('§')
   }.trim
 
   def genLiteralKeeperImplDefault(): String = {
     e"""impl Default for LiteralKeeper {
-       |    fn default() -> LiteralKeeper {
-       |        let mut lit = LiteralKeeper {
-       |            ${
-      (for (s ← allStrings._1; name = literal_field(s)) yield {
+       §    fn default() -> LiteralKeeper {
+       §        let mut lit = LiteralKeeper {
+       §            ${
+      (for (s ← allStrings._1; name = getName(s)) yield {
         e"""$name: "$s",
-           |""".mkString
+           §""".stripMargin('§')
       }).mkString
     }${
-      (for (s ← allStrings._2; name = literal_field(s)) yield {
+      (for (s ← allStrings._2; name = getName(s)) yield {
         e"""$name: "$s",
-           |""".mkString
+           §""".stripMargin('§')
       }).mkString.trim
     }
-       |            set: HashSet::with_capacity(${allStrings._1.size + allStrings._2.size}),
-       |        };
-       |        ${
-      (for (s ← allStrings._1; name = literal_field(s)) yield {
-        e"""lit.set.insert(Rc::new(String::from(Cow::Borrowed(lit.$name))));
-           |""".mkString
+       §            set: HashSet::with_capacity(${allStrings._1.size + allStrings._2.size}),
+       §        };
+       §        ${
+      (for (s ← allStrings._1; name = getName(s)) yield {
+        e"""lit.set.insert(Rc::new(SkillString::from(Cow::from(lit.$name))));
+           §""".stripMargin('§')
       }).mkString
     }${
-      (for (s ← allStrings._2; name = literal_field(s)) yield {
-        e"""lit.set.insert(Rc::new(String::from(Cow::Borrowed(lit.$name))));
-           |""".mkString
+      (for (s ← allStrings._2; name = getName(s)) yield {
+        e"""lit.set.insert(Rc::new(SkillString::from(Cow::from(lit.$name))));
+           §""".stripMargin('§')
       }).mkString.trim
     }
-       |        lit
-       |    }
-       |}
-       |""".mkString
+       §        lit
+       §    }
+       §}
+       §""".stripMargin('§')
   }.trim
+
+  private final def getName(name: String): String = {
+    // TODO this shouldn't be needed and the names should be provided not in string from
+
+    IR.find(u ⇒ u.getSkillName.equals(name)) match {
+      case Some(t) ⇒
+        field(t.getName.camel())
+      case None    ⇒
+        IR.flatMap(u ⇒ u.getAllFields.asScala).find(k ⇒ k.getSkillName.equals(name)) match {
+          case Some(f) ⇒
+            field(f.getName.camel())
+          case None    ⇒
+            // If we cant fnd a field with the name it has to be a string literal
+            field(name)
+        }
+    }
+  }
 }

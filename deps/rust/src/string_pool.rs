@@ -1,17 +1,23 @@
-use common::error::SkillError;
+use common::error::*;
 use common::internal::LiteralKeeper;
+use common::internal::SkillObject;
+use common::io::magic::bytes_v64;
 use common::io::FileReader;
+use common::io::FileWriter;
+use common::SkillString;
 
 use std::collections::HashSet;
 use std::rc::Rc;
 
 #[derive(Default, Debug)]
 pub struct StringBlock {
-    pool: Vec<Rc<String>>, // TODO add set to filter dupliates -> Box the string
-    set: HashSet<Rc<String>>,
+    pool: Vec<Rc<SkillString>>,
+    set: HashSet<Rc<SkillString>>,
     literal_keeper: LiteralKeeper,
 }
 
+// TODO improve user interface
+// => split reading to another type
 impl StringBlock {
     pub fn new() -> StringBlock {
         StringBlock {
@@ -34,69 +40,112 @@ impl StringBlock {
         self.reserve(reserve + size);
         self.reserve(reserve + size);
     }
-    fn add_raw(&mut self, s: &str) {
-        if let Some(v) = self.set.get(&String::from(s)) {
-            panic!("String |{}| was already contained in the pool", s);
-        }
-        let v = if let Some(v) = self.literal_keeper.get(s) {
-            v
+    fn add_raw(&mut self, s: &str) -> Result<(), SkillFail> {
+        let ss = Rc::new(SkillString::new(self.pool.len() + 1, s));
+        let ss = if let Some(v) = self.literal_keeper.get(&ss) {
+            v.set_skill_id(self.pool.len() + 1)?;
+            Ok(v)
         } else {
-            Rc::new(String::from(s))
-        };
-        self.pool.push(v.clone());
-        self.set.insert(v);
+            if let Some(_) = self.set.get(&ss) {
+                return Err(SkillFail::internal(InternalFail::DuplicatedString {
+                    string: s.to_owned(),
+                }));
+            }
+            Ok(ss)
+        }?;
+
+        self.pool.push(ss.clone());
+        self.set.insert(ss);
+        Ok(())
     }
-    pub fn add(&mut self, s: &str) -> Rc<String> {
-        if let Some(v) = self.set.get(&String::from(s)) {
+    pub fn add(&mut self, s: &str) -> Rc<SkillString> {
+        // this is bad ...
+        let v = Rc::new(SkillString::new(self.pool.len() + 1, s));
+        if let Some(v) = self.set.get(&v) {
             return v.clone();
         }
-        let v = Rc::new(String::from(s));
         self.pool.push(v.clone());
         self.set.insert(v.clone());
         v
     }
-    // TODO replace with Rc -- beter suited for the job
-    pub fn get(&self, i: usize) -> Rc<String> {
+    pub fn get(&self, i: usize) -> Result<Rc<SkillString>, SkillFail> {
         if i == 0 {
-            panic!("StringBlock index starts at 1 not 0");
+            return Err(SkillFail::user(UserFail::ReservedID { id: 0 }));
         }
-        self.pool[i - 1].clone()
+        Ok(self.pool[i - 1].clone())
     }
 
-    pub fn read_string_block(&mut self, reader: &mut FileReader) -> Result<(), SkillError> {
-        info!(target:"SkillParsing", "~Block Start~");
+    pub fn read_string_block(&mut self, reader: &mut FileReader) -> Result<(), SkillFail> {
+        info!(target: "SkillParsing", "~Block Start~");
         let string_amount = reader.read_v64()? as usize; // amount
-        info!(target:"SkillParsing", "~Amount: {}", string_amount);
+        info!(target: "SkillParsing", "~Amount: {}", string_amount);
         let mut lengths = Vec::new();
         lengths.reserve(string_amount);
         self.extend(string_amount);
 
         let mut pre_offset = 0;
-        info!(target:"SkillParsing","~Length block");
+        info!(target: "SkillParsing", "~Length block");
         for _ in 0..string_amount {
             // TODO use mmap
             let offset = reader.read_i32()? as u32;
             lengths.push(offset - pre_offset);
             pre_offset = offset;
         }
-        info!(target:"SkillParsing", "~Strings");
+        info!(target: "SkillParsing", "~Strings");
         for length in lengths {
             let s = reader.read_raw_string(length)?;
-            info!(target:"SkillParsing", "~~String: {}", &s);
-            self.add_raw(&s);
+            info!(target: "SkillParsing", "~~String: {}", &s);
+            self.add_raw(&s)?;
         }
-        info!(target:"SkillParsing", "~Block End~");
+        info!(target: "SkillParsing", "~Block End~");
         Ok(())
     }
 
-    pub fn finalize(&mut self) {
+    pub fn finalize(&mut self) -> Result<(), SkillFail> {
+        // TODO this shoudl be done on write?
         for s in self.literal_keeper.get_rest() {
+            s.set_skill_id(self.pool.len() + 1)?;
             self.pool.push(s.clone());
             self.set.insert(s);
         }
+        Ok(())
     }
 
     pub fn lit(&self) -> &LiteralKeeper {
         &self.literal_keeper
+    }
+
+    pub fn write_block(&self, writer: &mut FileWriter) -> Result<(), SkillFail> {
+        // TODO strings should be pruned/compressed when strong_count is 1
+        info!(
+            target: "SkillWriting",
+            "~String Block Start~"
+        );
+
+        let amount = self.pool.len();
+        info!(
+            target: "SkillWriting",
+            "~~Write {} Strings",
+            amount
+        );
+        if amount > 0 {
+            let mut lengths = writer.jump(bytes_v64(amount as i64) + amount * 4)?;
+            lengths.write_v64(amount as i64)?;
+
+            let mut offset: i32 = 0;
+            let mut i = 0;
+            for s in self.pool.iter() {
+                i += 1;
+                offset += s.string().len() as i32;
+                writer.write_raw_string(s.as_str())?;
+                lengths.write_i32(offset)?;
+            }
+            // TODO flush async?
+            lengths.flush()?;
+        } else {
+            // tiny optimization
+            writer.write_i8(0)?;
+        }
+        Ok(())
     }
 }

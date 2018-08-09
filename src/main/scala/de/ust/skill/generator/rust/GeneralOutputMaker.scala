@@ -28,6 +28,8 @@ object GeneralOutputMaker {
     def go(accDone: List[Char], acc: List[Char]): List[Char] = acc match {
       case Nil                                                        =>
         accDone
+      case a :: tail if a == '-'                                      =>
+        go(accDone ++ List('_'), tail)
       case a :: b :: c :: tail if a.isUpper && b.isUpper && c.isLower =>
         go(accDone ++ List(a, '_', b, c), tail)
       case a :: b :: tail if a.isLower && b.isUpper                   =>
@@ -37,6 +39,22 @@ object GeneralOutputMaker {
     }
 
     go(Nil, text.toList).mkString.toLowerCase
+  }
+
+  final def camelCase(text: String): String = {
+    @tailrec
+    def go(accDone: List[Char], acc: List[Char]): List[Char] = acc match {
+      case Nil                                      =>
+        accDone
+      case a :: b :: tail if a == '_' && b.isLetter =>
+        go(accDone ++ List(b.toUpper), tail)
+      case a :: b :: tail if a == '_'               =>
+        go(accDone ++ List(b), tail)
+      case a :: tail                                =>
+        go(accDone :+ a, tail)
+    }
+
+    go(Nil, text.toList).mkString
   }
 }
 
@@ -55,12 +73,12 @@ trait GeneralOutputMaker extends Generator {
     val types = IR.map(_.getSkillName).toSet
     val fields =
       IR.flatMap(_.getFields.asScala)
-      .map(_.getSkillName).toSet ++
+        .map(_.getSkillName).toSet ++
       IR.flatMap(_.getFields.asScala)
-      .flatMap(_.getRestrictions.asScala)
-      .collect { case f: CodingRestriction ⇒ f }
-      .map(_.getValue)
-      .toSet --
+        .flatMap(_.getRestrictions.asScala)
+        .collect { case f: CodingRestriction ⇒ f }
+        .map(_.getValue)
+        .toSet --
       types
 
     (types, fields)
@@ -117,8 +135,8 @@ trait GeneralOutputMaker extends Generator {
 
   protected def storagePool(t: Type): String = escaped(t.getName.capital + "Pool")
 
-  protected def fieldReader(t: Type, f: Field): String = escaped(t.getName.capital + f.getName.capital()) +
-                                                         "FieldReader"
+  protected def fieldDeclaration(t: Type, f: Field): String = escaped(t.getName.capital + f.getName.capital()) +
+                                                              "FieldDeclaration"
 
   protected def readName(t: Type): String = t match {
     case t: GroundType ⇒ t.getName.lower
@@ -132,26 +150,28 @@ trait GeneralOutputMaker extends Generator {
     case _ ⇒ throw new GeneratorException(s"Type '$t' is not supported for reading")
   }
 
-  protected def literal_field(s: String): String = snakeCase(escaped(s).toLowerCase)
+  final def field(s: String): String = snakeCase(escaped(s)).toLowerCase
 
-  protected def literal_field(t: Type): String = literal_field(t.getName.camel())
+  final def field(f: Field): String = field(f.getName.camel())
 
-  protected def literal_field(f: Field): String = literal_field(f.getName.camel())
+  final def field(t: Type): String = field(t.getName.camel())
 
-  protected def field(t: Type): String = snakeCase(escaped(t.getName.camel()).toLowerCase)
+  final def traitName(t: Type): String = escaped(t.getName.capital) + "T"
 
-  protected def traitName(t: Type): String = escaped(t.getName.capital) + "T"
+  final def name(t: Type): String = escaped(t.getName.capital)
 
-  protected def name(t: Type): String = escaped(t.getName.capital)
+  final def name(f: Field): String = snakeCase(escaped(f.getName.camel)).toLowerCase
 
-  protected def name(f: Field): String = snakeCase(escaped(f.getName.camel)).toLowerCase
+  final def name(f: LanguageCustomization): String = escaped(f.getName.camel)
 
-  protected def name(f: LanguageCustomization): String = escaped(f.getName.camel)
+  final def undefinedName(t: Type): String = escaped(t.getName.capital) + "Undefined"
 
   // FIXME use this for the fields that clash with the users
-  protected def internalName(f: Field): String = escaped("_" + f.getName.camel())
+  final def internalName(f: Field): String = escaped("_" + f.getName.camel())
 
-  protected final def snakeCase(str: String): String = GeneralOutputMaker.snakeCase(str)
+  final def snakeCase(str: String): String = GeneralOutputMaker.snakeCase(str)
+
+  final def camelCase(str: String): String = GeneralOutputMaker.camelCase(str)
 
   /**
     * @param t Type to get the list of super types for
@@ -160,6 +180,18 @@ trait GeneralOutputMaker extends Generator {
   protected final def getAllSuperTypes(t: UserType): List[Type] = {
     if (t.getSuperType != null) {
       getAllSuperTypes(t.getSuperType) ::: List[UserType](t)
+    } else {
+      List[UserType](t)
+    }
+  }.distinct
+
+  /**
+    * @param t Type to get the list of super types for
+    * @return A list of all super types a given type t has
+    */
+  protected final def getAllSubTypes(t: UserType): List[Type] = {
+    if (t.getSubTypes != null) {
+      return List[UserType](t) ::: t.getSubTypes.asScala.toList.flatMap(t ⇒ getAllSubTypes(t))
     } else {
       List[UserType](t)
     }

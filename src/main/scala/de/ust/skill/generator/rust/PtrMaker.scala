@@ -5,12 +5,8 @@
 \*                                                                            */
 package de.ust.skill.generator.rust
 
-import de.ust.skill.generator.common.Indenter._
-import de.ust.skill.ir
+import de.ust.skill.generator.common.IndenterLaw._
 import de.ust.skill.ir.{Type, UserType}
-
-import scala.collection.JavaConverters._
-
 
 trait PtrMaker extends GeneralOutputMaker {
 
@@ -21,9 +17,9 @@ trait PtrMaker extends GeneralOutputMaker {
 
     out.write(
                e"""${genUsage()}
-                  |
-                  |${genCasts()}
-                  |""".stripMargin
+                  §
+                  §${genCasts()}
+                  §""".stripMargin('§')
              )
     out.close()
   }
@@ -36,11 +32,13 @@ trait PtrMaker extends GeneralOutputMaker {
 
     ret.append(
                 e"""use common::Ptr;
-                   |use common::internal::SkillObject;
-                   |
-                   |use std::any::TypeId;
-                   |
-                   |""".stripMargin
+                   §use common::internal::SkillObject;
+                   §use common::internal::UndefinedObject;
+                   §use common::internal::UndefinedObjectT;
+                   §
+                   §use std::any::TypeId;
+                   §
+                   §""".stripMargin('§')
               )
 
     for (base ← IR) {
@@ -48,8 +46,9 @@ trait PtrMaker extends GeneralOutputMaker {
 
       ret.append(
                   e"""use $mod::${name(base)};
-                     |use $mod::${traitName(base)};
-                     |""".stripMargin
+                     §use $mod::${undefinedName(base)};
+                     §use $mod::${traitName(base)};
+                     §""".stripMargin('§')
                 )
     }
     ret.mkString.trim
@@ -60,55 +59,89 @@ trait PtrMaker extends GeneralOutputMaker {
   //----------------------------------------
   def genCasts(): String = {
     e"""ptr_cast_able!(SkillObject =
-       |    ${
+       §    ${
       (for (t ← IR) yield {
-        genNucastTraitInner(t)
+        e"""${genNucastTraitInner(t, undefined = false)}
+           §${genNucastTraitInner(t, undefined = true)}
+           §""".stripMargin('§')
       }).mkString.trim
     }
-       |);
-       |
-       |${
+       §    UndefinedObject: {
+       §        SkillObject,
+       §        UndefinedObjectT,
+       §    },
+       §);
+       §
+       §ptr_cast_able!(UndefinedObject = {
+       §    SkillObject,
+       §    UndefinedObjectT,
+       §});
+       §ptr_cast_able!(UndefinedObjectT =
+       §    ${
+      (for (t ← IR) yield {
+        e"""${genNucastTraitInner(t, undefined = true)}
+           §""".stripMargin('§')
+      }).mkString.trim
+    }
+       §    UndefinedObject: {
+       §        SkillObject,
+       §        UndefinedObjectT,
+       §    },
+       §);
+       §
+       §${
       (for (base ← IR) yield {
         e"""${genNucast(base)}
-           |
-           |""".stripMargin
-      }
-      ).mkString.trim
+           §
+           §""".stripMargin('§')
+      }).mkString.trim
     }
-       |""".stripMargin.trim
+       §""".stripMargin('§').trim
   }
 
   def genNucast(base: UserType): String = {
     e"""${genNucastStruct(base)}
-       |${genNucastTrait(base)}
-       |""".stripMargin
-  }
+       §${genNucastTrait(base)}
+       §""".stripMargin('§')
+  }.trim
 
   def genNucastStruct(base: UserType): String = {
     e"""ptr_cast_able!(${name(base)} = {
-       |    SkillObject,
-       |    ${
+       §    SkillObject,
+       §    ${
       (for (sub ← getAllSuperTypes(base)) yield {
         e"""${traitName(sub)},
-           |""".stripMargin
+           §""".stripMargin('§')
       }).mkString.trim
     }
-       |});
-       |""".stripMargin.trim
-  }
+       §});
+       §ptr_cast_able!(${undefinedName(base)} = {
+       §    SkillObject,
+       §    ${
+      (for (sub ← getAllSuperTypes(base)) yield {
+        e"""${traitName(sub)},
+           §""".stripMargin('§')
+      }).mkString.trim
+    }
+       §    UndefinedObjectT,
+       §});
+       §""".stripMargin('§')
+  }.trim
 
   def genNucastTrait(base: UserType): String = {
     e"""ptr_cast_able!(${traitName(base)} =
-       |    ${
-      (for (t ← getAllSuperTypes(base) ::: base.getSubTypes.asScala.toList) yield {
-        genNucastTraitInner(t)
+       §    ${
+      (for (t ← (getAllSuperTypes(base) ::: getAllSubTypes(base)).distinct) yield {
+        e"""${genNucastTraitInner(t, undefined = false)}
+           §${genNucastTraitInner(t, undefined = true)}
+           §""".stripMargin('§')
       }).mkString.trim
     }
-       |);
-       |""".stripMargin.trim
-  }
+       §);
+       §""".stripMargin('§')
+  }.trim
 
-  def genNucastTraitInner(base: Type): String = {
+  def genNucastTraitInner(base: Type, undefined: Boolean): String = {
     val t = {
       val t = IR.filter(u ⇒ u == base)
       if (t.size != 1) {
@@ -117,114 +150,21 @@ trait PtrMaker extends GeneralOutputMaker {
       t.head
     }
 
-    e"""${name(base)}: {
-       |    SkillObject,
-       |    ${
+    e"""${if (undefined) undefinedName(base) else name(base)}: {
+       §    SkillObject,
+       §    ${
       (for (base ← getAllSuperTypes(t)) yield {
         e"""${traitName(base)},
-           |""".stripMargin
+           §""".stripMargin('§')
       }).mkString.trim
+    }${
+      if (undefined) {
+        "\nUndefinedObjectT,"
+      } else {
+        ""
+      }
     }
-       |},
-       |""".stripMargin
-  }
-
-  def genToCasts(base: ir.UserType, baseIsStruct: Boolean): String = {
-    val ret = new StringBuilder()
-
-    val low_base = base.getName.lower()
-    val cap_base = base.getName.capital()
-
-    // NOTE Basically useless ...
-    ret.append(
-                e"""pub fn to_${low_base}_t(from: &Ptr<$cap_base>) -> Ptr<${cap_base}T> {
-                   |    from.clone()
-                   |}
-                   |""".stripMargin)
-
-    for (to ← base.getAllSuperTypes.asScala) {
-      val low_to = to.getName.lower()
-      val cap_to = to.getName.capital()
-
-      // NOTE Basically useless ...
-      ret.append(
-                  e"""pub fn to_${low_to}_t(from: &Ptr<$cap_base>) -> Ptr<${cap_to}T> {
-                     |    from.clone()
-                     |}
-                     |""".stripMargin)
-
-
-      ret.append(
-                  e"""pub fn to_${low_to}_t(from: &Ptr<${cap_base}T>) -> Ptr<${cap_to}T> {
-                     |    from.cast::<$cap_to>()
-                     |}
-                     |""".stripMargin)
-
-    }
-
-    ret.mkString.trim
-  }
-
-  def genAsCasts(base: ir.UserType, baseIsStruct: Boolean): String = {
-    val ret = new StringBuilder()
-
-    val low_base = base.getName.lower()
-    val cap_base = base.getName.capital()
-
-    ret.append(
-                e"""pub fn as_$low_base(from: &Ptr<${cap_base}T>) -> Option<Ptr<$cap_base>> {
-                   |    if from.type_id() == TypeId::of::<$cap_base>() {
-                   |        Some(from.cast::<$cap_base>())
-                   |    } else {
-                   |        None
-                   |    }
-                   |}
-                   |""".stripMargin)
-
-
-    for (as ← base.getSubTypes.asScala) {
-      val low_as = as.getName.lower()
-      val cap_as = as.getName.capital()
-
-      ret.append(
-                  e"""pub fn as_${low_as}_t(from: &Ptr<$cap_base>) -> Option<Ptr<${cap_as}T>> {
-                     |    ${
-                    (for (t ← base.getSubTypes.asScala) yield {
-                      e"""if from.type_id() == TypeId::of::<${t.getName.camel()}>() {
-                         |    Some(self.cast::<${t.getName.capital()}>())
-                         |} else """.stripMargin
-                    }).mkString
-                  }{
-                     |        None
-                     |    }
-                     |}
-                     |""".stripMargin)
-
-      ret.append(
-                  e"""pub fn as_${low_as}_t(from: &Ptr<${cap_base}T>) -> Option<Ptr<${cap_as}T>> {
-                     |    ${
-                    (for (t ← base.getSubTypes.asScala) yield {
-                      e"""if from.type_id() == TypeId::of::<${t.getName.camel()}>() {
-                         |    Some(self.cast::<${t.getName.capital()}>())
-                         |} else """.stripMargin
-                    }).mkString
-                  }{
-                     |        None
-                     |    }
-                     |}
-                     |""".stripMargin)
-
-      ret.append(
-                  e"""pub fn as_$low_as(from: &Ptr<${cap_base}T>) -> Option<Ptr<$cap_as>> {
-                     |    if from.type_id() == TypeId::of::<$cap_as>() {
-                     |        Some(self.cast::<$cap_as>())
-                     |    } else {
-                     |        None
-                     |    }
-                     |}
-                     |""".stripMargin)
-    }
-
-    ret.mkString.trim
-  }
+       §},
+       §""".stripMargin('§')
+  }.trim
 }

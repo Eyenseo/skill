@@ -24,6 +24,7 @@ pub enum BuildInType {
     Tarray(Box<FieldType>),
     Tlist(Box<FieldType>),
     Tset(Box<FieldType>),
+    // TODO this should be changed to a vec - the encapulation is not needed
     Tmap(Box<FieldType>, Box<FieldType>),
     // NOTE user types start from >32
 }
@@ -57,14 +58,48 @@ impl fmt::Display for BuildInType {
 
 pub enum FieldType {
     BuildIn(BuildInType),
-    User(Rc<RefCell<InstancePool>>, usize),
+    User(Rc<RefCell<InstancePool>>),
 }
 
+pub fn bytes_v64(what: i64) -> usize {
+    if (what as u64) < 0x80 {
+        1
+    } else if (what as u64) < 0x4000 {
+        2
+    } else if (what as u64) < 0x200000 {
+        3
+    } else if (what as u64) < 0x10000000 {
+        4
+    } else if (what as u64) < 0x800000000 {
+        5
+    } else if (what as u64) < 0x40000000000 {
+        6
+    } else if (what as u64) < 0x2000000000000 {
+        7
+    } else if (what as u64) < 0x100000000000000 {
+        8
+    } else {
+        9
+    }
+}
 impl fmt::Display for FieldType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             FieldType::BuildIn(build_in) => write!(f, "{}", build_in),
-            FieldType::User(pool, user) => write!(f, "User{}", user), // TODO try to get the name for the specific user type?
+            FieldType::User(pool) => match pool.try_borrow() {
+                Ok(pool) => write!(f, "User{}", pool.name().as_str()),
+                Err(_) => {
+                    write!(
+                        f,
+                        "Some UserType - the pool is borrowed \
+                         mutable so there is no more information \
+                         available than its pointer: {:?} Good Luck!",
+                        pool as *const Rc<RefCell<InstancePool>>,
+                        // NOTE use with care! It destroyes all guarantees
+                        // unsafe { (*pool.as_ptr()).name().as_str() }
+                    )
+                }
+            },
         }
     }
 }

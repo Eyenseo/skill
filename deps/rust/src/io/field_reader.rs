@@ -1,8 +1,12 @@
+// TODO rename
+use common::error::*;
 use common::internal::InstancePool;
 use common::internal::SkillObject;
-use common::io::{FileReader, Offset};
+use common::io::FileReader;
+use common::io::FileWriter;
+use common::iterator::dynamic_data;
 use common::Ptr;
-use common::SkillError;
+use common::SkillString;
 use common::StringBlock;
 
 use std::cell::RefCell;
@@ -58,16 +62,16 @@ pub struct Block {
 
 #[derive(Default, Debug, Clone)]
 pub struct DeclarationFieldChunk {
-    pub begin: Offset,
-    pub end: Offset,
+    pub begin: usize,
+    pub end: usize,
     pub count: usize,
     pub appearance: BlockIndex,
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct ContinuationFieldChunk {
-    pub begin: Offset,
-    pub end: Offset,
+    pub begin: usize,
+    pub end: usize,
     pub count: usize,
     pub bpo: usize, // TODO strongly type
 }
@@ -89,7 +93,7 @@ impl From<DeclarationFieldChunk> for FieldChunk {
     }
 }
 
-pub trait FieldReader {
+pub trait FieldDeclaration {
     fn read(
         &self,
         file_reader: &Vec<FileReader>,
@@ -97,7 +101,34 @@ pub trait FieldReader {
         blocks: &Vec<Block>,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
         instances: &[Ptr<SkillObject>],
-    ) -> Result<(), SkillError>;
+    ) -> Result<(), SkillFail>;
+    fn deserialize(
+        &mut self,
+        block_reader: &Vec<FileReader>,
+        string_block: &StringBlock,
+        blocks: &Vec<Block>,
+        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
+        instances: &[Ptr<SkillObject>],
+    ) -> Result<(), SkillFail>;
+
+    fn name(&self) -> &Rc<SkillString>;
+    fn field_id(&self) -> usize;
+
     fn add_chunk(&mut self, chunk: FieldChunk);
-    fn name_id(&self) -> usize;
+
+    fn compress_chunks(&mut self, total_count: usize);
+    fn offset(&self, iter: dynamic_data::Iter) -> Result<usize, SkillFail>;
+
+    /// This call will also update the offsets of the chunk
+    fn write_meta(
+        &mut self,
+        writer: &mut FileWriter,
+        iter: dynamic_data::Iter,
+        offset: usize,
+    ) -> Result<usize, SkillFail>;
+    fn write_data(
+        &self,
+        writer: &mut FileWriter,
+        iter: dynamic_data::Iter,
+    ) -> Result<(), SkillFail>;
 }

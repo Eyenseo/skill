@@ -5,7 +5,7 @@
 \*                                                                            */
 package de.ust.skill.generator.rust
 
-import de.ust.skill.generator.common.Indenter._
+import de.ust.skill.generator.common.IndenterLaw._
 
 trait SkillFileMaker extends GeneralOutputMaker {
   abstract override def make {
@@ -19,11 +19,12 @@ trait SkillFileMaker extends GeneralOutputMaker {
 
     out.write(
                e"""${genUsage()}
-                  |
-                  |${genSkillFile()}
-                  |
-                  |${genSkillFileBuilder()}
-                  |""".stripMargin)
+                  §
+                  §${genSkillFile()}
+                  §
+                  §${genSkillFileBuilder()}
+                  §""".stripMargin('§')
+             )
 
     out.close()
   }
@@ -35,23 +36,22 @@ trait SkillFileMaker extends GeneralOutputMaker {
     val ret = new StringBuilder()
 
     ret.append(
-                e"""use common::internal::InstancePool;
-                   |use common::internal::ObjectReader;
-                   |use common::internal::UndefinedPool;
-                   |use common::io::{FieldReader, BlockIndex, FieldType, FileReader};
-                   |use common::PoolMaker;
-                   |use common::Ptr;
-                   |use common::SkillError;
-                   |use common::SkillFile as SkillFileTrait;
-                   |use common::StringBlock;
-                   |use common::TypeBlock;
-                   |
-                   |use memmap::Mmap;
-                   |
-                   |use std::cell::RefCell;
-                   |use std::rc::Rc;
-                   |
-                   |""".stripMargin
+                e"""use common::internal::{InstancePool, ObjectReader, SkillObject, UndefinedPool};
+                   §use common::io::{FieldDeclaration, BlockIndex, FieldType, FileWriter, FileReader};
+                   §use common::PoolMaker;
+                   §use common::Ptr;
+                   §use common::error::*;
+                   §use common::SkillString;
+                   §use common::StringBlock;
+                   §use common::TypeBlock;
+                   §
+                   §use memmap::Mmap;
+                   §
+                   §use std::cell::RefCell;
+                   §use std::error::Error;
+                   §use std::rc::Rc;
+                   §
+                   §""".stripMargin('§')
               )
 
     for (base ← IR) {
@@ -59,9 +59,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
 
       ret.append(
                   e"""use $mod::${storagePool(base)};
-                     |use $mod::${traitName(base)};
-                     |use $mod::${name(base)};
-                     |""".stripMargin
+                     §use $mod::${traitName(base)};
+                     §use $mod::${name(base)};
+                     §""".stripMargin('§')
                 )
     }
     ret.mkString.trim
@@ -72,96 +72,230 @@ trait SkillFileMaker extends GeneralOutputMaker {
   //----------------------------------------
   private final def genSkillFile(): String = {
     e"""//----------------------------------------
-       |// SkillFile
-       |//----------------------------------------
-       |${genSkillFileStruct()}
-       |
-       |${genSkillFileImplSkillFileTrait()}
-       |""".stripMargin.trim
+       §// SkillFile
+       §//----------------------------------------
+       §${genSkillFileStruct()}
+       §
+       §${genSkillFileImpl()}
+       §""".stripMargin('§').trim
   }
 
   private final def genSkillFileStruct(): String = {
     e"""pub struct SkillFile {
-       |    mmap: Rc<Mmap>,
-       |    string_block: Rc<RefCell<StringBlock>>,
-       |    type_pool: TypeBlock,
-       |    pub file_builder: SkillFileBuilder,
-       |}""".stripMargin
+       §    file: Rc<RefCell<std::fs::File>>,
+       §    pub block_reader: Rc<RefCell<Vec<FileReader>>>,
+       §    pub type_pool: TypeBlock,
+       §    pub strings: Rc<RefCell<StringBlock>>,${
+      (for (base ← IR) yield {
+        e"""
+           §pub ${field(base)}: Rc<RefCell<${storagePool(base)}>>,""".stripMargin('§')
+      }).mkString
+    }
+       §    undefined_pools: Vec<Rc<RefCell<UndefinedPool>>>
+       §}""".stripMargin('§')
   }
 
-  private final def genSkillFileImplSkillFileTrait(): String = {
-    e"""impl SkillFileTrait for SkillFile {
-       |    type T = Self;
-       |
-       |    fn open(file: &str) -> Result<Self, SkillError> {
-       |        let f = ::std::fs::OpenOptions::new()
-       |            .read(true)
-       |            .write(true)
-       |            .open(&file)
-       |            .or(Err(SkillError::NotAFile))?;
-       |
-       |        let string_block = Rc::new(RefCell::new(StringBlock::new())); // FIXME rename / move w/e.
-       |        let mut type_pool = TypeBlock::new(); // FIXME rename / move w/e.
-       |        let mut file_builder = SkillFileBuilder::new(string_block.clone());
-       |        let mut type_pools = Vec::new();
-       |
-       |        let mmap = unsafe { Mmap::map(&f) }.or(Err(SkillError::NotAFile))?;
-       |        let rmmap = Rc::new(mmap);
-       |        let mut data_chunk_reader = Vec::new();
-       |        let mut block_index = BlockIndex::from(0);
-       |        {
-       |            let mut reader = FileReader::from(rmmap.clone());
-       |
-       |            loop {
-       |                info!(
-       |                      target: "SkillParsing", "Block: {:?} Reader:{:?}",
-       |                      block_index,
-       |                      reader
-       |                );
-       |
-       |                // TODO implement blocks
-       |                string_block.borrow_mut().read_string_block(&mut reader)?;
-       |                type_pool.read_type_block(
-       |                    block_index,
-       |                    &mut reader,
-       |                    &mut file_builder,
-       |                    &string_block,
-       |                    &mut type_pools,
-       |                    &mut data_chunk_reader,
-       |                )?;
-       |                if reader.is_empty() {
-       |                    break;
-       |                }
-       |                block_index += 1;
-       |            }
-       |        }
-       |        file_builder.allocate(&mut type_pools);
-       |        file_builder.initialize(
-       |            &type_pools,
-       |            &data_chunk_reader,
-       |            &string_block.borrow(),
-       |
-       |        )?;
-       |        Ok(SkillFile {
-       |            mmap: rmmap,
-       |            string_block,
-       |            type_pool,
-       |            file_builder,
-       |        })
-       |    }
-       |    fn create(_file: &str) -> Result<Self, SkillError> {
-       |        Err(SkillError::UnexpectedEndOfInput)
-       |    }
-       |    fn write(&self) -> Result<(), SkillError> {
-       |        Ok(())
-       |    }
-       |    fn close(&self) -> Result<(), SkillError> {
-       |        Ok(())
-       |    }
-       |    fn check(&self) -> Result<(), SkillError> {
-       |        Ok(())
-       |    }
-       |}""".stripMargin
+  private final def genSkillFileImpl(): String = {
+    e"""impl SkillFile {
+       §    fn complete(&mut self) {
+       §        ${
+      (for (base ← IR) yield {
+        e"""self.${field(base)}.borrow_mut().complete(&self);
+           §""".stripMargin('§')
+      }).mkString.trim
+    }
+       §    }
+       §
+       §    pub fn open(file: &str) -> Result<Self, SkillFail> {
+       §        info!(
+       §            target: "SkillWriting",
+       §            "Start opening"
+       §        );
+       §        let f = match ::std::fs::OpenOptions::new()
+       §            .read(true)
+       §            .write(true)
+       §            .open(&file)
+       §        {
+       §            Ok(f) => Ok(f),
+       §            Err(e) => Err(SkillFail::user(UserFail::FailedToOpenFile {
+       §                file: file.to_owned(),
+       §                why: e.description().to_owned(),
+       §            })),
+       §        }?;
+       §        let string_block = Rc::new(RefCell::new(StringBlock::new()));
+       §        let mut type_pool = TypeBlock::new();
+       §        let mut file_builder = SkillFileBuilder::new(string_block.clone());
+       §        let mut data_chunk_reader = Vec::new();
+       §
+       §        let meta = match f.metadata() {
+       §            Ok(m) => Ok(m),
+       §            Err(e) => Err(SkillFail::user(UserFail::FailedToOpenFile {
+       §                file: file.to_owned(),
+       §                why: e.description().to_owned(),
+       §            })),
+       §        }?;
+       §
+       §        if meta.len() != 0 {
+       §            let mmap = match unsafe { Mmap::map(&f) }{
+       §                Ok(m) => Ok(m),
+       §                Err(e) => Err(SkillFail::internal(InternalFail::FailedToCreateMMap {
+       §                    why: e.description().to_owned(),
+       §                })),
+       §            }?;
+       §            let rmmap = Rc::new(mmap);
+       §            let mut block_index = BlockIndex::from(0);
+       §            {
+       §                let mut reader = FileReader::from(rmmap.clone());
+       §
+       §                loop {
+       §                    info!(
+       §                          target: "SkillParsing", "Block: {:?} Reader:{:?}",
+       §                          block_index,
+       §                          reader
+       §                    );
+       §
+       §                    // TODO implement blocks
+       §                    string_block.borrow_mut().read_string_block(&mut reader)?;
+       §                    type_pool.read_type_block(
+       §                        block_index,
+       §                        &mut reader,
+       §                        &mut file_builder,
+       §                        &string_block,
+       §                        &mut data_chunk_reader,
+       §                    )?;
+       §                    if reader.is_empty() {
+       §                        break;
+       §                    }
+       §                    block_index += 1;
+       §                }
+       §            }
+       §        }
+       §        file_builder.allocate(&mut type_pool)?;
+       §        file_builder.initialize(
+       §            &type_pool,
+       §            &data_chunk_reader,
+       §            &string_block.borrow(),
+       §        )?;
+       §        let mut sf = SkillFile {
+       §            file: Rc::new(RefCell::new(f)),
+       §            block_reader: Rc::new(RefCell::new(data_chunk_reader)),
+       §            type_pool,
+       §            strings: string_block,${
+      (for (base ← IR) yield {
+        e"""
+           §${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin('§')
+      }).mkString
+    }
+       §            undefined_pools: file_builder.undefined_pools,
+       §        };
+       §        sf.complete();
+       §        info!(
+       §            target:"SkillWriting",
+       §            "Done opening"
+       §        );
+       §        Ok(sf)
+       §    }
+       §
+       §    pub fn create(file: &str) -> Result<Self, SkillFail> {
+       §        info!(
+       §            target: "SkillWriting",
+       §            "Start creating"
+       §        );
+       §        let f = match ::std::fs::OpenOptions::new()
+       §            .write(true)
+       §            .read(true)
+       §            .create(true)
+       §            .open(&file)
+       §        {
+       §            Ok(f) => Ok(f),
+       §            Err(e) => Err(SkillFail::user(UserFail::FailedToCreateFile {
+       §                file: file.to_owned(),
+       §                why: e.description().to_owned(),
+       §            })),
+       §        }?;
+       §        let string_block = Rc::new(RefCell::new(StringBlock::new()));
+       §        let mut type_pool = TypeBlock::new();
+       §        let mut file_builder = SkillFileBuilder::new(string_block.clone());
+       §        let mut data_chunk_reader = Vec::new();
+       §
+       §        file_builder.allocate(&mut type_pool)?;
+       §        file_builder.initialize(
+       §            &type_pool,
+       §            &data_chunk_reader,
+       §            &string_block.borrow(),
+       §        )?;
+       §        let mut sf = SkillFile {
+       §            file: Rc::new(RefCell::new(f)),
+       §            block_reader: Rc::new(RefCell::new(data_chunk_reader)),
+       §            type_pool,
+       §            strings: string_block,${
+      (for (base ← IR) yield {
+        e"""
+           §${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin('§')
+      }).mkString
+    }
+       §            undefined_pools: file_builder.undefined_pools,
+       §        };
+       §        sf.complete();
+       §        info!(
+       §            target: "SkillWriting",
+       §            "Done creating"
+       §        );
+       §        Ok(sf)
+       §    }
+       §
+       §    pub fn write(&mut self) -> Result<(), SkillFail> {
+       §        info!(
+       §            target: "SkillWriting",
+       §            "Start writing"
+       §        );
+       §        // invariant -> size queries are constant time
+       §        self.type_pool.set_invariant(true);
+       §
+       §        // Load lazy fields
+       §        for pool in self.type_pool.pools().iter() {
+       §            pool.borrow().deserialize(self)?;
+       §        }
+       §
+       §        // check
+       §        self.check()?;
+       §
+       §        // reorder
+       §        let local_bpos = self.type_pool.compress()?;
+       §
+       §        let mut writer = FileWriter::new(self.file.clone());
+       §        self.strings.borrow().write_block(&mut writer)?;
+       §        self.type_pool.write_block(&mut writer, &local_bpos)?;
+       §
+       §        self.type_pool.set_invariant(false);
+       §        info!(
+       §            target:"SkillWriting",
+       §            "Done writing"
+       §        );
+       §        Ok(())
+       §    }
+       §
+       §    pub fn close(mut self) -> Result<(), SkillFail> {${
+      "" // TODO check if more has to be done?
+    }
+       §        info!(
+       §            target: "SkillWriting",
+       §            "Start closing"
+       §        );
+       §        self.write()?;
+       §        info!(
+       §            target:"SkillWriting",
+       §            "Done closing"
+       §        );
+       §        Ok(())
+       §    }
+       §
+       §    pub fn check(&self) -> Result<(), SkillFail> {${
+      "" // TODO implement check
+    }
+       §        Ok(())
+       §    }
+       §}""".stripMargin('§')
   }
 
   //----------------------------------------
@@ -169,193 +303,207 @@ trait SkillFileMaker extends GeneralOutputMaker {
   //----------------------------------------
   private final def genSkillFileBuilder(): String = {
     e"""//----------------------------------------
-       |// SkillFileBuilder
-       |//----------------------------------------
-       |${genSkillFileBuilderStruct()}
-       |
-       |${genSkillFileBuilderImpl()}
-       |
-       |${genSkillFileBuilderImplPoolMaker()}
-       |""".stripMargin.trim
+       §// SkillFileBuilder
+       §//----------------------------------------
+       §${genSkillFileBuilderStruct()}
+       §
+       §${genSkillFileBuilderImpl()}
+       §
+       §${genSkillFileBuilderImplPoolMaker()}
+       §""".stripMargin('§').trim
   }
 
   private final def genSkillFileBuilderStruct(): String = {
     e"""pub struct SkillFileBuilder {
-       |    ${
+       §    ${
       (for (base ← IR) yield {
         e"""pub ${field(base)}: Option<Rc<RefCell<${storagePool(base)}>>>,
-           |""".stripMargin
+           §""".stripMargin('§')
       }).mkString.trim
     }
-       |    undefined_pools: Vec<Rc<RefCell<UndefinedPool>>>,
-       |    string_block: Rc<RefCell<StringBlock>>,
-       |}""".stripMargin
+       §    undefined_pools: Vec<Rc<RefCell<UndefinedPool>>>,
+       §    string_block: Rc<RefCell<StringBlock>>,
+       §}""".stripMargin('§')
   }
 
   private final def genSkillFileBuilderImpl(): String = {
     e"""impl SkillFileBuilder {
-       |    pub fn new(string_block: Rc<RefCell<StringBlock>>) -> SkillFileBuilder {
-       |        SkillFileBuilder {
-       |            ${
+       §    pub fn new(string_block: Rc<RefCell<StringBlock>>) -> SkillFileBuilder {
+       §        SkillFileBuilder {
+       §            ${
       (for (base ← IR) yield {
         e"""${field(base)}: None,
-           |""".stripMargin
+           §""".stripMargin('§')
       }).mkString.trim
     }
-       |            undefined_pools: Vec::new(),
-       |            string_block,
-       |        }
-       |    }
-       |
-       |    fn allocate(&mut self, type_pools: &mut Vec<Rc<RefCell<InstancePool>>>) {
-       |        self.string_block.borrow_mut().finalize();
-       |        ${
+       §            undefined_pools: Vec::new(),
+       §            string_block,
+       §        }
+       §    }
+       §
+       §    fn allocate(&mut self, type_pool: &mut TypeBlock) -> Result<(), SkillFail> {
+       §        self.string_block.borrow_mut().finalize()?;
+       §        ${
       (for (base ← IR) yield {
         e"""if self.${field(base)}.is_none() {
-           |    let pool = Rc::new(RefCell::new(
-           |        ${storagePool(base)}::new(self.string_block.clone())
-           |    ));${
+           §    let name = self.string_block.borrow().lit().${field(base)};
+           §    let name = self.string_block.borrow_mut().add(name);
+           §    let pool = Rc::new(RefCell::new(
+           §        ${storagePool(base)}::new(
+           §            self.string_block.clone(),
+           §            name,
+           §            type_pool.len() + 32,
+           §        )
+           §    ));${
           if (base.getSuperType != null) {
             e"""
-               |self.${field(base.getSuperType)}.as_ref().unwrap().borrow_mut().add_sub(pool.clone());
-               |pool.borrow_mut().set_super(self.${field(base.getSuperType)}.as_ref().unwrap().clone());""".stripMargin
+               §self.${field(base.getSuperType)}.as_ref().unwrap().borrow_mut().add_sub(pool.clone());
+               §pool.borrow_mut().set_super(self.${field(base.getSuperType)}.as_ref().unwrap().clone());"""
+              .stripMargin('§')
           } else {
             ""
           }
         }
-           |    self.${field(base)} = Some(pool.clone());
-           |    type_pools.push(pool);
-           |}
-           |""".stripMargin
+           §    self.${field(base)} = Some(pool.clone());
+           §    type_pool.add(pool);
+           §}
+           §""".stripMargin('§')
       }).mkString.trim
     }
-       |        ${
+       §        ${
       (for (base ← IR) yield {
-        e"""self.${field(base)}.as_ref().unwrap().borrow_mut().allocate(type_pools);
-           |""".stripMargin
+        e"""self.${field(base)}.as_ref().unwrap().borrow_mut().allocate();${
+          if (base.getBaseType.equals(base)) {
+            e"""
+               §self.${field(base)}.as_ref().unwrap().borrow_mut().set_next_pool(None);""".stripMargin('§')
+          } else {
+            ""
+          }
+        }
+           §""".stripMargin('§')
       }).mkString.trim
     }
-       |        for pool in self.undefined_pools.iter() {
-       |            pool.borrow_mut().allocate(type_pools);
-       |        }
-       |    }
-       |
-       |    fn initialize(
-       |        &mut self,
-       |        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
-       |        file_reader: &Vec<FileReader>,
-       |        string_block: &StringBlock,
-       |    ) -> Result<(), SkillError> {
-       |        for ref pool in type_pools {
-       |            pool.borrow().initialize(file_reader, string_block, type_pools);
-       |        }
-       |        Ok(())
-       |    }
-       |}""".stripMargin
+       §        for pool in self.undefined_pools.iter() {
+       §            pool.borrow_mut().allocate();
+       §            if pool.borrow().is_base() {
+       §                pool.borrow_mut().set_next_pool(None);
+       §            }
+       §        }
+       §        Ok(())
+       §    }
+       §
+       §    fn initialize(
+       §        &self,
+       §        type_pool: &TypeBlock,
+       §        file_reader: &Vec<FileReader>,
+       §        string_block: &StringBlock,
+       §    ) -> Result<(), SkillFail> {
+       §        type_pool.initialize(string_block, file_reader)?;
+       §        Ok(())
+       §    }
+       §}""".stripMargin('§')
   }
 
   private final def genSkillFileBuilderImplPoolMaker(): String = {
     e"""impl PoolMaker for SkillFileBuilder {
-       |    fn make_pool(
-       |        &mut self,
-       |        type_name_index: usize,
-       |        type_name: &str,
-       |        type_id: usize,
-       |        super_pool: Option<Rc<RefCell<InstancePool>>>,
-       |    ) -> Rc<RefCell<InstancePool>> {
-       |        ${
+       §    fn make_pool(
+       §        &mut self,
+       §        type_name: &Rc<SkillString>,
+       §        type_id: usize,
+       §        super_pool: Option<Rc<RefCell<InstancePool>>>,
+       §    ) -> Result<Rc<RefCell<InstancePool>>, SkillFail> {
+       §        ${
       (for (base ← IR) yield {
-        e"""if type_name == self.string_block.borrow().lit().${literal_field(base)}  {
-           |    if self.${field(base)}.is_none() {
-           |        self.${field(base)} = Some(Rc::new(RefCell::new(
-           |            ${storagePool(base)}::new(self.string_block.clone())
-           |        )));
-           |
-           |        if let Some(super_pool) = super_pool {
-           |            let idx = super_pool.borrow().get_type_name_index();
-           |            let super_name = self.string_block.borrow().get(idx);
-           |            ${
+        e"""if type_name.as_str() == self.string_block.borrow().lit().${field(base)}  {
+           §    if self.${field(base)}.is_none() {
+           §        self.${field(base)} = Some(Rc::new(RefCell::new(
+           §            ${storagePool(base)}::new(
+           §                self.string_block.clone(),
+           §                type_name.clone(),
+           §                type_id,
+           §            )
+           §        )));
+           §
+           §        if let Some(super_pool) = super_pool {
+           §            let super_name = {
+           §                let tmp = super_pool.borrow();
+           §                tmp.name().as_str().to_owned()
+           §            };
+           §            ${
           if (base.getSuperType == null) {
-            e"""panic!(
-               |    "The type '${base.getName.camel()}' aka '${name(base)}' does not expect a super type. Found:{}",
-               |    super_name
-               |);
-               |""".stripMargin.trim
+            e"""return Err(SkillFail::internal(InternalFail::UnexpectedSuperType {
+               §    base: self.string_block.borrow().lit().${field(base)},
+               §    super_name
+               §}));
+               §""".stripMargin('§').trim
           } else {
-            e"""if super_name.as_ref() != self.string_block.borrow().lit().${literal_field(base.getSuperType)} {
-               |    panic!(
-               |        "Wrong super type for '${base.getName.camel()}' aka '${name(base)}' expect:${
-              field(base.getSuperType)
-            } found:{}",
-               |        super_name
-               |    );
-               |} else {
-               |    super_pool.borrow_mut().add_sub(self.${field(base)}.as_ref().unwrap().clone());
-               |    self.${field(base)}.as_ref().unwrap().borrow_mut().set_super(super_pool);
-               |}
-               |""".stripMargin.trim
+            e"""if super_name.as_str() != self.string_block.borrow().lit().${field(base.getSuperType)} {
+               §    return Err(SkillFail::internal(InternalFail::WrongSuperType {
+               §        base: self.string_block.borrow().lit().${field(base)},
+               §        expected: self.string_block.borrow().lit().${field(base.getSuperType)},
+               §        found: super_name,
+               §    }));
+               §} else {
+               §    super_pool.borrow_mut().add_sub(self.${field(base)}.as_ref().unwrap().clone());
+               §    self.${field(base)}.as_ref().unwrap().borrow_mut().set_super(super_pool);
+               §}
+               §""".stripMargin('§').trim
           }
         }
-           |        } ${
+           §        } ${
           if (base.getSuperType != null) {
             e"""else {
-               |            panic!("The type '${base.getName.camel()}' aka '${name(base)}' expects a supertype.");
-               |        }
-               |""".stripMargin.trim
+               §    return Err(SkillFail::internal(InternalFail::MissingSuperType {
+               §        base: self.string_block.borrow().lit().${field(base)},
+               §        expected: self.string_block.borrow().lit().${field(base.getSuperType)},
+               §    }));
+               §}
+               §""".stripMargin('§').trim
           } else {
             ""
           }
         }
-           |    } else {
-           |        panic!("Double creation of pool");
-           |    }
-           |    let mut ${field(base)} = self.${field(base)}.as_ref().unwrap().borrow_mut();
-           |    ${field(base)}.set_type_id(type_id);
-           |    ${field(base)}.set_type_name_index(type_name_index);
-           |    self.${field(base)}.as_ref().unwrap().clone()
-           |} else """.stripMargin
+           §    }
+           §    Ok(self.${field(base)}.as_ref().unwrap().clone())
+           §} else """.stripMargin('§')
       }).mkString
     }{
-       |            for pool in self.undefined_pools.iter() {
-       |                if pool.borrow().get_type_id() == type_id {
-       |                    return pool.clone();
-       |                }
-       |            }
-       |            let pool = Rc::new(RefCell::new(UndefinedPool::new(
-       |                self.string_block.clone(),
-       |            )));
-       |            {
-       |                let mut pool = pool.borrow_mut();
-       |                pool.set_type_id(type_id);
-       |                pool.set_type_name_index(type_name_index);
-       |            }
-       |            if let Some(super_pool) = super_pool {
-       |                super_pool.borrow_mut().add_sub(pool.clone());
-       |                pool.borrow_mut().set_super(super_pool);
-       |            }
-       |            self.undefined_pools.push(pool.clone());
-       |            pool
-       |        }
-       |    }
-       |
-       |    fn get_pool(&self, type_name_index: usize) -> Option<Rc<RefCell<InstancePool>>> {
-       |        ${
+       §            for pool in self.undefined_pools.iter() {
+       §                if pool.borrow().get_type_id() == type_id {
+       §                    return Ok(pool.clone());
+       §                }
+       §            }
+       §            let pool = Rc::new(RefCell::new(UndefinedPool::new(
+       §                type_name.clone(),
+       §                type_id
+       §            )));
+       §            if let Some(super_pool) = super_pool {
+       §                super_pool.borrow_mut().add_sub(pool.clone());
+       §                pool.borrow_mut().set_super(super_pool);
+       §            }
+       §            self.undefined_pools.push(pool.clone());
+       §            Ok(pool)
+       §        }
+       §    }
+       §
+       §    fn get_pool(&self, type_name_index: usize) -> Option<Rc<RefCell<InstancePool>>> {
+       §        ${
       (for (base ← IR) yield {
         e"""if self.${field(base)}.is_some()
-           |    && type_name_index == self.${field(base)}.as_ref().unwrap().borrow().get_type_name_index()
-           |{
-           |    return Some(self.${field(base)}.as_ref().unwrap().clone());
-           |} else """.stripMargin
+           §    && type_name_index == self.${field(base)}.as_ref().unwrap().borrow().name().get_skill_id()
+           §{
+           §    return Some(self.${field(base)}.as_ref().unwrap().clone());
+           §} else """.stripMargin('§')
       }).mkString
     }{
-       |            for pool in self.undefined_pools.iter() {
-       |                if pool.borrow().get_type_name_index() == type_name_index {
-       |                    return Some(pool.clone());
-       |                }
-       |            }
-       |        }
-       |        None
-       |    }
-       |}""".stripMargin
+       §            for pool in self.undefined_pools.iter() {
+       §                if pool.borrow().name().get_skill_id() == type_name_index {
+       §                    return Some(pool.clone());
+       §                }
+       §            }
+       §        }
+       §        None
+       §    }
+       §}""".stripMargin('§')
   }
 }
