@@ -1,5 +1,6 @@
 use common::error::*;
-use common::internal::{InstancePool, ObjectReader, SkillObject, UndefinedObject};
+use common::internal::foreign;
+use common::internal::{InstancePool, ObjectReader, SkillObject};
 use common::io::{
     Block, BlockIndex, BuildInType, ContinuationFieldChunk, DeclarationFieldChunk, FieldChunk,
     FieldType, FileReader, FileWriter,
@@ -418,7 +419,7 @@ impl TypeBlock {
                     vec.reserve(p.borrow().get_global_cached_count());
                     for _ in 0..p.borrow().get_global_cached_count() {
                         // TODO replace with garbage object
-                        vec.push(Ptr::new(UndefinedObject::new(0, 0)));
+                        vec.push(Ptr::new(foreign::Object::new(0, 0)));
                     }
 
                     let mut id = 1;

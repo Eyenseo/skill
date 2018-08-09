@@ -138,14 +138,14 @@ pub enum InternalFail {
     ViewOnBuffer,
 
     #[fail(
-        display = "Inconsistent undefined field indexis found. old:{}, new{}",
+        display = "Inconsistent foreign field indexes found. old:{}, new{}",
         old,
         new
     )]
-    InconsistentUndefinedIndex { old: usize, new: usize },
+    InconsistentForeignIndex { old: usize, new: usize },
 
-    #[fail(display = "Wrong type of undefined filed")]
-    WorngUndefinedFieldType,
+    #[fail(display = "Wrong type of foreign filed")]
+    WrongForeignField,
 
     #[fail(display = "After a compress there should only be one declaration chunk")]
     OnlyOneChunk,

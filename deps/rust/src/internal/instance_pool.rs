@@ -68,7 +68,7 @@ pub trait InstancePool {
     ) -> Result<(), SkillFail>;
     fn deserialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail>;
 
-    fn make_undefined(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject>;
+    fn make_foreign(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject>;
 
     fn set_next_pool(&mut self, pool: Option<Rc<RefCell<InstancePool>>>);
     fn get_next_pool(&self) -> Option<Rc<RefCell<InstancePool>>>;

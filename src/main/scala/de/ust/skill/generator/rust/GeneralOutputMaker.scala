@@ -164,7 +164,7 @@ trait GeneralOutputMaker extends Generator {
 
   final def name(f: LanguageCustomization): String = escaped(f.getName.camel)
 
-  final def undefinedName(t: Type): String = escaped(t.getName.capital) + "Undefined"
+  final def foreignName(t: Type): String = escaped(t.getName.capital) + "Foreign"
 
   // FIXME use this for the fields that clash with the users
   final def internalName(f: Field): String = escaped("_" + f.getName.camel())

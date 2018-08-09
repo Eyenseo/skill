@@ -12,18 +12,18 @@ use std::collections::HashSet;
 
 /// Helper Iterator to reduce code duplication
 struct SingleItemIter<'a> {
-    item: Option<&'a UndefinedFieldData>,
+    item: Option<&'a foreign::FieldData>,
 }
 
 impl<'a> SingleItemIter<'a> {
-    fn new(item: &'a UndefinedFieldData) -> SingleItemIter {
+    fn new(item: &'a foreign::FieldData) -> SingleItemIter {
         SingleItemIter { item: Some(item) }
     }
 }
 
 impl<'a> Iterator for SingleItemIter<'a> {
-    type Item = &'a UndefinedFieldData;
-    fn next(&mut self) -> Option<&'a UndefinedFieldData> {
+    type Item = &'a foreign::FieldData;
+    fn next(&mut self) -> Option<&'a foreign::FieldData> {
         if let Some(item) = self.item {
             self.item = None;
             Some(item)
@@ -33,53 +33,48 @@ impl<'a> Iterator for SingleItemIter<'a> {
     }
 }
 
-// TODO Rename - this is a unknown
-pub struct LazyFieldDeclaration {
+pub struct FieldDeclaration {
     name: Rc<SkillString>,
     field_id: usize,
-    undefined_vec_index: usize,
+    foreign_vec_index: usize,
     chunks: Vec<FieldChunk>,
     field_type: FieldType,
 }
 
-impl LazyFieldDeclaration {
-    pub fn new(
-        name: Rc<SkillString>,
-        field_id: usize,
-        field_type: FieldType,
-    ) -> LazyFieldDeclaration {
-        LazyFieldDeclaration {
+impl FieldDeclaration {
+    pub fn new(name: Rc<SkillString>, field_id: usize, field_type: FieldType) -> FieldDeclaration {
+        FieldDeclaration {
             name,
             field_id,
             chunks: Vec::new(),
             field_type,
-            undefined_vec_index: std::usize::MAX,
+            foreign_vec_index: std::usize::MAX,
         }
     }
 
     // TODO this should also produce an offset for fields that do not contain user types / strings
-    fn read_undefined_field(
+    fn read_foreign_field(
         field: &FieldType,
         reader: &mut FileReader,
         string_block: &StringBlock,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
-    ) -> Result<UndefinedFieldData, SkillFail> {
+    ) -> Result<foreign::FieldData, SkillFail> {
         Ok(match field {
             FieldType::BuildIn(ref field) => match field {
-                BuildInType::ConstTi8 => UndefinedFieldData::I8(reader.read_i8()?),
-                BuildInType::ConstTi16 => UndefinedFieldData::I16(reader.read_i16()?),
-                BuildInType::ConstTi32 => UndefinedFieldData::I32(reader.read_i32()?),
-                BuildInType::ConstTi64 => UndefinedFieldData::I64(reader.read_i64()?),
-                BuildInType::ConstTv64 => UndefinedFieldData::I64(reader.read_v64()?),
-                BuildInType::Tbool => UndefinedFieldData::Bool(reader.read_bool()?),
-                BuildInType::Ti8 => UndefinedFieldData::I8(reader.read_i8()?),
-                BuildInType::Ti16 => UndefinedFieldData::I16(reader.read_i16()?),
-                BuildInType::Ti32 => UndefinedFieldData::I32(reader.read_i32()?),
-                BuildInType::Ti64 => UndefinedFieldData::I64(reader.read_i64()?),
-                BuildInType::Tv64 => UndefinedFieldData::I64(reader.read_v64()?),
-                BuildInType::Tf32 => UndefinedFieldData::F32(reader.read_f32()?),
-                BuildInType::Tf64 => UndefinedFieldData::F64(reader.read_f64()?),
-                BuildInType::Tannotation => UndefinedFieldData::User({
+                BuildInType::ConstTi8 => foreign::FieldData::I8(reader.read_i8()?),
+                BuildInType::ConstTi16 => foreign::FieldData::I16(reader.read_i16()?),
+                BuildInType::ConstTi32 => foreign::FieldData::I32(reader.read_i32()?),
+                BuildInType::ConstTi64 => foreign::FieldData::I64(reader.read_i64()?),
+                BuildInType::ConstTv64 => foreign::FieldData::I64(reader.read_v64()?),
+                BuildInType::Tbool => foreign::FieldData::Bool(reader.read_bool()?),
+                BuildInType::Ti8 => foreign::FieldData::I8(reader.read_i8()?),
+                BuildInType::Ti16 => foreign::FieldData::I16(reader.read_i16()?),
+                BuildInType::Ti32 => foreign::FieldData::I32(reader.read_i32()?),
+                BuildInType::Ti64 => foreign::FieldData::I64(reader.read_i64()?),
+                BuildInType::Tv64 => foreign::FieldData::I64(reader.read_v64()?),
+                BuildInType::Tf32 => foreign::FieldData::F32(reader.read_f32()?),
+                BuildInType::Tf64 => foreign::FieldData::F64(reader.read_f64()?),
+                BuildInType::Tannotation => foreign::FieldData::User({
                     let pool = reader.read_v64()? as usize;
                     let object = reader.read_v64()? as usize;
                     if pool != 0 && object != 0 {
@@ -89,12 +84,12 @@ impl LazyFieldDeclaration {
                     }
                 }),
                 BuildInType::Tstring => {
-                    UndefinedFieldData::String(string_block.get(reader.read_v64()? as usize)?)
+                    foreign::FieldData::String(string_block.get(reader.read_v64()? as usize)?)
                 }
-                BuildInType::ConstTarray(length, box_v) => UndefinedFieldData::Array({
+                BuildInType::ConstTarray(length, box_v) => foreign::FieldData::Array({
                     let mut arr = Vec::with_capacity(*length as usize);
                     for i in 0..*length as usize {
-                        arr[i] = LazyFieldDeclaration::read_undefined_field(
+                        arr[i] = FieldDeclaration::read_foreign_field(
                             &*box_v,
                             reader,
                             string_block,
@@ -103,11 +98,11 @@ impl LazyFieldDeclaration {
                     }
                     arr
                 }),
-                BuildInType::Tarray(box_v) => UndefinedFieldData::Array({
+                BuildInType::Tarray(box_v) => foreign::FieldData::Array({
                     let elements = reader.read_v64()? as usize;
                     let mut vec = Vec::with_capacity(elements);
                     for _ in 0..elements {
-                        vec.push(LazyFieldDeclaration::read_undefined_field(
+                        vec.push(FieldDeclaration::read_foreign_field(
                             &*box_v,
                             reader,
                             string_block,
@@ -116,11 +111,11 @@ impl LazyFieldDeclaration {
                     }
                     vec
                 }),
-                BuildInType::Tlist(box_v) => UndefinedFieldData::Array({
+                BuildInType::Tlist(box_v) => foreign::FieldData::Array({
                     let elements = reader.read_v64()? as usize;
                     let mut vec = Vec::with_capacity(elements);
                     for _ in 0..elements {
-                        vec.push(LazyFieldDeclaration::read_undefined_field(
+                        vec.push(FieldDeclaration::read_foreign_field(
                             &*box_v,
                             reader,
                             string_block,
@@ -129,12 +124,12 @@ impl LazyFieldDeclaration {
                     }
                     vec
                 }),
-                BuildInType::Tset(box_v) => UndefinedFieldData::Set({
+                BuildInType::Tset(box_v) => foreign::FieldData::Set({
                     let elements = reader.read_v64()? as usize;
                     let mut set = HashSet::new();
                     set.reserve(elements);
                     for _ in 0..elements {
-                        set.insert(LazyFieldDeclaration::read_undefined_field(
+                        set.insert(FieldDeclaration::read_foreign_field(
                             &*box_v,
                             reader,
                             string_block,
@@ -143,19 +138,19 @@ impl LazyFieldDeclaration {
                     }
                     set
                 }),
-                BuildInType::Tmap(key_box_v, box_v) => UndefinedFieldData::Map({
+                BuildInType::Tmap(key_box_v, box_v) => foreign::FieldData::Map({
                     let elements = reader.read_v64()? as usize;
                     let mut map = HashMap::new();
                     map.reserve(elements);
                     for _ in 0..elements {
                         map.insert(
-                            LazyFieldDeclaration::read_undefined_field(
+                            FieldDeclaration::read_foreign_field(
                                 &*key_box_v,
                                 reader,
                                 string_block,
                                 type_pools,
                             )?,
-                            LazyFieldDeclaration::read_undefined_field(
+                            FieldDeclaration::read_foreign_field(
                                 &*box_v,
                                 reader,
                                 string_block,
@@ -166,7 +161,7 @@ impl LazyFieldDeclaration {
                     map
                 }),
             },
-            FieldType::User(ref pool) => UndefinedFieldData::User({
+            FieldType::User(ref pool) => foreign::FieldData::User({
                 let object = reader.read_v64()? as usize;
                 if object != 0 {
                     Some(pool.borrow().read_object(object)?)
@@ -179,7 +174,7 @@ impl LazyFieldDeclaration {
 
     fn offset<'a, T>(field_type: &FieldType, iter: T) -> Result<usize, SkillFail>
     where
-        T: Iterator<Item = &'a UndefinedFieldData>,
+        T: Iterator<Item = &'a foreign::FieldData>,
     {
         let mut offset = 0;
         match field_type {
@@ -190,15 +185,15 @@ impl LazyFieldDeclaration {
                 BuildInType::ConstTi64 => offset = 8 * iter.count(),
                 BuildInType::ConstTv64 => for data in iter {
                     match data {
-                        UndefinedFieldData::I64(val) => offset += bytes_v64(*val),
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::I64(val) => offset += bytes_v64(*val),
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Tannotation => for data in iter {
                     match data {
-                        UndefinedFieldData::User(obj) => {
+                        foreign::FieldData::User(obj) => {
                             if let Some(obj) = obj {
-                                let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                                let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                                 let obj = obj.borrow(); // borrowing madness
                                 if obj.to_prune() {
                                     offset += 2;
@@ -210,7 +205,7 @@ impl LazyFieldDeclaration {
                                 offset += 2;
                             }
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tbool => offset = iter.count(),
@@ -220,71 +215,71 @@ impl LazyFieldDeclaration {
                 BuildInType::Ti64 => offset = 8 * iter.count(),
                 BuildInType::Tv64 => for data in iter {
                     match data {
-                        UndefinedFieldData::I64(val) => offset += bytes_v64(*val),
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::I64(val) => offset += bytes_v64(*val),
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tf32 => offset = 4 * iter.count(),
                 BuildInType::Tf64 => offset = 8 * iter.count(),
                 BuildInType::Tstring => for data in iter {
                     match data {
-                        UndefinedFieldData::String(val) => {
+                        foreign::FieldData::String(val) => {
                             offset += bytes_v64(val.get_skill_id() as i64)
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::ConstTarray(length, box_v) => for data in iter {
                     match data {
-                        UndefinedFieldData::Array(array) => {
-                            offset += LazyFieldDeclaration::offset(&*box_v, array.iter())?
+                        foreign::FieldData::Array(array) => {
+                            offset += FieldDeclaration::offset(&*box_v, array.iter())?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tarray(box_v) => for data in iter {
                     match data {
-                        UndefinedFieldData::Array(array) => {
+                        foreign::FieldData::Array(array) => {
                             offset += bytes_v64(array.len() as i64)
-                                + LazyFieldDeclaration::offset(&*box_v, array.iter())?
+                                + FieldDeclaration::offset(&*box_v, array.iter())?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tlist(box_v) => for data in iter {
                     match data {
-                        UndefinedFieldData::Array(array) => {
+                        foreign::FieldData::Array(array) => {
                             offset += bytes_v64(array.len() as i64)
-                                + LazyFieldDeclaration::offset(&*box_v, array.iter())?
+                                + FieldDeclaration::offset(&*box_v, array.iter())?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tset(box_v) => for data in iter {
                     match data {
-                        UndefinedFieldData::Set(set) => {
+                        foreign::FieldData::Set(set) => {
                             offset += bytes_v64(set.len() as i64)
-                                + LazyFieldDeclaration::offset(&*box_v, set.iter())?
+                                + FieldDeclaration::offset(&*box_v, set.iter())?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tmap(key_box_v, box_v) => for data in iter {
                     match data {
-                        UndefinedFieldData::Map(map) => {
+                        foreign::FieldData::Map(map) => {
                             offset += bytes_v64(map.len() as i64)
-                                + LazyFieldDeclaration::offset(&*key_box_v, map.keys())?
-                                + LazyFieldDeclaration::offset(&*box_v, map.values())?
+                                + FieldDeclaration::offset(&*key_box_v, map.keys())?
+                                + FieldDeclaration::offset(&*box_v, map.values())?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
             },
             FieldType::User(_pool) => for data in iter {
                 match data {
-                    UndefinedFieldData::User(obj) => {
+                    foreign::FieldData::User(obj) => {
                         if let Some(obj) = obj {
-                            let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                            let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                             let obj = obj.borrow(); // borrowing madness
                             if obj.to_prune() {
                                 offset += 1;
@@ -295,7 +290,7 @@ impl LazyFieldDeclaration {
                             offset += 1;
                         }
                     }
-                    _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                 }
             },
         }
@@ -307,45 +302,45 @@ impl LazyFieldDeclaration {
         iter: T,
     ) -> Result<(), SkillFail>
     where
-        T: Iterator<Item = &'a UndefinedFieldData>,
+        T: Iterator<Item = &'a foreign::FieldData>,
     {
         match field_type {
             FieldType::BuildIn(field) => match field {
                 BuildInType::ConstTi8 => for data in iter {
                     match data {
-                        UndefinedFieldData::I8(val) => writer.write_i8(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::I8(val) => writer.write_i8(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::ConstTi16 => for data in iter {
                     match data {
-                        UndefinedFieldData::I16(val) => writer.write_i16(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::I16(val) => writer.write_i16(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::ConstTi32 => for data in iter {
                     match data {
-                        UndefinedFieldData::I32(val) => writer.write_i32(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::I32(val) => writer.write_i32(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::ConstTi64 => for data in iter {
                     match data {
-                        UndefinedFieldData::I64(val) => writer.write_i64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::I64(val) => writer.write_i64(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::ConstTv64 => for data in iter {
                     match data {
-                        UndefinedFieldData::I64(val) => writer.write_i64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::I64(val) => writer.write_i64(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Tannotation => for data in iter {
                     match data {
-                        UndefinedFieldData::User(obj) => {
+                        foreign::FieldData::User(obj) => {
                             if let Some(obj) = obj {
-                                let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                                let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                                 let obj = obj.borrow(); // borrowing madness
 
                                 if obj.to_prune() {
@@ -360,127 +355,123 @@ impl LazyFieldDeclaration {
                                 writer.write_i8(0)?;
                             }
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tbool => for data in iter {
                     match data {
-                        UndefinedFieldData::Bool(val) => writer.write_bool(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::Bool(val) => writer.write_bool(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Ti8 => for data in iter {
                     match data {
-                        UndefinedFieldData::I8(val) => writer.write_i8(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::I8(val) => writer.write_i8(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Ti16 => for data in iter {
                     match data {
-                        UndefinedFieldData::I16(val) => writer.write_i16(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::I16(val) => writer.write_i16(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Ti32 => for data in iter {
                     match data {
-                        UndefinedFieldData::I32(val) => writer.write_i32(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::I32(val) => writer.write_i32(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Ti64 => for data in iter {
                     match data {
-                        UndefinedFieldData::I64(val) => writer.write_i64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::I64(val) => writer.write_i64(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Tv64 => for data in iter {
                     match data {
-                        UndefinedFieldData::I64(val) => writer.write_v64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::I64(val) => writer.write_v64(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tf32 => for data in iter {
                     match data {
-                        UndefinedFieldData::F32(val) => writer.write_f32(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::F32(val) => writer.write_f32(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tf64 => for data in iter {
                     match data {
-                        UndefinedFieldData::F64(val) => writer.write_f64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        foreign::FieldData::F64(val) => writer.write_f64(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
 
                 BuildInType::Tstring => for data in iter {
                     match data {
-                        UndefinedFieldData::String(val) => {
+                        foreign::FieldData::String(val) => {
                             writer.write_v64(val.get_skill_id() as i64)?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::ConstTarray(_length, box_v) => for data in iter {
                     match data {
-                        UndefinedFieldData::Array(array) => {
-                            LazyFieldDeclaration::write(writer, &*box_v, array.iter())?
+                        foreign::FieldData::Array(array) => {
+                            FieldDeclaration::write(writer, &*box_v, array.iter())?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tarray(box_v) => for data in iter {
                     match data {
-                        UndefinedFieldData::Array(array) => {
+                        foreign::FieldData::Array(array) => {
                             writer.write_v64(array.len() as i64)?;
-                            LazyFieldDeclaration::write(writer, &*box_v, array.iter())?
+                            FieldDeclaration::write(writer, &*box_v, array.iter())?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tlist(box_v) => for data in iter {
                     match data {
-                        UndefinedFieldData::Array(array) => {
+                        foreign::FieldData::Array(array) => {
                             writer.write_v64(array.len() as i64)?;
-                            LazyFieldDeclaration::write(writer, &*box_v, array.iter())?
+                            FieldDeclaration::write(writer, &*box_v, array.iter())?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tset(box_v) => for data in iter {
                     match data {
-                        UndefinedFieldData::Set(set) => {
+                        foreign::FieldData::Set(set) => {
                             writer.write_v64(set.len() as i64)?;
-                            LazyFieldDeclaration::write(writer, &*box_v, set.iter())?
+                            FieldDeclaration::write(writer, &*box_v, set.iter())?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tmap(key_box_v, box_v) => for data in iter {
                     match data {
-                        UndefinedFieldData::Map(map) => {
+                        foreign::FieldData::Map(map) => {
                             writer.write_v64(map.len() as i64)?;
                             for (key, val) in map.iter() {
-                                LazyFieldDeclaration::write(
+                                FieldDeclaration::write(
                                     writer,
                                     &*key_box_v,
                                     SingleItemIter::new(key),
                                 )?;
-                                LazyFieldDeclaration::write(
-                                    writer,
-                                    &*box_v,
-                                    SingleItemIter::new(val),
-                                )?;
+                                FieldDeclaration::write(writer, &*box_v, SingleItemIter::new(val))?;
                             }
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
             },
             FieldType::User(_pool) => for data in iter {
                 match data {
-                    UndefinedFieldData::User(obj) => {
+                    foreign::FieldData::User(obj) => {
                         if let Some(obj) = obj {
-                            let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                            let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                             let obj = obj.borrow(); // borrowing madness
 
                             if obj.to_prune() {
@@ -492,7 +483,7 @@ impl LazyFieldDeclaration {
                             writer.write_i8(0)?;
                         }
                     }
-                    _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                 }
             },
         }
@@ -500,7 +491,7 @@ impl LazyFieldDeclaration {
     }
 }
 
-impl FieldDeclaration for LazyFieldDeclaration {
+impl io::field_declaration::FieldDeclaration for FieldDeclaration {
     fn read(
         &self,
         block_reader: &Vec<FileReader>,
@@ -521,7 +512,7 @@ impl FieldDeclaration for LazyFieldDeclaration {
         instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillFail> {
         info!(
-            target:"SkillWriting",
+            target: "SkillWriting",
             "~~~Deserialize field {}",
             self.name.as_str(),
         );
@@ -543,32 +534,31 @@ impl FieldDeclaration for LazyFieldDeclaration {
 
                             for obj in instances.iter().skip(block.bpo).take(block.dynamic_count) {
                                 info!(
-                                        target: "SkillParsing",
-                                        "Block:{:?} Object:{}",
-                                        block,
-                                        o + block.bpo,
-                                    );
+                                    target: "SkillParsing",
+                                    "Block:{:?} Object:{}",
+                                    block,
+                                    o + block.bpo,
+                                );
                                 o += 1;
-                                match obj.nucast::<UndefinedObjectT>() {
+                                match obj.nucast::<foreign::ObjectT>() {
                                     Some(obj) => {
                                         let mut obj = obj.borrow_mut();
 
-                                        if self.undefined_vec_index == std::usize::MAX {
-                                            self.undefined_vec_index =
-                                                obj.undefined_fields_mut().len();
-                                        } else if self.undefined_vec_index
-                                            != obj.undefined_fields_mut().len()
+                                        if self.foreign_vec_index == std::usize::MAX {
+                                            self.foreign_vec_index = obj.foreign_fields_mut().len();
+                                        } else if self.foreign_vec_index
+                                            != obj.foreign_fields_mut().len()
                                         {
                                             return Err(SkillFail::internal(
-                                                InternalFail::InconsistentUndefinedIndex {
-                                                    old: self.undefined_vec_index,
-                                                    new: obj.undefined_fields_mut().len(),
+                                                InternalFail::InconsistentForeignIndex {
+                                                    old: self.foreign_vec_index,
+                                                    new: obj.foreign_fields_mut().len(),
                                                 },
                                             ));
                                         }
 
-                                        obj.undefined_fields_mut().push(
-                                            LazyFieldDeclaration::read_undefined_field(
+                                        obj.foreign_fields_mut().push(
+                                            FieldDeclaration::read_foreign_field(
                                                 &self.field_type,
                                                 &mut reader,
                                                 string_block,
@@ -592,32 +582,32 @@ impl FieldDeclaration for LazyFieldDeclaration {
                         let mut o = 0;
                         for obj in instances.iter().skip(chunk.bpo).take(chunk.count) {
                             info!(
-                                    target: "SkillParsing",
-                                    "Block:{:?} Object:{}",
-                                    block,
-                                    o + chunk.bpo,
-                                );
+                                target: "SkillParsing",
+                                "Block:{:?} Object:{}",
+                                block,
+                                o + chunk.bpo,
+                            );
                             o += 1;
 
-                            match obj.nucast::<UndefinedObjectT>() {
+                            match obj.nucast::<foreign::ObjectT>() {
                                 Some(obj) => {
                                     let mut obj = obj.borrow_mut();
 
-                                    if self.undefined_vec_index == std::usize::MAX {
-                                        self.undefined_vec_index = obj.undefined_fields_mut().len();
-                                    } else if self.undefined_vec_index
-                                        != obj.undefined_fields_mut().len()
+                                    if self.foreign_vec_index == std::usize::MAX {
+                                        self.foreign_vec_index = obj.foreign_fields_mut().len();
+                                    } else if self.foreign_vec_index
+                                        != obj.foreign_fields_mut().len()
                                     {
                                         return Err(SkillFail::internal(
-                                            InternalFail::InconsistentUndefinedIndex {
-                                                old: self.undefined_vec_index,
-                                                new: obj.undefined_fields_mut().len(),
+                                            InternalFail::InconsistentForeignIndex {
+                                                old: self.foreign_vec_index,
+                                                new: obj.foreign_fields_mut().len(),
                                             },
                                         ));
                                     }
 
-                                    obj.undefined_fields_mut().push(
-                                        LazyFieldDeclaration::read_undefined_field(
+                                    obj.foreign_fields_mut().push(
+                                        FieldDeclaration::read_foreign_field(
                                             &self.field_type,
                                             &mut reader,
                                             string_block,
@@ -662,20 +652,20 @@ impl FieldDeclaration for LazyFieldDeclaration {
                 BuildInType::ConstTi32 => offset = 4 * iter.count(),
                 BuildInType::ConstTi64 => offset = 8 * iter.count(),
                 BuildInType::ConstTv64 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::I64(val) => offset += bytes_v64(*val),
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::I64(val) => offset += bytes_v64(*val),
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Tannotation => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::User(obj) => {
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::User(obj) => {
                             if let Some(obj) = obj {
                                 if obj.borrow().to_prune() {
                                     offset += 2;
@@ -687,7 +677,7 @@ impl FieldDeclaration for LazyFieldDeclaration {
                                 offset += 2
                             }
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tbool => offset = iter.count(),
@@ -696,94 +686,94 @@ impl FieldDeclaration for LazyFieldDeclaration {
                 BuildInType::Ti32 => offset = 4 * iter.count(),
                 BuildInType::Ti64 => offset = 8 * iter.count(),
                 BuildInType::Tv64 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::I64(val) => offset += bytes_v64(*val),
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::I64(val) => offset += bytes_v64(*val),
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tf32 => offset = 4 * iter.count(),
                 BuildInType::Tf64 => offset = 8 * iter.count(),
                 BuildInType::Tstring => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::String(val) => {
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::String(val) => {
                             offset += bytes_v64(val.get_skill_id() as i64)
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::ConstTarray(length, box_v) => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::Array(array) => {
-                            offset += LazyFieldDeclaration::offset(&*box_v, array.iter())?;
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::Array(array) => {
+                            offset += FieldDeclaration::offset(&*box_v, array.iter())?;
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tarray(box_v) => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::Array(array) => {
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::Array(array) => {
                             offset += bytes_v64(array.len() as i64)
-                                + LazyFieldDeclaration::offset(&*box_v, array.iter())?;
+                                + FieldDeclaration::offset(&*box_v, array.iter())?;
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tlist(box_v) => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::Array(array) => {
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::Array(array) => {
                             offset += bytes_v64(array.len() as i64)
-                                + LazyFieldDeclaration::offset(&*box_v, array.iter())?;
+                                + FieldDeclaration::offset(&*box_v, array.iter())?;
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tset(box_v) => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::Set(set) => {
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::Set(set) => {
                             offset += bytes_v64(set.len() as i64)
-                                + LazyFieldDeclaration::offset(&*box_v, set.iter())?;
+                                + FieldDeclaration::offset(&*box_v, set.iter())?;
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tmap(key_box_v, box_v) => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::Map(map) => {
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::Map(map) => {
                             offset += bytes_v64(map.len() as i64)
-                                + LazyFieldDeclaration::offset(&*key_box_v, map.keys())?
-                                + LazyFieldDeclaration::offset(&*box_v, map.values())?;
+                                + FieldDeclaration::offset(&*key_box_v, map.keys())?
+                                + FieldDeclaration::offset(&*box_v, map.values())?;
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
             },
             FieldType::User(_pool) => for obj in iter {
-                let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                 let obj = obj.borrow(); // borrowing madness
 
-                match &obj.undefined_fields()[self.undefined_vec_index] {
-                    UndefinedFieldData::User(obj) => {
+                match &obj.foreign_fields()[self.foreign_vec_index] {
+                    foreign::FieldData::User(obj) => {
                         if let Some(obj) = obj {
                             if obj.borrow().to_prune() {
                                 offset += 1;
@@ -794,7 +784,7 @@ impl FieldDeclaration for LazyFieldDeclaration {
                             offset += 1;
                         }
                     }
-                    _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                 }
             },
         }
@@ -836,58 +826,58 @@ impl FieldDeclaration for LazyFieldDeclaration {
         match &self.field_type {
             FieldType::BuildIn(field) => match field {
                 BuildInType::ConstTi8 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::I8(val) => writer.write_i8(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::I8(val) => writer.write_i8(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::ConstTi16 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::I16(val) => writer.write_i16(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::I16(val) => writer.write_i16(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::ConstTi32 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::I32(val) => writer.write_i32(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::I32(val) => writer.write_i32(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::ConstTi64 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::I64(val) => writer.write_i64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::I64(val) => writer.write_i64(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::ConstTv64 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::I64(val) => writer.write_i64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::I64(val) => writer.write_i64(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Tannotation => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::User(obj) => {
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::User(obj) => {
                             if let Some(obj) = obj {
-                                let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                                let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                                 let obj = obj.borrow(); // borrowing madness
                                 if obj.to_prune() {
                                     writer.write_i8(0)?;
@@ -901,171 +891,171 @@ impl FieldDeclaration for LazyFieldDeclaration {
                                 writer.write_i8(0)?;
                             }
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tbool => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::Bool(val) => writer.write_bool(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::Bool(val) => writer.write_bool(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Ti8 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::I8(val) => writer.write_i8(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::I8(val) => writer.write_i8(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Ti16 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::I16(val) => writer.write_i16(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::I16(val) => writer.write_i16(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Ti32 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::I32(val) => writer.write_i32(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::I32(val) => writer.write_i32(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Ti64 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::I64(val) => writer.write_i64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::I64(val) => writer.write_i64(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
                 },
                 BuildInType::Tv64 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::I64(val) => writer.write_v64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::I64(val) => writer.write_v64(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tf32 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::F32(val) => writer.write_f32(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::F32(val) => writer.write_f32(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tf64 => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::F64(val) => writer.write_f64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::F64(val) => writer.write_f64(*val)?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tstring => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::String(val) => {
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::String(val) => {
                             writer.write_v64(val.get_skill_id() as i64)?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::ConstTarray(_length, box_v) => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::Array(array) => {
-                            LazyFieldDeclaration::write(&mut writer, &*box_v, array.iter())?
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::Array(array) => {
+                            FieldDeclaration::write(&mut writer, &*box_v, array.iter())?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tarray(box_v) => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::Array(array) => {
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::Array(array) => {
                             writer.write_v64(array.len() as i64)?;
-                            LazyFieldDeclaration::write(&mut writer, &*box_v, array.iter())?
+                            FieldDeclaration::write(&mut writer, &*box_v, array.iter())?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tlist(box_v) => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::Array(array) => {
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::Array(array) => {
                             writer.write_v64(array.len() as i64)?;
-                            LazyFieldDeclaration::write(&mut writer, &*box_v, array.iter())?
+                            FieldDeclaration::write(&mut writer, &*box_v, array.iter())?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tset(box_v) => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::Set(set) => {
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::Set(set) => {
                             writer.write_v64(set.len() as i64)?;
-                            LazyFieldDeclaration::write(&mut writer, &*box_v, set.iter())?
+                            FieldDeclaration::write(&mut writer, &*box_v, set.iter())?
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
                 BuildInType::Tmap(key_box_v, box_v) => for obj in iter {
-                    let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                    let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.undefined_fields()[self.undefined_vec_index] {
-                        UndefinedFieldData::Map(map) => {
+                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                        foreign::FieldData::Map(map) => {
                             writer.write_v64(map.len() as i64)?;
                             for (key, val) in map.iter() {
-                                LazyFieldDeclaration::write(
+                                FieldDeclaration::write(
                                     &mut writer,
                                     &*key_box_v,
                                     SingleItemIter::new(key),
                                 )?;
-                                LazyFieldDeclaration::write(
+                                FieldDeclaration::write(
                                     &mut writer,
                                     &*box_v,
                                     SingleItemIter::new(val),
                                 )?;
                             }
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
                 },
             },
             FieldType::User(_pool) => for obj in iter {
-                let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                 let obj = obj.borrow(); // borrowing madness
 
-                match &obj.undefined_fields()[self.undefined_vec_index] {
-                    UndefinedFieldData::User(obj) => {
+                match &obj.foreign_fields()[self.foreign_vec_index] {
+                    foreign::FieldData::User(obj) => {
                         if let Some(obj) = obj {
-                            let obj = obj.nucast::<UndefinedObjectT>().unwrap();
+                            let obj = obj.nucast::<foreign::ObjectT>().unwrap();
                             let obj = obj.borrow(); // borrowing madness
 
                             if obj.to_prune() {
@@ -1077,7 +1067,7 @@ impl FieldDeclaration for LazyFieldDeclaration {
                             writer.write_i8(0)?;
                         }
                     }
-                    _ => Err(SkillFail::internal(InternalFail::WorngUndefinedFieldType))?,
+                    _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                 }
             },
         }
