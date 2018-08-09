@@ -72,7 +72,7 @@ mod tests {
                         .as_ref()
                         .unwrap()
                         .nucast::<SkillObject>(),
-                    Some(a.clone().nucast::<AT>().unwrap())
+                    Some(a.clone().nucast::<A>().unwrap())
                         .unwrap()
                         .nucast::<SkillObject>(),
                 );
@@ -83,7 +83,7 @@ mod tests {
                         .as_ref()
                         .unwrap()
                         .nucast::<SkillObject>(),
-                    Some(c.clone().nucast::<AT>().unwrap())
+                    Some(c.clone().nucast::<A>().unwrap())
                         .unwrap()
                         .nucast::<SkillObject>(),
                 );
@@ -129,7 +129,7 @@ mod tests {
                         .as_ref()
                         .unwrap()
                         .nucast::<SkillObject>(),
-                    Some(a.clone().nucast::<AT>().unwrap())
+                    Some(a.clone().nucast::<A>().unwrap())
                         .unwrap()
                         .nucast::<SkillObject>(),
                 );
@@ -140,7 +140,7 @@ mod tests {
                         .as_ref()
                         .unwrap()
                         .nucast::<SkillObject>(),
-                    Some(c.clone().nucast::<AT>().unwrap())
+                    Some(c.clone().nucast::<A>().unwrap())
                         .unwrap()
                         .nucast::<SkillObject>(),
                 );

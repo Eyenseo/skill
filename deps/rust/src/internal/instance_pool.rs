@@ -1,10 +1,10 @@
 use common::error::*;
+use common::internal::StringBlock;
 use common::internal::{ObjectReader, SkillObject};
 use common::io::{Block, FieldChunk, FieldDeclaration, FieldType, FileReader, FileWriter};
 use common::iterator::dynamic_data;
 use common::Ptr;
 use common::SkillString;
-use common::internal::StringBlock;
 use SkillFile;
 
 use std::cell::RefCell;

@@ -2,12 +2,12 @@
 use common::error::*;
 use common::internal::InstancePool;
 use common::internal::SkillObject;
+use common::internal::StringBlock;
 use common::io::FileReader;
 use common::io::FileWriter;
 use common::iterator::dynamic_data;
 use common::Ptr;
 use common::SkillString;
-use common::internal::StringBlock;
 
 use std::cell::RefCell;
 use std::ops::{Add, AddAssign, Sub, SubAssign};

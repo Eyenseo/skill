@@ -1,9 +1,9 @@
 use common::error::*;
 use common::internal::InstancePool;
+use common::internal::StringBlock;
 use common::io::base_reader::*;
 use common::io::magic::*;
 use common::Ptr;
-use common::internal::StringBlock;
 
 use memmap::Mmap;
 

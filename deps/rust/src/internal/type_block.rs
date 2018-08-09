@@ -1,5 +1,6 @@
 use common::error::*;
 use common::internal::foreign;
+use common::internal::StringBlock;
 use common::internal::{InstancePool, ObjectReader, SkillObject};
 use common::io::{
     Block, BlockIndex, BuildInType, ContinuationFieldChunk, DeclarationFieldChunk, FieldChunk,
@@ -8,7 +9,6 @@ use common::io::{
 use common::iterator::*;
 use common::PoolMaker;
 use common::Ptr;
-use common::internal::StringBlock;
 
 use std::cell::RefCell;
 use std::rc::Rc;

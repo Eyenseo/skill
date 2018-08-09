@@ -73,13 +73,10 @@ mod tests {
                     let all_aString_obj = sf.basic_string.borrow_mut().add();
                     // set fields
                     all.borrow_mut().set_a_user_type(Some(
-                        all_aUserType_obj
-                            .clone()
-                            .nucast::<BasicIntegersT>()
-                            .unwrap(),
+                        all_aUserType_obj.clone().nucast::<BasicIntegers>().unwrap(),
                     ));
                     all.borrow_mut().set_a_string(Some(
-                        all_aString_obj.clone().nucast::<BasicStringT>().unwrap(),
+                        all_aString_obj.clone().nucast::<BasicString>().unwrap(),
                     ));
                     all.borrow_mut().set_a_list({
                         let mut list: LinkedList<f32> = LinkedList::default();
@@ -94,13 +91,10 @@ mod tests {
                         map
                     });
                     all.borrow_mut().set_an_array({
-                        let mut vec: Vec<Option<Ptr<BasicIntegersT>>> = Vec::default();
+                        let mut vec: Vec<Option<Ptr<BasicIntegers>>> = Vec::default();
                         vec.reserve(1);
                         vec.push(Some(
-                            all_aUserType_obj
-                                .clone()
-                                .nucast::<BasicIntegersT>()
-                                .unwrap(),
+                            all_aUserType_obj.clone().nucast::<BasicIntegers>().unwrap(),
                         ));
                         vec
                     });
@@ -110,7 +104,7 @@ mod tests {
                     all.borrow_mut().set_another_user_type(Some(
                         all_anotherUserType_obj
                             .clone()
-                            .nucast::<BasicFloatsT>()
+                            .nucast::<BasicFloats>()
                             .unwrap(),
                     ));
                     all.borrow_mut().set_a_set({
@@ -120,50 +114,50 @@ mod tests {
                         set
                     });
                     all.borrow_mut()
-                        .set_a_bool(Some(all_aBool_obj.clone().nucast::<BasicBoolT>().unwrap()));
+                        .set_a_bool(Some(all_aBool_obj.clone().nucast::<BasicBool>().unwrap()));
                     all_aUserType_obj_int64I_obj
                         .borrow_mut()
                         .set_basic_int(0 as i64);
                     all_anotherUserType_obj.borrow_mut().set_float32(Some(
                         all_anotherUserType_obj_float32_obj
                             .clone()
-                            .nucast::<BasicFloat32T>()
+                            .nucast::<BasicFloat32>()
                             .unwrap(),
                     ));
                     all_anotherUserType_obj.borrow_mut().set_float64(Some(
                         all_anotherUserType_obj_float64_obj
                             .clone()
-                            .nucast::<BasicFloat64T>()
+                            .nucast::<BasicFloat64>()
                             .unwrap(),
                     ));
                     all_aUserType_obj.borrow_mut().set_int32(Some(
                         all_aUserType_obj_int32_obj
                             .clone()
-                            .nucast::<BasicInt32T>()
+                            .nucast::<BasicInt32>()
                             .unwrap(),
                     ));
                     all_aUserType_obj.borrow_mut().set_int8(Some(
                         all_aUserType_obj_int8_obj
                             .clone()
-                            .nucast::<BasicInt8T>()
+                            .nucast::<BasicInt8>()
                             .unwrap(),
                     ));
                     all_aUserType_obj.borrow_mut().set_int64v(Some(
                         all_aUserType_obj_int64V_obj
                             .clone()
-                            .nucast::<BasicInt64VT>()
+                            .nucast::<BasicInt64V>()
                             .unwrap(),
                     ));
                     all_aUserType_obj.borrow_mut().set_int64i(Some(
                         all_aUserType_obj_int64I_obj
                             .clone()
-                            .nucast::<BasicInt64IT>()
+                            .nucast::<BasicInt64I>()
                             .unwrap(),
                     ));
                     all_aUserType_obj.borrow_mut().set_int16(Some(
                         all_aUserType_obj_int16_obj
                             .clone()
-                            .nucast::<BasicInt16T>()
+                            .nucast::<BasicInt16>()
                             .unwrap(),
                     ));
                     all_aUserType_obj_int32_obj
@@ -237,7 +231,9 @@ mod tests {
                             // get objects
                             let all = match sf.basic_types.borrow().get(all_id) {
                                 Ok(ptr) => ptr,
-                                Err(e) => panic!("ObjectProper all was not retrieved because:{}", e),
+                                Err(e) => {
+                                    panic!("ObjectProper all was not retrieved because:{}", e)
+                                }
                             };
                             let all_aUserType_obj_int64I_obj = match sf.basic_int64i.borrow().get(all_aUserType_obj_int64I_obj_id) {
                             Ok(ptr) => ptr,
@@ -251,14 +247,17 @@ mod tests {
                                     e
                                 ),
                                 };
-                            let all_aUserType_obj =
-                                match sf.basic_integers.borrow().get(all_aUserType_obj_id) {
-                                    Ok(ptr) => ptr,
-                                    Err(e) => panic!(
-                                        "ObjectProper all_aUserType_obj was not retrieved because:{}",
-                                        e
-                                    ),
-                                };
+                            let all_aUserType_obj = match sf
+                                .basic_integers
+                                .borrow()
+                                .get(all_aUserType_obj_id)
+                            {
+                                Ok(ptr) => ptr,
+                                Err(e) => panic!(
+                                    "ObjectProper all_aUserType_obj was not retrieved because:{}",
+                                    e
+                                ),
+                            };
                             let all_aUserType_obj_int32_obj = match sf.basic_int32.borrow().get(all_aUserType_obj_int32_obj_id) {
                             Ok(ptr) => ptr,
                             Err(e) => panic!("ObjectProper all_aUserType_obj_int32_obj was not retrieved because:{}", e),
@@ -285,9 +284,10 @@ mod tests {
                         };
                             let all_aBool_obj = match sf.basic_bool.borrow().get(all_aBool_obj_id) {
                                 Ok(ptr) => ptr,
-                                Err(e) => {
-                                    panic!("ObjectProper all_aBool_obj was not retrieved because:{}", e)
-                                }
+                                Err(e) => panic!(
+                                    "ObjectProper all_aBool_obj was not retrieved because:{}",
+                                    e
+                                ),
                             };
                             let all_aString_obj =
                                 match sf.basic_string.borrow().get(all_aString_obj_id) {
@@ -305,13 +305,9 @@ mod tests {
                                     .as_ref()
                                     .unwrap()
                                     .nucast::<SkillObject>(),
-                                Some(
-                                    all_aUserType_obj
-                                        .clone()
-                                        .nucast::<BasicIntegersT>()
-                                        .unwrap()
-                                ).unwrap()
-                                .nucast::<SkillObject>(),
+                                Some(all_aUserType_obj.clone().nucast::<BasicIntegers>().unwrap())
+                                    .unwrap()
+                                    .nucast::<SkillObject>(),
                             );
                             assert_eq!(all.borrow_mut().get_a_string().is_some(), true);
                             assert_eq!(
@@ -320,7 +316,7 @@ mod tests {
                                     .as_ref()
                                     .unwrap()
                                     .nucast::<SkillObject>(),
-                                Some(all_aString_obj.clone().nucast::<BasicStringT>().unwrap())
+                                Some(all_aString_obj.clone().nucast::<BasicString>().unwrap())
                                     .unwrap()
                                     .nucast::<SkillObject>(),
                             );
@@ -338,14 +334,11 @@ mod tests {
                             });
                             assert_eq!(*all.borrow_mut().get_an_array(), {
                                 let mut vec: Vec<
-                                    Option<Ptr<BasicIntegersT>>,
+                                    Option<Ptr<BasicIntegers>>,
                                 > = Vec::default();
                                 vec.reserve(1);
                                 vec.push(Some(
-                                    all_aUserType_obj
-                                        .clone()
-                                        .nucast::<BasicIntegersT>()
-                                        .unwrap(),
+                                    all_aUserType_obj.clone().nucast::<BasicIntegers>().unwrap(),
                                 ));
                                 vec
                             });
@@ -370,7 +363,7 @@ mod tests {
                                 Some(
                                     all_anotherUserType_obj
                                         .clone()
-                                        .nucast::<BasicFloatsT>()
+                                        .nucast::<BasicFloats>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -388,7 +381,7 @@ mod tests {
                                     .as_ref()
                                     .unwrap()
                                     .nucast::<SkillObject>(),
-                                Some(all_aBool_obj.clone().nucast::<BasicBoolT>().unwrap())
+                                Some(all_aBool_obj.clone().nucast::<BasicBool>().unwrap())
                                     .unwrap()
                                     .nucast::<SkillObject>(),
                             );
@@ -410,7 +403,7 @@ mod tests {
                                 Some(
                                     all_anotherUserType_obj_float32_obj
                                         .clone()
-                                        .nucast::<BasicFloat32T>()
+                                        .nucast::<BasicFloat32>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -429,7 +422,7 @@ mod tests {
                                 Some(
                                     all_anotherUserType_obj_float64_obj
                                         .clone()
-                                        .nucast::<BasicFloat64T>()
+                                        .nucast::<BasicFloat64>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -445,7 +438,7 @@ mod tests {
                                 Some(
                                     all_aUserType_obj_int32_obj
                                         .clone()
-                                        .nucast::<BasicInt32T>()
+                                        .nucast::<BasicInt32>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -461,7 +454,7 @@ mod tests {
                                 Some(
                                     all_aUserType_obj_int8_obj
                                         .clone()
-                                        .nucast::<BasicInt8T>()
+                                        .nucast::<BasicInt8>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -477,7 +470,7 @@ mod tests {
                                 Some(
                                     all_aUserType_obj_int64V_obj
                                         .clone()
-                                        .nucast::<BasicInt64VT>()
+                                        .nucast::<BasicInt64V>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -493,7 +486,7 @@ mod tests {
                                 Some(
                                     all_aUserType_obj_int64I_obj
                                         .clone()
-                                        .nucast::<BasicInt64IT>()
+                                        .nucast::<BasicInt64I>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -509,7 +502,7 @@ mod tests {
                                 Some(
                                     all_aUserType_obj_int16_obj
                                         .clone()
-                                        .nucast::<BasicInt16T>()
+                                        .nucast::<BasicInt16>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -609,7 +602,9 @@ mod tests {
                             // get objects
                             let all = match sf.basic_types.borrow().get(all_id) {
                                 Ok(ptr) => ptr,
-                                Err(e) => panic!("ObjectProper all was not retrieved because:{}", e),
+                                Err(e) => {
+                                    panic!("ObjectProper all was not retrieved because:{}", e)
+                                }
                             };
                             let all_aUserType_obj_int64I_obj = match sf.basic_int64i.borrow().get(all_aUserType_obj_int64I_obj_id) {
                             Ok(ptr) => ptr,
@@ -623,14 +618,17 @@ mod tests {
                                     e
                                 ),
                                 };
-                            let all_aUserType_obj =
-                                match sf.basic_integers.borrow().get(all_aUserType_obj_id) {
-                                    Ok(ptr) => ptr,
-                                    Err(e) => panic!(
-                                        "ObjectProper all_aUserType_obj was not retrieved because:{}",
-                                        e
-                                    ),
-                                };
+                            let all_aUserType_obj = match sf
+                                .basic_integers
+                                .borrow()
+                                .get(all_aUserType_obj_id)
+                            {
+                                Ok(ptr) => ptr,
+                                Err(e) => panic!(
+                                    "ObjectProper all_aUserType_obj was not retrieved because:{}",
+                                    e
+                                ),
+                            };
                             let all_aUserType_obj_int32_obj = match sf.basic_int32.borrow().get(all_aUserType_obj_int32_obj_id) {
                             Ok(ptr) => ptr,
                             Err(e) => panic!("ObjectProper all_aUserType_obj_int32_obj was not retrieved because:{}", e),
@@ -657,9 +655,10 @@ mod tests {
                         };
                             let all_aBool_obj = match sf.basic_bool.borrow().get(all_aBool_obj_id) {
                                 Ok(ptr) => ptr,
-                                Err(e) => {
-                                    panic!("ObjectProper all_aBool_obj was not retrieved because:{}", e)
-                                }
+                                Err(e) => panic!(
+                                    "ObjectProper all_aBool_obj was not retrieved because:{}",
+                                    e
+                                ),
                             };
                             let all_aString_obj =
                                 match sf.basic_string.borrow().get(all_aString_obj_id) {
@@ -677,13 +676,9 @@ mod tests {
                                     .as_ref()
                                     .unwrap()
                                     .nucast::<SkillObject>(),
-                                Some(
-                                    all_aUserType_obj
-                                        .clone()
-                                        .nucast::<BasicIntegersT>()
-                                        .unwrap()
-                                ).unwrap()
-                                .nucast::<SkillObject>(),
+                                Some(all_aUserType_obj.clone().nucast::<BasicIntegers>().unwrap())
+                                    .unwrap()
+                                    .nucast::<SkillObject>(),
                             );
                             assert_eq!(all.borrow_mut().get_a_string().is_some(), true);
                             assert_eq!(
@@ -692,7 +687,7 @@ mod tests {
                                     .as_ref()
                                     .unwrap()
                                     .nucast::<SkillObject>(),
-                                Some(all_aString_obj.clone().nucast::<BasicStringT>().unwrap())
+                                Some(all_aString_obj.clone().nucast::<BasicString>().unwrap())
                                     .unwrap()
                                     .nucast::<SkillObject>(),
                             );
@@ -710,14 +705,11 @@ mod tests {
                             });
                             assert_eq!(*all.borrow_mut().get_an_array(), {
                                 let mut vec: Vec<
-                                    Option<Ptr<BasicIntegersT>>,
+                                    Option<Ptr<BasicIntegers>>,
                                 > = Vec::default();
                                 vec.reserve(1);
                                 vec.push(Some(
-                                    all_aUserType_obj
-                                        .clone()
-                                        .nucast::<BasicIntegersT>()
-                                        .unwrap(),
+                                    all_aUserType_obj.clone().nucast::<BasicIntegers>().unwrap(),
                                 ));
                                 vec
                             });
@@ -742,7 +734,7 @@ mod tests {
                                 Some(
                                     all_anotherUserType_obj
                                         .clone()
-                                        .nucast::<BasicFloatsT>()
+                                        .nucast::<BasicFloats>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -760,7 +752,7 @@ mod tests {
                                     .as_ref()
                                     .unwrap()
                                     .nucast::<SkillObject>(),
-                                Some(all_aBool_obj.clone().nucast::<BasicBoolT>().unwrap())
+                                Some(all_aBool_obj.clone().nucast::<BasicBool>().unwrap())
                                     .unwrap()
                                     .nucast::<SkillObject>(),
                             );
@@ -782,7 +774,7 @@ mod tests {
                                 Some(
                                     all_anotherUserType_obj_float32_obj
                                         .clone()
-                                        .nucast::<BasicFloat32T>()
+                                        .nucast::<BasicFloat32>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -801,7 +793,7 @@ mod tests {
                                 Some(
                                     all_anotherUserType_obj_float64_obj
                                         .clone()
-                                        .nucast::<BasicFloat64T>()
+                                        .nucast::<BasicFloat64>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -817,7 +809,7 @@ mod tests {
                                 Some(
                                     all_aUserType_obj_int32_obj
                                         .clone()
-                                        .nucast::<BasicInt32T>()
+                                        .nucast::<BasicInt32>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -833,7 +825,7 @@ mod tests {
                                 Some(
                                     all_aUserType_obj_int8_obj
                                         .clone()
-                                        .nucast::<BasicInt8T>()
+                                        .nucast::<BasicInt8>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -849,7 +841,7 @@ mod tests {
                                 Some(
                                     all_aUserType_obj_int64V_obj
                                         .clone()
-                                        .nucast::<BasicInt64VT>()
+                                        .nucast::<BasicInt64V>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -865,7 +857,7 @@ mod tests {
                                 Some(
                                     all_aUserType_obj_int64I_obj
                                         .clone()
-                                        .nucast::<BasicInt64IT>()
+                                        .nucast::<BasicInt64I>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),
@@ -881,7 +873,7 @@ mod tests {
                                 Some(
                                     all_aUserType_obj_int16_obj
                                         .clone()
-                                        .nucast::<BasicInt16T>()
+                                        .nucast::<BasicInt16>()
                                         .unwrap()
                                 ).unwrap()
                                 .nucast::<SkillObject>(),

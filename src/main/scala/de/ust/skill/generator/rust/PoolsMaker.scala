@@ -102,19 +102,19 @@ trait PoolsMaker extends GeneralOutputMaker {
     e"""#[derive(Default, Debug,  PartialEq)]
        §pub struct ${if (foreign) foreignName(base) else name(base)} {
        §    skill_id: Cell<usize>,
-       §    skill_type_id: usize,
-       §    ${
-      (for (f ← base.getAllFields.asScala) yield {
-        e"""${name(f)}: ${mapType(f.getType)},
-           §""".stripMargin('§')
-      }).mkString.trim
-    }${
+       §    skill_type_id: usize,${
       if (foreign) {
         e"""
            §foreign_data: Vec<foreign::FieldData>,""".stripMargin('§')
       } else {
         ""
       }
+    }
+       §    ${
+      (for (f ← base.getAllFields.asScala) yield {
+        e"""${internalName(f)}: ${mapType(f.getType)},
+           §""".stripMargin('§')
+      }).mkString.trim
     }
        §}""".stripMargin('§')
   }
@@ -171,23 +171,23 @@ trait PoolsMaker extends GeneralOutputMaker {
     } {
        §    ${
       if (field.getType.isInstanceOf[ReferenceType] || field.getType.isInstanceOf[ContainerType]) {
-        e"&self.${name(field)}"
+        e"&self.${internalName(field)}"
       } else {
-        e"self.${name(field)}"
+        e"self.${internalName(field)}"
       }
     }
        §}${
       if (field.getType.isInstanceOf[ReferenceType] || field.getType.isInstanceOf[ContainerType]) {
         e"""
            §fn get_${name(field)}_mut(&mut self) -> &mut ${mapType(field.getType)} {
-           §    &mut self.${name(field)}
+           §    &mut self.${internalName(field)}
            §}""".stripMargin('§')
       } else {
         ""
       }
     }
        §fn set_${name(field)}(&mut self, value: ${mapType(field.getType)}) {
-       §    self.${name(field)} = value;
+       §    self.${internalName(field)} = value;
        §}""".stripMargin('§')
   }
 
@@ -199,18 +199,18 @@ trait PoolsMaker extends GeneralOutputMaker {
     } {
        §        ${if (foreign) foreignName(base) else name(base)} {
        §            skill_id: Cell::new(skill_id),
-       §            skill_type_id,
-       §            ${
-      (for (f ← base.getAllFields.asScala) yield {
-        e"""${name(f)}: ${defaultValue(f)},
-           §""".stripMargin('§')
-      }).mkString.trim
-    }${
+       §            skill_type_id,${
       if (foreign) {
         "\nforeign_data: Vec::default(),"
       } else {
         ""
       }
+    }
+       §            ${
+      (for (f ← base.getAllFields.asScala) yield {
+        e"""${internalName(f)}: ${defaultValue(f)},
+           §""".stripMargin('§')
+      }).mkString.trim
     }
        §        }
        §    }
