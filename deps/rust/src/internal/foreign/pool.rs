@@ -245,7 +245,7 @@ impl InstancePool for Pool {
         let mut vec = self.instances.borrow_mut();
         if self.is_base() {
             // TODO add extra Garbage / placeholder object
-            let tmp = Ptr::new(foreign::Object::new(0, 0));
+            let tmp = Ptr::new(foreign::ObjectProper::new(0, 0));
             info!(
                 target: "SkillParsing",
                 "Allocate space for:Pool amount:{}",
@@ -278,7 +278,7 @@ impl InstancePool for Pool {
                     let pool = self.super_pool.as_ref().unwrap().borrow();
                     trace!(
                         target: "SkillParsing",
-                        "Object id:{} super:{:?} block:{:?}",
+                        "ObjectProper id:{} super:{:?} block:{:?}",
                         id,
                         pool.get_type_id(),
                         block,
@@ -288,7 +288,7 @@ impl InstancePool for Pool {
                 } else {
                     trace!(
                         target: "SkillParsing",
-                        "Object id:{} block:{:?}",
+                        "ObjectProper id:{} block:{:?}",
                         id,
                         block,
                     );
@@ -306,9 +306,9 @@ impl InstancePool for Pool {
         }
         trace!(
             target: "SkillParsing",
-            "Create new Object",
+            "Create new ObjectProper",
         );
-        Ptr::new(foreign::Object::new(skill_id, skill_type_id))
+        Ptr::new(foreign::ObjectProper::new(skill_id, skill_type_id))
     }
     fn update_after_compress(
         &mut self,

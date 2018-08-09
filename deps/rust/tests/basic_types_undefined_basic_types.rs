@@ -237,17 +237,17 @@ mod tests {
                             // get objects
                             let all = match sf.basic_types.borrow().get(all_id) {
                                 Ok(ptr) => ptr,
-                                Err(e) => panic!("Object all was not retrieved because:{}", e),
+                                Err(e) => panic!("ObjectProper all was not retrieved because:{}", e),
                             };
                             let all_aUserType_obj_int64I_obj = match sf.basic_int64i.borrow().get(all_aUserType_obj_int64I_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_aUserType_obj_int64I_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_aUserType_obj_int64I_obj was not retrieved because:{}", e),
                         };
                             let all_anotherUserType_obj =
                                 match sf.basic_floats.borrow().get(all_anotherUserType_obj_id) {
                                     Ok(ptr) => ptr,
                                     Err(e) => panic!(
-                                    "Object all_anotherUserType_obj was not retrieved because:{}",
+                                    "ObjectProper all_anotherUserType_obj was not retrieved because:{}",
                                     e
                                 ),
                                 };
@@ -255,45 +255,45 @@ mod tests {
                                 match sf.basic_integers.borrow().get(all_aUserType_obj_id) {
                                     Ok(ptr) => ptr,
                                     Err(e) => panic!(
-                                        "Object all_aUserType_obj was not retrieved because:{}",
+                                        "ObjectProper all_aUserType_obj was not retrieved because:{}",
                                         e
                                     ),
                                 };
                             let all_aUserType_obj_int32_obj = match sf.basic_int32.borrow().get(all_aUserType_obj_int32_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_aUserType_obj_int32_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_aUserType_obj_int32_obj was not retrieved because:{}", e),
                         };
                             let all_anotherUserType_obj_float32_obj = match sf.basic_float32.borrow().get(all_anotherUserType_obj_float32_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_anotherUserType_obj_float32_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_anotherUserType_obj_float32_obj was not retrieved because:{}", e),
                         };
                             let all_aUserType_obj_int64V_obj = match sf.basic_int64v.borrow().get(all_aUserType_obj_int64V_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_aUserType_obj_int64V_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_aUserType_obj_int64V_obj was not retrieved because:{}", e),
                         };
                             let all_anotherUserType_obj_float64_obj = match sf.basic_float64.borrow().get(all_anotherUserType_obj_float64_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_anotherUserType_obj_float64_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_anotherUserType_obj_float64_obj was not retrieved because:{}", e),
                         };
                             let all_aUserType_obj_int8_obj = match sf.basic_int8.borrow().get(all_aUserType_obj_int8_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_aUserType_obj_int8_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_aUserType_obj_int8_obj was not retrieved because:{}", e),
                         };
                             let all_aUserType_obj_int16_obj = match sf.basic_int16.borrow().get(all_aUserType_obj_int16_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_aUserType_obj_int16_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_aUserType_obj_int16_obj was not retrieved because:{}", e),
                         };
                             let all_aBool_obj = match sf.basic_bool.borrow().get(all_aBool_obj_id) {
                                 Ok(ptr) => ptr,
                                 Err(e) => {
-                                    panic!("Object all_aBool_obj was not retrieved because:{}", e)
+                                    panic!("ObjectProper all_aBool_obj was not retrieved because:{}", e)
                                 }
                             };
                             let all_aString_obj =
                                 match sf.basic_string.borrow().get(all_aString_obj_id) {
                                     Ok(ptr) => ptr,
                                     Err(e) => panic!(
-                                        "Object all_aString_obj was not retrieved because:{}",
+                                        "ObjectProper all_aString_obj was not retrieved because:{}",
                                         e
                                     ),
                                 };
@@ -609,17 +609,17 @@ mod tests {
                             // get objects
                             let all = match sf.basic_types.borrow().get(all_id) {
                                 Ok(ptr) => ptr,
-                                Err(e) => panic!("Object all was not retrieved because:{}", e),
+                                Err(e) => panic!("ObjectProper all was not retrieved because:{}", e),
                             };
                             let all_aUserType_obj_int64I_obj = match sf.basic_int64i.borrow().get(all_aUserType_obj_int64I_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_aUserType_obj_int64I_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_aUserType_obj_int64I_obj was not retrieved because:{}", e),
                         };
                             let all_anotherUserType_obj =
                                 match sf.basic_floats.borrow().get(all_anotherUserType_obj_id) {
                                     Ok(ptr) => ptr,
                                     Err(e) => panic!(
-                                    "Object all_anotherUserType_obj was not retrieved because:{}",
+                                    "ObjectProper all_anotherUserType_obj was not retrieved because:{}",
                                     e
                                 ),
                                 };
@@ -627,45 +627,45 @@ mod tests {
                                 match sf.basic_integers.borrow().get(all_aUserType_obj_id) {
                                     Ok(ptr) => ptr,
                                     Err(e) => panic!(
-                                        "Object all_aUserType_obj was not retrieved because:{}",
+                                        "ObjectProper all_aUserType_obj was not retrieved because:{}",
                                         e
                                     ),
                                 };
                             let all_aUserType_obj_int32_obj = match sf.basic_int32.borrow().get(all_aUserType_obj_int32_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_aUserType_obj_int32_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_aUserType_obj_int32_obj was not retrieved because:{}", e),
                         };
                             let all_anotherUserType_obj_float32_obj = match sf.basic_float32.borrow().get(all_anotherUserType_obj_float32_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_anotherUserType_obj_float32_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_anotherUserType_obj_float32_obj was not retrieved because:{}", e),
                         };
                             let all_aUserType_obj_int64V_obj = match sf.basic_int64v.borrow().get(all_aUserType_obj_int64V_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_aUserType_obj_int64V_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_aUserType_obj_int64V_obj was not retrieved because:{}", e),
                         };
                             let all_anotherUserType_obj_float64_obj = match sf.basic_float64.borrow().get(all_anotherUserType_obj_float64_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_anotherUserType_obj_float64_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_anotherUserType_obj_float64_obj was not retrieved because:{}", e),
                         };
                             let all_aUserType_obj_int8_obj = match sf.basic_int8.borrow().get(all_aUserType_obj_int8_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_aUserType_obj_int8_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_aUserType_obj_int8_obj was not retrieved because:{}", e),
                         };
                             let all_aUserType_obj_int16_obj = match sf.basic_int16.borrow().get(all_aUserType_obj_int16_obj_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object all_aUserType_obj_int16_obj was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper all_aUserType_obj_int16_obj was not retrieved because:{}", e),
                         };
                             let all_aBool_obj = match sf.basic_bool.borrow().get(all_aBool_obj_id) {
                                 Ok(ptr) => ptr,
                                 Err(e) => {
-                                    panic!("Object all_aBool_obj was not retrieved because:{}", e)
+                                    panic!("ObjectProper all_aBool_obj was not retrieved because:{}", e)
                                 }
                             };
                             let all_aString_obj =
                                 match sf.basic_string.borrow().get(all_aString_obj_id) {
                                     Ok(ptr) => ptr,
                                     Err(e) => panic!(
-                                        "Object all_aString_obj was not retrieved because:{}",
+                                        "ObjectProper all_aString_obj was not retrieved because:{}",
                                         e
                                     ),
                                 };

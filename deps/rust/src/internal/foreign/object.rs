@@ -6,21 +6,20 @@ use common::internal::SkillObject;
 use std::cell::Cell;
 
 #[derive(Default, Debug)]
-pub(crate) struct Object {
+pub(crate) struct ObjectProper {
     skill_id: Cell<usize>,
     skill_type_id: usize,
     undefind_data: Vec<foreign::FieldData>,
 }
 
-// FIXME *T == Object and * == Type(?)
-pub(crate) trait ObjectT: SkillObject {
+pub(crate) trait Object: SkillObject {
     fn foreign_fields(&self) -> &Vec<foreign::FieldData>;
     fn foreign_fields_mut(&mut self) -> &mut Vec<foreign::FieldData>;
 }
 
-impl Object {
-    pub fn new(skill_id: usize, skill_type_id: usize) -> Object {
-        Object {
+impl ObjectProper {
+    pub fn new(skill_id: usize, skill_type_id: usize) -> ObjectProper {
+        ObjectProper {
             skill_id: Cell::new(skill_id),
             skill_type_id,
             undefind_data: Vec::default(),
@@ -28,7 +27,7 @@ impl Object {
     }
 }
 
-impl ObjectT for Object {
+impl Object for ObjectProper {
     fn foreign_fields(&self) -> &Vec<foreign::FieldData> {
         &self.undefind_data
     }
@@ -37,7 +36,7 @@ impl ObjectT for Object {
     }
 }
 
-impl SkillObject for Object {
+impl SkillObject for ObjectProper {
     fn skill_type_id(&self) -> usize {
         self.skill_type_id
     }

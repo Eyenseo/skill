@@ -156,9 +156,9 @@ trait GeneralOutputMaker extends Generator {
 
   final def field(t: Type): String = field(t.getName.camel())
 
-  final def traitName(t: Type): String = escaped(t.getName.capital) + "T"
+  final def traitName(t: Type): String = escaped(t.getName.capital)
 
-  final def name(t: Type): String = escaped(t.getName.capital)
+  final def name(t: Type): String = escaped(t.getName.capital) + "Proper"
 
   final def name(f: Field): String = snakeCase(escaped(f.getName.camel)).toLowerCase
 

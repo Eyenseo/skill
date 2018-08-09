@@ -174,11 +174,11 @@ pub enum UserFail {
     #[fail(display = "Accessed object (ID:{}) of foreign type", id)]
     BadCastID { id: usize },
 
-    #[fail(display = "Object (ID:{}) is unused / unknown", id)]
+    #[fail(display = "ObjectProper (ID:{}) is unused / unknown", id)]
     UnknownObjectID { id: usize },
 
     #[fail(
-        display = "Object (ID:{}) was used while marking it for deletion",
+        display = "ObjectProper (ID:{}) was used while marking it for deletion",
         id
     )]
     DeleteInUse { id: usize },

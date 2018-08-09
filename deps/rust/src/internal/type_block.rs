@@ -419,7 +419,7 @@ impl TypeBlock {
                     vec.reserve(p.borrow().get_global_cached_count());
                     for _ in 0..p.borrow().get_global_cached_count() {
                         // TODO replace with garbage object
-                        vec.push(Ptr::new(foreign::Object::new(0, 0)));
+                        vec.push(Ptr::new(foreign::ObjectProper::new(0, 0)));
                     }
 
                     let mut id = 1;

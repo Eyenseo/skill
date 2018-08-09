@@ -10,7 +10,6 @@ use SkillFile;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-// TODO rename
 // TODO reorder
 pub trait InstancePool {
     fn has_field(&self, name_id: usize) -> bool;

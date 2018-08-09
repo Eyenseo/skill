@@ -107,11 +107,11 @@ mod tests {
                     // get objects
                     let a = match sf.a.borrow().get(a_id) {
                         Ok(ptr) => ptr,
-                        Err(e) => panic!("Object a was not retrieved because:{}", e),
+                        Err(e) => panic!("ObjectProper a was not retrieved because:{}", e),
                     };
                     let c = match sf.c.borrow().get(c_id) {
                         Ok(ptr) => ptr,
-                        Err(e) => panic!("Object c was not retrieved because:{}", e),
+                        Err(e) => panic!("ObjectProper c was not retrieved because:{}", e),
                     };
                     // assert fields
                     assert_eq!(a.borrow_mut().get_a().is_some(), true);
@@ -147,19 +147,19 @@ mod tests {
                         // get objects
                         let a = match sf.a.borrow().get(a_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object a was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper a was not retrieved because:{}", e),
                         };
                         let b = match sf.b.borrow().get(b_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object b was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper b was not retrieved because:{}", e),
                         };
                         let c = match sf.c.borrow().get(c_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object c was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper c was not retrieved because:{}", e),
                         };
                         let d = match sf.d.borrow().get(d_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object d was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper d was not retrieved because:{}", e),
                         };
                         // assert fields
                         assert_eq!(a.borrow_mut().get_a().is_some(), true);

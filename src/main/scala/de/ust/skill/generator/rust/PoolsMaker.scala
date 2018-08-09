@@ -245,7 +245,7 @@ trait PoolsMaker extends GeneralOutputMaker {
     }
        §${
       if (foreign) {
-        e"""impl foreign::ObjectT for ${foreignName(base)} {
+        e"""impl foreign::Object for ${foreignName(base)} {
            §    fn foreign_fields(&self) -> &Vec<foreign::FieldData> {
            §        &self.foreign_data
            §    }
@@ -530,7 +530,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        if self.is_base() {${
       "" // TODO add garbage type
     }
-       §            let tmp = Ptr::new(foreign::Object::new(0, 0));
+       §            let tmp = Ptr::new(foreign::ObjectProper::new(0, 0));
        §            info!(
        §                target:"SkillParsing",
        §                "Allocate space for:${base.getName} aka ${name(base)} amount:{}",
@@ -1135,7 +1135,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                            {
        §                                info!(
        §                                    target:"SkillParsing",
-       §                                    "Block:{:?} Object:{}",
+       §                                    "Block:{:?} ObjectProper:{}",
        §                                    block,
        §                                    o + block.bpo,
        §                                );
@@ -1164,7 +1164,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                        {
        §                            info!(
        §                                target:"SkillParsing",
-       §                                "Block:{:?} Object:{}",
+       §                                "Block:{:?} ObjectProper:{}",
        §                                block,
        §                                o + chunk.bpo,
        §                            );

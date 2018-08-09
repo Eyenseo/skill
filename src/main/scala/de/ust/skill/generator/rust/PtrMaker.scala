@@ -65,26 +65,26 @@ trait PtrMaker extends GeneralOutputMaker {
            §""".stripMargin('§')
       }).mkString.trim
     }
-       §    foreign::Object: {
+       §    foreign::ObjectProper: {
        §        SkillObject,
-       §        foreign::ObjectT,
+       §        foreign::Object,
        §    },
        §);
        §
-       §ptr_cast_able!(foreign::Object = {
+       §ptr_cast_able!(foreign::ObjectProper = {
        §    SkillObject,
-       §    foreign::ObjectT,
+       §    foreign::Object,
        §});
-       §ptr_cast_able!(foreign::ObjectT =
+       §ptr_cast_able!(foreign::Object =
        §    ${
       (for (t ← IR) yield {
         e"""${genNucastTraitInner(t, foreign = true)}
            §""".stripMargin('§')
       }).mkString.trim
     }
-       §    foreign::Object: {
+       §    foreign::ObjectProper: {
        §        SkillObject,
-       §        foreign::ObjectT,
+       §        foreign::Object,
        §    },
        §);
        §
@@ -122,7 +122,7 @@ trait PtrMaker extends GeneralOutputMaker {
            §""".stripMargin('§')
       }).mkString.trim
     }
-       §    foreign::ObjectT,
+       §    foreign::Object,
        §});
        §""".stripMargin('§')
   }.trim
@@ -158,7 +158,7 @@ trait PtrMaker extends GeneralOutputMaker {
       }).mkString.trim
     }${
       if (foreign) {
-        "\nforeign::ObjectT,"
+        "\nforeign::Object,"
       } else {
         ""
       }
