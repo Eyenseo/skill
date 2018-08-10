@@ -235,12 +235,11 @@ class APITests extends common.GenericAPITests {
   }
 
   override def makeRegularTest(out: PrintWriter, kind: String, name: String, testName: String, accept: Boolean,
-                               IR: TypeContext, root: JSONObject) {
+                               tc: TypeContext, root: JSONObject) {
     if (skipTestCases.contains(testName.toLowerCase)) {
       return
     }
 
-    val tc = IR.removeSpecialDeclarations()
     val uuid = java.util.UUID.randomUUID.toString
     val funName = e"api_${escSnakeCase(name)}_${if (accept) "accept" else "reject"}_${
       escSnakeCase(testName.replaceAll("_|-", ""))
@@ -262,7 +261,7 @@ class APITests extends common.GenericAPITests {
                   §        let _logger = env_logger::try_init();
                   §        let _cleanup = Cleanup${gen.camelCase(funName.capitalize)};
                   §
-                  §         ${objectIDs(root, tc)}
+                  §        ${objectIDs(root)}
                   §
                   §        match SkillFile::create("/tmp/${funName}_$uuid.sf") {
                   §            Ok(sf) => match || -> Result<(), SkillFail> {
@@ -271,10 +270,12 @@ class APITests extends common.GenericAPITests {
                   §                ${createObjects(root, tc, name)}
                   §                // set fields
                   §                ${setFields(root, tc)}
+                  §                // assert fields
+                  §                ${assertFields(root, tc, preWrite = true)}
                   §                // serialize
                   §                sf.close()?;
                   §                // remember object IDs - type hierarchy makes them difficult to calculate for the generator
-                  §                ${rememberObjectIDs(root, tc)}
+                  §                ${rememberObjectIDs(root)}
                   §                Ok(())
                   §            }() {
                   §                Ok(_) => {},
@@ -297,7 +298,7 @@ class APITests extends common.GenericAPITests {
                   §                    // get objects
                   §                    ${readObjects(root, tc, name)}
                   §                    // assert fields
-                  §                    ${assertFields(root, tc)}
+                  §                    ${assertFields(root, tc, preWrite = false)}
                   §                },
                   §                Err(e) => if let Some(bt) = e.backtrace() {
                   §                    panic!("{}\n{}", e, bt)
@@ -328,7 +329,10 @@ class APITests extends common.GenericAPITests {
     val t = getType(tc, typ)
     val fn = field.toLowerCase()
     try {
-      t.getAllFields.asScala.find(e ⇒ e.getSkillName.equals(fn)).get
+      tc.removeTypedefs().removeEnums()
+      .get(t.getSkillName).asInstanceOf[UserType]
+        .getAllFields.asScala
+        .find(_.getName.getSkillName.equals(fn)).get
     } catch {
       case _: NoSuchElementException ⇒ fail(s"Field '$fn' does not exist, fix your test description!")
     }
@@ -425,6 +429,25 @@ class APITests extends common.GenericAPITests {
         // NOTE unwrapping is done to trigger a panic in case the cast ist illegal
         e"Some(${v.toString}.clone().nucast::<${gen.traitName(t)}>().unwrap())"
       }
+    case t: InterfaceType        ⇒
+      t.getBaseType match {
+        case _: UserType ⇒
+          if (null == v || v.toString.equals("null")) {
+            "None"
+          } else {
+            // NOTE all objects are read back so these names have to be valid
+            // NOTE unwrapping is done to trigger a panic in case the cast ist illegal
+            e"Some(${v.toString}.clone().nucast::<${gen.traitName(t)}>().unwrap())"
+          }
+        case _           ⇒
+          if (null == v || v.toString.equals("null")) {
+            "None"
+          } else {
+            // NOTE all objects are read back so these names have to be valid
+            // NOTE unwrapping is done to trigger a panic in case the cast ist illegal
+            e"Some(${v.toString}.clone().nucast::<SkillObject>().unwrap())"
+          }
+      }
     case _                       ⇒
       throw new GeneratorException("Unknown Type")
   }
@@ -461,7 +484,7 @@ class APITests extends common.GenericAPITests {
     }
   }
 
-  private def objectIDs(root: JSONObject, tc: TypeContext): String = {
+  private def objectIDs(root: JSONObject): String = {
     if (null == JSONObject.getNames(root)) {
       ""
     } else {
@@ -472,7 +495,7 @@ class APITests extends common.GenericAPITests {
     }
   }.trim
 
-  private def rememberObjectIDs(root: JSONObject, tc: TypeContext): String = {
+  private def rememberObjectIDs(root: JSONObject): String = {
     if (null == JSONObject.getNames(root)) {
       ""
     } else {
@@ -482,7 +505,6 @@ class APITests extends common.GenericAPITests {
       }).mkString
     }
   }.trim
-
 
   private def createObjects(root: JSONObject,
                             tc: TypeContext,
@@ -543,7 +565,7 @@ class APITests extends common.GenericAPITests {
     }
   }.trim
 
-  private def assertFields(root: JSONObject, tc: TypeContext): String = {
+  private def assertFields(root: JSONObject, tc: TypeContext, preWrite: Boolean): String = {
     if (null == JSONObject.getNames(root)) {
       ""
     } else {
@@ -561,7 +583,7 @@ class APITests extends common.GenericAPITests {
 
             // In case the field is an auto field we expect the default value
             def value(v: Any, f: Field): String = {
-              if (f.isAuto) {
+              if (f.isAuto && !preWrite) {
                 gen.defaultValue(f.getType)
               } else {
                 this.value(v, f.getType)
@@ -585,7 +607,7 @@ class APITests extends common.GenericAPITests {
             }
 
             field.getType match {
-              case _: UserType                                             ⇒
+              case _@(_: UserType | _: InterfaceType)                      ⇒
                 ptrUser()
               case t: GroundType if t.getName.camel().equals("annotation") ⇒
                 ptrUser()

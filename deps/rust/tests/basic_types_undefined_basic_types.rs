@@ -247,17 +247,14 @@ mod tests {
                                     e
                                 ),
                                 };
-                            let all_aUserType_obj = match sf
-                                .basic_integers
-                                .borrow()
-                                .get(all_aUserType_obj_id)
-                            {
-                                Ok(ptr) => ptr,
-                                Err(e) => panic!(
+                            let all_aUserType_obj =
+                                match sf.basic_integers.borrow().get(all_aUserType_obj_id) {
+                                    Ok(ptr) => ptr,
+                                    Err(e) => panic!(
                                     "ObjectProper all_aUserType_obj was not retrieved because:{}",
                                     e
                                 ),
-                            };
+                                };
                             let all_aUserType_obj_int32_obj = match sf.basic_int32.borrow().get(all_aUserType_obj_int32_obj_id) {
                             Ok(ptr) => ptr,
                             Err(e) => panic!("ObjectProper all_aUserType_obj_int32_obj was not retrieved because:{}", e),
@@ -618,17 +615,14 @@ mod tests {
                                     e
                                 ),
                                 };
-                            let all_aUserType_obj = match sf
-                                .basic_integers
-                                .borrow()
-                                .get(all_aUserType_obj_id)
-                            {
-                                Ok(ptr) => ptr,
-                                Err(e) => panic!(
+                            let all_aUserType_obj =
+                                match sf.basic_integers.borrow().get(all_aUserType_obj_id) {
+                                    Ok(ptr) => ptr,
+                                    Err(e) => panic!(
                                     "ObjectProper all_aUserType_obj was not retrieved because:{}",
                                     e
                                 ),
-                            };
+                                };
                             let all_aUserType_obj_int32_obj = match sf.basic_int32.borrow().get(all_aUserType_obj_int32_obj_id) {
                             Ok(ptr) => ptr,
                             Err(e) => panic!("ObjectProper all_aUserType_obj_int32_obj was not retrieved because:{}", e),

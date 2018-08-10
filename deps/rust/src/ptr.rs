@@ -363,6 +363,16 @@ macro_rules! ptr_cast_able {
         }
     };
     //----------------------------------------
+    // Empty
+    //----------------------------------------
+    ($for:ty) => {
+        impl $crate::common::ptr::CastAble<$for> for Ptr<$for> {
+            fn vtable(&self, id: ::std::any::TypeId) -> Option<$crate::common::ptr::VTable> {
+                None
+            }
+        }
+    };
+    //----------------------------------------
     // Structs
     //----------------------------------------
     // impl Ptr<Struct>

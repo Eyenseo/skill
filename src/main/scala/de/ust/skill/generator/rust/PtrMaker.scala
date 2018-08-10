@@ -6,7 +6,7 @@
 package de.ust.skill.generator.rust
 
 import de.ust.skill.generator.common.IndenterLaw._
-import de.ust.skill.ir.{Type, UserType}
+import de.ust.skill.ir._
 
 trait PtrMaker extends GeneralOutputMaker {
 
@@ -47,6 +47,14 @@ trait PtrMaker extends GeneralOutputMaker {
                   e"""use $mod::${name(base)};
                      §use $mod::${foreignName(base)};
                      §use $mod::${traitName(base)};
+                     §""".stripMargin('§')
+                )
+    }
+    for (base ← IRInterfaces) {
+      val mod = snakeCase(interface(base))
+
+      ret.append(
+                  e"""use $mod::${traitName(base)};
                      §""".stripMargin('§')
                 )
     }
@@ -95,6 +103,13 @@ trait PtrMaker extends GeneralOutputMaker {
            §""".stripMargin('§')
       }).mkString.trim
     }
+       §${
+      (for (base ← IRInterfaces) yield {
+        e"""${genNucastInterface(base)}
+           §
+           §""".stripMargin('§')
+      }).mkString.trim
+    }
        §""".stripMargin('§').trim
   }
 
@@ -105,22 +120,30 @@ trait PtrMaker extends GeneralOutputMaker {
   }.trim
 
   def genNucastStruct(base: UserType): String = {
+    val targets = getAllSuperTypes(base) ::: allSuperInterfaces(base)
+
     e"""ptr_cast_able!(${name(base)} = {
-       §    SkillObject,
-       §    ${
-      (for (sub ← getAllSuperTypes(base)) yield {
-        e"""${traitName(sub)},
-           §""".stripMargin('§')
-      }).mkString.trim
+       §    SkillObject,${
+      if (targets.nonEmpty) {
+        "\n" + (for (sub ← targets) yield {
+          e"""${traitName(sub)},
+             §""".stripMargin('§')
+        }).mkString.trim
+      } else {
+        ""
+      }
     }
        §});
        §ptr_cast_able!(${foreignName(base)} = {
-       §    SkillObject,
-       §    ${
-      (for (sub ← getAllSuperTypes(base)) yield {
-        e"""${traitName(sub)},
-           §""".stripMargin('§')
-      }).mkString.trim
+       §    SkillObject,${
+      if (targets.nonEmpty) {
+        "\n" + (for (sub ← targets) yield {
+          e"""${traitName(sub)},
+             §""".stripMargin('§')
+        }).mkString.trim
+      } else {
+        ""
+      }
     }
        §    foreign::Object,
        §});
@@ -128,16 +151,23 @@ trait PtrMaker extends GeneralOutputMaker {
   }.trim
 
   def genNucastTrait(base: UserType): String = {
-    e"""ptr_cast_able!(${traitName(base)} =
-       §    ${
-      (for (t ← (getAllSuperTypes(base) ::: getAllSubTypes(base)).distinct) yield {
-        e"""${genNucastTraitInner(t, foreign = false)}
-           §${genNucastTraitInner(t, foreign = true)}
-           §""".stripMargin('§')
-      }).mkString.trim
+    val targets = (getAllSuperTypes(base) ::: getAllSubTypes(base)).distinct
+
+    if (targets.nonEmpty) {
+      e"""ptr_cast_able!(${traitName(base)} =
+         §    ${
+        (for (t ← targets) yield {
+          e"""${genNucastTraitInner(t, foreign = false)}
+             §${genNucastTraitInner(t, foreign = true)}
+             §""".stripMargin('§')
+        }).mkString.trim
+      }
+         §);
+         §""".stripMargin('§')
+    } else {
+      e"""ptr_cast_able!(${traitName(base)});
+         §""".stripMargin('§')
     }
-       §);
-       §""".stripMargin('§')
   }.trim
 
   def genNucastTraitInner(base: Type, foreign: Boolean): String = {
@@ -149,13 +179,18 @@ trait PtrMaker extends GeneralOutputMaker {
       t.head
     }
 
+    val targets = getAllSuperTypes(t) ::: allSuperInterfaces(t)
+
     e"""${if (foreign) foreignName(base) else name(base)}: {
-       §    SkillObject,
-       §    ${
-      (for (base ← getAllSuperTypes(t)) yield {
-        e"""${traitName(base)},
-           §""".stripMargin('§')
-      }).mkString.trim
+       §    SkillObject,${
+      if (targets.nonEmpty) {
+        "\n" + (for (base ← targets) yield {
+          e"""${traitName(base)},
+             §""".stripMargin('§')
+        }).mkString.trim
+      } else {
+        ""
+      }
     }${
       if (foreign) {
         "\nforeign::Object,"
@@ -165,5 +200,25 @@ trait PtrMaker extends GeneralOutputMaker {
     }
        §},
        §""".stripMargin('§')
+  }.trim
+
+  def genNucastInterface(base: InterfaceType): String = {
+    val targets = IR.filter(allSuperInterfaces(_).contains(base))
+
+    if (targets.nonEmpty) {
+      e"""ptr_cast_able!(${traitName(base)} =
+         §    ${
+        (for (t ← targets) yield {
+          e"""${genNucastTraitInner(t, foreign = false)}
+             §${genNucastTraitInner(t, foreign = true)}
+             §""".stripMargin('§')
+        }).mkString.trim
+      }
+         §);
+         §""".stripMargin('§')
+    } else {
+      e"""ptr_cast_able!(${traitName(base)});
+         §""".stripMargin('§')
+    }
   }.trim
 }

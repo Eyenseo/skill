@@ -63,9 +63,17 @@ trait LibMaker extends GeneralOutputMaker {
   private final def genModuleUsage(): String = {
     val ret = new StringBuilder()
 
-
     for (base ← IR) {
       val low_base = snakeCase(storagePool(base))
+
+      ret.append(
+                  e"""pub mod $low_base;
+                     §pub use $low_base::*;
+                     §""".stripMargin('§')
+                )
+    }
+    for (base ← IRInterfaces) {
+      val low_base = snakeCase(interface(base))
 
       ret.append(
                   e"""pub mod $low_base;

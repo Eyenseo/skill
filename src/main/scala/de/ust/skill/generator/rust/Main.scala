@@ -72,7 +72,11 @@ final class Main extends FakeMain
     case t: SetType                 ⇒ s"HashSet<${mapType(t.getBaseType)}>"
     case t: MapType                 ⇒ mapMapTypes(t.getBaseTypes.asScala.toList)
 
-    case t: UserType ⇒ s"Option<Ptr<${traitName(t)}>>"
+    case t: UserType      ⇒ s"Option<Ptr<${traitName(t)}>>"
+    case t: InterfaceType ⇒ t.getBaseType match {
+      case _: UserType ⇒ s"Option<Ptr<${traitName(t)}>>"
+      case _           ⇒ "Option<Ptr<SkillObject>>"
+    }
 
     case _ ⇒ throw new GeneratorException(s"Unknown type $t")
   }
@@ -133,9 +137,10 @@ final class Main extends FakeMain
       case _: SetType                 ⇒ "HashSet::default()"
       case _: MapType                 ⇒ "HashMap::default()"
 
-      case _: UserType ⇒ "None"
+      case _: UserType      ⇒ "None"
+      case _: InterfaceType ⇒ "None"
 
-      case t ⇒ throw new GeneratorException(s"Unknown type $t")
+      case _ ⇒ throw new GeneratorException(s"Unknown type $t")
     }
 
   override protected def defaultValue(f: Field): String =
@@ -155,7 +160,8 @@ final class Main extends FakeMain
       case _: SetType                 ⇒ "HashSet::default()"
       case _: MapType                 ⇒ "HashMap::default()"
 
-      case _: UserType ⇒ "None"
+      case _: UserType      ⇒ "None"
+      case _: InterfaceType ⇒ "None"
 
       case t ⇒ throw new GeneratorException(s"Unknown type $t")
     }

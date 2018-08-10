@@ -33,12 +33,23 @@ trait PoolsMaker extends GeneralOutputMaker {
                     §""".stripMargin('§'))
       out.close()
     }
+
+    for (base ← IRInterfaces) {
+      val out = files.open(s"src/${snakeCase(interface(base))}.rs")
+
+      out.write(
+                 e"""${genUsage(base)}
+                    §
+                    §${genInterface(base)}
+                    §""".stripMargin('§'))
+      out.close()
+    }
   }
 
   //----------------------------------------
   // Usage
   //----------------------------------------
-  private final def genUsage(base: UserType): String = {
+  private final def genUsage(base: Type): String = {
     // TODO Sort
     e"""use common::error::*;
        §use common::internal::*;
@@ -55,13 +66,18 @@ trait PoolsMaker extends GeneralOutputMaker {
        §""".stripMargin('§')
   }.trim
 
-  private final def getUsageUser(base: UserType): String = {
+  private final def getUsageUser(base: Type): String = {
     IR
     .filterNot(t ⇒ t.equals(base))
     .toArray
     .map(t ⇒ s"use ${snakeCase(storagePool(t))}::*;\n")
     .sorted
-    .mkString
+    .mkString + IRInterfaces
+                .filterNot(t ⇒ t.equals(base))
+                .toArray
+                .map(t ⇒ s"use ${snakeCase(interface(t))}::*;\n")
+                .sorted
+                .mkString
   }.trim
 
   private final def getUsageStd(): String = {
@@ -74,6 +90,19 @@ trait PoolsMaker extends GeneralOutputMaker {
        §use std::rc::Rc;
        §""".stripMargin('§')
   }
+
+  //----------------------------------------
+  // Interface
+  //----------------------------------------
+  private final def genInterface(base: InterfaceType): String = {
+    e"""//----------------------------------------
+       §// ${base.getName} aka ${name(base)}
+       §//----------------------------------------
+       §
+       §${genTypeTrait(base)}
+       §
+       §""".stripMargin('§')
+  }.trim
 
   //----------------------------------------
   // Type
@@ -112,59 +141,81 @@ trait PoolsMaker extends GeneralOutputMaker {
     }
        §    ${
       (for (f ← base.getAllFields.asScala.filterNot(_.isConstant)) yield {
-        e"""${internalName(f)}: ${mapType(f.getType)},
+        // the field before interface projection
+        val orig = this.types.removeTypedefs().removeEnums()
+                       .get(base.getSkillName).asInstanceOf[UserType].getAllFields.asScala
+                                                                     .find(_.getName == f.getName).get
+
+        e"""${internalName(f)}: ${mapType(orig.getType)},
            §""".stripMargin('§')
       }).mkString.trim
     }
        §}""".stripMargin('§')
   }
 
-  private final def genTypeTrait(base: UserType): String = {
+  private final def genTypeTrait[Base <: Declaration with WithInheritance](base: Base): String = {
     var com = comment(base)
     if (!com.isEmpty) {
       com += "\n"
     }
 
-    e"""${com}pub trait ${traitName(base)} : ${
-      if (base.getSuperType != null) {
-        traitName(base.getSuperType)
+    e"""${com}pub trait ${traitName(base)}: ${
+      var supers = (base.getSuperInterfaces.asScala.toList ::: List(base.getSuperType)).filterNot(_ == null)
+
+      base match {
+        case _: InterfaceType ⇒
+          base.getSuperType match {
+            case _: UserType ⇒
+            case _           ⇒ supers = List()
+          }
+        case _                ⇒
+      }
+
+      if (supers.nonEmpty) {
+        supers.map(s ⇒ traitName(s)).mkString(" + ")
       } else {
         "SkillObject"
       }
-    } {
-       §    ${
-      (for (f ← base.getFields.asScala) yield {
-        var com = comment(f)
-        if (!com.isEmpty) {
-          com += "\n"
-        }
+    } {${
+      if (base.getFields.asScala.nonEmpty) {
+        e"""
+           §    ${
+          (for (f ← base.getFields.asScala) yield {
+            var com = comment(f)
+            if (!com.isEmpty) {
+              com += "\n"
+            }
 
-        e"""${com}fn get_${name(f)}(&self) -> ${
-          if (f.getType.isInstanceOf[ReferenceType] || f.getType.isInstanceOf[ContainerType]) {
-            "&" + mapType(f.getType)
-          } else {
-            mapType(f.getType)
-          }
-        };${
-          if (!f.isConstant && (f.getType.isInstanceOf[ReferenceType] || f.getType.isInstanceOf[ContainerType])) {
-            e"""
-               §fn get_${name(f)}_mut(&mut self) -> &mut ${mapType(f.getType)};""".stripMargin('§')
-          } else {
-            ""
-          }
-        }${
-          if (!f.isConstant) {
-            e"""
-               §${com}fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});""".stripMargin('§')
-          } else {
-            ""
-          }
+            e"""${com}fn get_${name(f)}(&self) -> ${
+              if (f.getType.isInstanceOf[ReferenceType] || f.getType.isInstanceOf[ContainerType]) {
+                "&" + mapType(f.getType)
+              } else {
+                mapType(f.getType)
+              }
+            };${
+              if (!f.isConstant && (f.getType.isInstanceOf[ReferenceType] || f.getType.isInstanceOf[ContainerType])) {
+                e"""
+                   §fn get_${name(f)}_mut(&mut self) -> &mut ${mapType(f.getType)};""".stripMargin('§')
+              } else {
+                ""
+              }
+            }${
+              if (!f.isConstant) {
+                e"""
+                   §${com}fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});""".stripMargin('§')
+              } else {
+                ""
+              }
+            }
+               §
+               §""".stripMargin('§')
+          }).mkString.trim
         }
-           §
            §""".stripMargin('§')
-      }).mkString.trim
-    }
-       §}""".stripMargin('§')
+      } else {
+        ""
+      }
+    }}""".stripMargin('§')
   }.trim
 
   private final def genGetSetImpl(field: Field): String = {
@@ -237,30 +288,63 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    }
        §}
        §
-       §impl ${traitName(base)} for ${if (foreign) foreignName(base) else name(base)} {
-       §    ${ // Impl base
-      (for (f ← base.getFields.asScala) yield {
-        e"""${genGetSetImpl(f)}
-           §
+       §${
+      if (base.getFields.asScala.nonEmpty) {
+        e"""impl ${traitName(base)} for ${if (foreign) foreignName(base) else name(base)} {
+           §    ${ // Impl base
+          (for (f ← base.getFields.asScala) yield {
+            e"""${genGetSetImpl(f)}
+               §
            §""".stripMargin('§')
-      }).mkString.trim
-    }
-       §}${
-      // Impl super
-      var parent = base.getSuperType
-      val ret = new StringBuilder()
-
-      while (parent != null) {
-        ret.append(
-                    e"""${genTypeImplSuper(base, parent, foreign)}
-                       §
-                       §""".stripMargin('§')
-                  )
-        parent = parent.getSuperType
+          }).mkString.trim
+        }
+           §}""".stripMargin('§')
+      } else {
+        e"impl ${traitName(base)} for ${if (foreign) foreignName(base) else name(base)} {}"
       }
+    }${
+      // Impl super
+      val ret = new StringBuilder()
+      var toImplement: List[Declaration] = List(base.getSuperType) :::
+                                           allSuperInterfaces(base)
+      var implemented: List[Declaration] = List()
+
+      while (toImplement.nonEmpty && base.getSuperType != null) {
+        if (implemented.contains(toImplement.head)) {
+          val (_, tmp) = toImplement.splitAt(1)
+          toImplement = tmp
+        } else {
+          toImplement.head match {
+            case declaration: Declaration with WithFields ⇒
+              ret.append(
+                          e"""${genTypeImplSuper(base, declaration, foreign)}
+                             §
+                           §""".stripMargin('§')
+                        )
+            case _                                        ⇒
+          }
+          toImplement.head match {
+            case t: WithInheritance ⇒
+              toImplement = toImplement ::: allSuperInterfaces(t)
+              if (t.getSuperType != null) {
+                t.getSuperType match {
+                  case t: Declaration ⇒ toImplement = toImplement ::: List(t)
+                  case _              ⇒
+                }
+              }
+            case _                  ⇒
+          }
+
+          implemented = implemented ::: List(toImplement.head)
+          val (_, tmp) = toImplement.splitAt(1)
+          toImplement = tmp
+        }
+      }
+
       if (ret.nonEmpty) {
         s"\n\n${ret.mkString.trim}"
-      } else {
+      }
+      else {
         ""
       }
     }
@@ -305,17 +389,22 @@ trait PoolsMaker extends GeneralOutputMaker {
        §""".stripMargin('§').trim
   }
 
-  private final def genTypeImplSuper(base: UserType,
-                                     parent: UserType, foreign: Boolean): String = {
-    e"""impl ${traitName(parent)} for ${if (foreign) foreignName(base) else name(base)} {
-       §    ${
-      (for (f ← parent.getFields.asScala) yield {
-        e"""${genGetSetImpl(f)}
-           §
+  private final def genTypeImplSuper[Base <: Declaration with WithFields](base: Base,
+                                                                          parent: Base,
+                                                                          foreign: Boolean): String = {
+    if (parent.getFields.asScala.nonEmpty) {
+      e"""impl ${traitName(parent)} for ${if (foreign) foreignName(base) else name(base)} {
+         §    ${
+        (for (f ← parent.getFields.asScala) yield {
+          e"""${genGetSetImpl(f)}
+             §
            §""".stripMargin('§')
-      }).mkString.trim
+        }).mkString.trim
+      }
+         §}""".stripMargin('§')
+    } else {
+      e"impl ${traitName(parent)} for ${if (foreign) foreignName(base) else name(base)} {}"
     }
-       §}""".stripMargin('§')
   }
 
 
@@ -391,7 +480,8 @@ trait PoolsMaker extends GeneralOutputMaker {
        §
        §    pub fn complete(&mut self, file: &SkillFile) {
        §        ${
-      val fields = base.getFields.asScala.filterNot(_.isAuto).toList
+      val fields = base.getFields.asScala.filterNot(_.isAuto).toList :::
+                   allSuperInterfaces(base).flatMap(t ⇒ t.getFields.asScala).filterNot(_.isAuto)
       if (fields.nonEmpty) {
         e"""
            §        let mut set = HashSet::with_capacity(${fields.size});
@@ -907,7 +997,8 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    chunk: FieldChunk,
        §) -> Result<(), SkillFail> {
        §    ${
-      (for (f ← base.getFields.asScala) yield {
+      (for (f ← base.getFields.asScala.toList :::
+                allSuperInterfaces(base).flatMap(t ⇒ t.getFields.asScala)) yield {
         genPoolImplInstancePoolAddFieldField(base, f)
       }).mkString.trim
     } {
@@ -1077,6 +1168,16 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    Ok(())
            §}
            §""".stripMargin('§')
+      case t: InterfaceType           ⇒
+        t.getBaseType match {
+          case _: UserType ⇒ e"""FieldType::User(ref object_reader) => {
+                                §    object_readers.push(object_reader.clone());
+                                §    Ok(())
+                                §}
+                                §""".stripMargin('§')
+          case t           ⇒ e"""${mapTypeToMagicMatch(t)} => Ok(())
+                                §""".stripMargin('§')
+        }
       case _                          ⇒
         throw new GeneratorException("Unexpected field type")
     }
@@ -1116,7 +1217,8 @@ trait PoolsMaker extends GeneralOutputMaker {
   private final def genFieldDeclaration(base: UserType): String = {
     val ret = new StringBuilder()
 
-    for (field ← base.getFields.asScala.filterNot(_.isAuto)) {
+    for (field ← base.getFields.asScala.filterNot(_.isAuto).toList :::
+                 allSuperInterfaces(base).flatMap(t ⇒ t.getFields.asScala).filterNot(_.isAuto)) {
       ret.append(
                   e"""//----------------------------------------
                      §// ${base.getName.camel() + field.getName.capital()}FieldDeclaration aka ${
@@ -1519,7 +1621,42 @@ trait PoolsMaker extends GeneralOutputMaker {
            §}
            §Ok(offset)
            §""".stripMargin('§')
-      case ft                          ⇒
+      case t: InterfaceType            ⇒
+        t.getBaseType match {
+          case _: UserType ⇒ e"""let mut offset = 0;
+                                §for i in iter {
+                                §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
+                                §    let tmp = tmp.borrow(); // borrowing madness
+                                §    offset += match tmp.get_${field(f)}() {
+                                §        Some(ref val) => if val.borrow().to_prune() {
+                                §            1
+                                §        } else {
+                                §            bytes_v64(val.borrow().get_skill_id() as i64)
+                                §        },
+                                §        None => 1,
+                                §    };
+                                §}
+                                §Ok(offset)
+                                §""".stripMargin('§')
+          case _           ⇒ e"""let mut offset = 0;
+                                §for i in iter {
+                                §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
+                                §    let tmp = tmp.borrow(); // borrowing madness
+                                §    offset += match tmp.get_${field(f)}() {
+                                §        Some(ref val) => if val.borrow().to_prune() {
+                                §            2
+                                §        } else {
+                                §            bytes_v64((val.borrow().skill_type_id() - 31) as i64)
+                                §                + bytes_v64(val.borrow().get_skill_id() as i64)
+                                §        },
+                                §        None => 2,
+                                §    };
+                                §}
+                                §Ok(offset)
+                                §""".stripMargin('§')
+        }
+
+      case ft ⇒
         throw new GeneratorException(s"Unknown type $ft")
     }
   }.trim
@@ -1596,6 +1733,28 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    None => 1,
            §}
            §""".stripMargin('§')
+      case t: InterfaceType           ⇒
+        t.getBaseType match {
+          case _: UserType ⇒ e"""match val {
+                                §    Some(ref val) => if val.borrow().to_prune() {
+                                §        1
+                                §    } else {
+                                §        bytes_v64(val.borrow().get_skill_id() as i64)
+                                §    }
+                                §    None => 1,
+                                §}
+                                §""".stripMargin('§')
+          case _           ⇒ e"""match val {
+                                §    Some(ref val) => if val.borrow().to_prune() {
+                                §        2
+                                §    } else {
+                                §        bytes_v64((val.borrow().skill_type_id() - 31) as i64)
+                                §            + bytes_v64(val.borrow().get_skill_id() as i64)
+                                §    },
+                                §    None => 2,
+                                §}
+                                §""".stripMargin('§')
+        }
       case t                          ⇒
         throw new GeneratorException(s"Unknown type $t")
     }
@@ -1700,6 +1859,32 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    None => writer.write_i8(0)?,
            §}
            §""".stripMargin('§')
+      case t: InterfaceType            ⇒
+        t.getBaseType match {
+          case _: UserType ⇒ e"""match val {
+                                §    Some(ref val) => if val.borrow().to_prune() {
+                                §        writer.write_i8(0)?
+                                §    } else {
+                                §        writer.write_v64(val.borrow().get_skill_id() as i64)?
+                                §    },
+                                §    None => writer.write_i8(0)?,
+                                §}
+                                §""".stripMargin('§')
+          case _           ⇒ e"""match val {
+                                §    Some(ref val) => if val.borrow().to_prune() {
+                                §        writer.write_i8(0)?;
+                                §        writer.write_i8(0)?;
+                                §    } else {
+                                §        writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
+                                §        writer.write_v64(val.borrow().get_skill_id() as i64)?;
+                                §    },
+                                §    None => {
+                                §        writer.write_i8(0)?;
+                                §        writer.write_i8(0)?;
+                                §    },
+                                §}
+                                §""".stripMargin('§')
+        }
       case _                           ⇒
         throw new GeneratorException(s"Unknown type $ft")
     }
@@ -1777,6 +1962,32 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    None => writer.write_i8(0)?,
            §}
            §""".stripMargin('§')
+      case t: InterfaceType            ⇒
+        t.getBaseType match {
+          case _: UserType ⇒ e"""match val {
+                                §    Some(ref val) => if val.borrow().to_prune() {
+                                §        writer.write_i8(0)?
+                                §    } else {
+                                §        writer.write_v64(val.borrow().get_skill_id() as i64)?
+                                §    },
+                                §    None => writer.write_i8(0)?,
+                                §}
+                                §""".stripMargin('§')
+          case _           ⇒ e"""match val {
+                                §    Some(ref val) => if val.borrow().to_prune() {
+                                §        writer.write_i8(0)?;
+                                §        writer.write_i8(0)?;
+                                §    } else {
+                                §        writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
+                                §        writer.write_v64(val.borrow().get_skill_id() as i64)?;
+                                §    },
+                                §    None => {
+                                §        writer.write_i8(0)?;
+                                §        writer.write_i8(0)?;
+                                §    },
+                                §}
+                                §""".stripMargin('§')
+        }
       case _                           ⇒
         throw new GeneratorException(s"Unknown type $ft")
     }
@@ -1900,6 +2111,44 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    }
            §}?
            §""".stripMargin('§').trim
+      case t: InterfaceType                       ⇒
+        t.getBaseType match {
+          case _: UserType ⇒ e"""{
+                                §    let object = reader.read_v64()? as usize;
+                                §    if object != 0 {
+                                §        if let Some(object) = self.object_reader[${user.next()}]
+                                §            .borrow()
+                                §            .read_object(object)?
+                                §            .nucast::<${traitName(t)}>()
+                                §        {
+                                §            Ok(Some(object))
+                                §        } else {
+                                §            return Err(SkillFail::internal(InternalFail::BadCast))
+                                §        }
+                                §    } else {
+                                §        Ok(None)
+                                §    }
+                                §}?
+                                §""".stripMargin('§').trim
+          case _           ⇒ e"""{
+                                §    let pool = reader.read_v64()? as usize;
+                                §    let object = reader.read_v64()? as usize;
+                                §    if pool != 0 && object != 0 {
+                                §        if let Some(object) = type_pools[pool - 1]
+                                §            .borrow()
+                                §            .read_object(object)?
+                                §            .nucast::<SkillObject>()
+                                §        {
+                                §            Ok(Some(object))
+                                §        } else {
+                                §            Err(SkillFail::internal(InternalFail::BadCast))
+                                §        }
+                                §    } else {
+                                §        Ok(None)
+                                §    }
+                                §}?
+                                §""".stripMargin('§').trim
+        }
       case _                                      ⇒
         throw new GeneratorException(s"Unknown type $base")
     }
@@ -1941,12 +2190,21 @@ trait PoolsMaker extends GeneralOutputMaker {
   }
 
   private final def mapTypeToMagicMatch(t: Type): String = t match {
-    case _: ConstantLengthArrayType ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(length, ref box_v))"
-    case _: MapType                 ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(ref key_box_v, ref box_v))"
-    case _@(_: VariableLengthArrayType | _: ListType | _: SetType)
-                                    ⇒ s"FieldType::BuildIn(${mapTypeToMagic(t)}(ref box_v))"
-    case _: UserType                ⇒ e"""FieldType::User(ref pool)"""
-    case _                          ⇒ e"""FieldType::BuildIn(${mapTypeToMagic(t)})"""
+    case _: ConstantLengthArrayType                                ⇒
+      s"FieldType::BuildIn(${mapTypeToMagic(t)}(length, ref box_v))"
+    case _: MapType                                                ⇒
+      s"FieldType::BuildIn(${mapTypeToMagic(t)}(ref key_box_v, ref box_v))"
+    case _@(_: VariableLengthArrayType | _: ListType | _: SetType) ⇒
+      s"FieldType::BuildIn(${mapTypeToMagic(t)}(ref box_v))"
+    case _: UserType                                               ⇒
+      e"""FieldType::User(ref pool)"""
+    case t: InterfaceType                                          ⇒
+      t.getBaseType match {
+        case _: UserType ⇒ e"""FieldType::User(ref pool)"""
+        case t           ⇒ e"""FieldType::BuildIn(BuildInType::Tannotation)"""
+      }
+    case _                                                         ⇒
+      e"""FieldType::BuildIn(${mapTypeToMagic(t)})"""
   }
 
   private final def mapTypeToMagicDef(t: Type): String = t match {
@@ -1969,8 +2227,13 @@ trait PoolsMaker extends GeneralOutputMaker {
          §))""".stripMargin('§')
     case t: UserType                ⇒
       e"FieldType::User(file.${field(t)}.clone())"
+    case t: InterfaceType           ⇒
+      t.getBaseType match {
+        case _: UserType ⇒ e"FieldType::User(file.${field(t)}.clone())"
+        case _           ⇒ e"FieldType::BuildIn(BuildInType::Tannotation)"
+      }
     case _                          ⇒
-      e"""FieldType::BuildIn(${mapTypeToMagic(t)})"""
+      e"FieldType::BuildIn(${mapTypeToMagic(t)})"
   }
 
   private final def mapTypeToMagicDefMap(t: Type, tts: List[Type]): String = {
@@ -1995,18 +2258,23 @@ trait PoolsMaker extends GeneralOutputMaker {
     }
   }
 
-  private final def collectUserTypes(t: Type): List[UserType] = t match {
+  private final def collectUserTypes(t: Type): List[Type] = t match {
     case t: MapType                 ⇒
       collectUserTypesMap(t, t.getBaseTypes.asScala.toList)
     case t: SingleBaseTypeContainer ⇒
       collectUserTypes(t.getBaseType)
     case t: UserType                ⇒
-      List[UserType](t)
+      List[Type](t)
+    case t: InterfaceType           ⇒
+      t.getBaseType match {
+        case _: UserType ⇒ List[Type](t)
+        case _           ⇒ List()
+      }
     case _                          ⇒
       List()
   }
 
-  private final def collectUserTypesMap(t: Type, tts: List[Type]): List[UserType] = {
+  private final def collectUserTypesMap(t: Type, tts: List[Type]): List[Type] = {
     val (key, remainder) = tts.splitAt(1)
 
     if (remainder.size > 1) {
@@ -2024,6 +2292,7 @@ trait PoolsMaker extends GeneralOutputMaker {
     case t: MapType                 ⇒ s"${mapTypeToUserMap(t.getBaseTypes.asScala.toList)}"
     case _: GroundType              ⇒ s"T${t.getName.lower}"
     case _: UserType                ⇒ s"UserType"
+    case _: InterfaceType           ⇒ s"InterfaceType"
 
     case _ ⇒ throw new GeneratorException(s"Unknown type $t")
   }
@@ -2039,4 +2308,5 @@ trait PoolsMaker extends GeneralOutputMaker {
   }
 
   protected def defaultValue(t: Type): String
+
 }

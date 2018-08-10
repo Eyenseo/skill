@@ -125,11 +125,11 @@ trait LiteralKeeper extends GeneralOutputMaker {
   private final def getName(name: String): String = {
     // TODO this shouldn't be needed and the names should be provided not in string from
 
-    IR.find(u ⇒ u.getSkillName.equals(name)) match {
+    (IR ::: IRInterfaces).find(u ⇒ u.getSkillName.equals(name)) match {
       case Some(t) ⇒
         field(t.getName.camel())
       case None    ⇒
-        IR.flatMap(u ⇒ u.getAllFields.asScala).find(k ⇒ k.getSkillName.equals(name)) match {
+        (IR ::: IRInterfaces).flatMap(u ⇒ u.getAllFields.asScala).find(k ⇒ k.getSkillName.equals(name)) match {
           case Some(f) ⇒
             field(f.getName.camel())
           case None    ⇒

@@ -60,8 +60,9 @@ object GeneralOutputMaker {
 
 trait GeneralOutputMaker extends Generator {
 
-  protected lazy val packageParts: Array[String]              = packagePrefix().split("\\.").map(escaped)
-  protected lazy val packageName : String                     = packageParts.mkString("_")
+  protected lazy val packageParts: Array[String] = packagePrefix().split("\\.").map(escaped)
+  protected lazy val packageName : String        = packageParts.mkString("_")
+
   /**
     * all string literals used in type and field names
     *
@@ -69,39 +70,41 @@ trait GeneralOutputMaker extends Generator {
     * @note second set are strings that will be created and unified by the skill
     *       file.
     */
-  protected lazy val allStrings  : (Set[String], Set[String]) = {
-    val types = IR.map(_.getSkillName).toSet
+  protected lazy val allStrings: (Set[String], Set[String]) = {
+    val types = (IR ::: IRInterfaces).map(_.getSkillName).toSet
     val fields =
-      IR.flatMap(_.getFields.asScala)
-      .map(_.getSkillName).toSet ++
-      IR.flatMap(_.getFields.asScala)
-      .flatMap(_.getRestrictions.asScala)
-      .collect { case f: CodingRestriction ⇒ f }
-      .map(_.getValue)
-      .toSet --
+      (IR ::: IRInterfaces).flatMap(_.getFields.asScala)
+                           .map(_.getSkillName).toSet ++
+      (IR ::: IRInterfaces).flatMap(_.getFields.asScala)
+                           .flatMap(_.getRestrictions.asScala)
+                           .collect { case f: CodingRestriction ⇒ f }
+                           .map(_.getValue)
+                           .toSet --
       types
 
     (types, fields)
   }
+
   /**
     * If interfaceChecks then skillName -> Name of sub-interfaces
     *
     * @note the same interface can be sub and super, iff the type is a base type;
     *       in that case, super wins!
     */
-  protected      val interfaceCheckMethods                    = new mutable.HashMap[String, mutable.HashSet[String]]
+  protected val interfaceCheckMethods = new mutable.HashMap[String, mutable.HashSet[String]]
 
   // options
   /**
     * If interfaceChecks then skillName -> Name of super-interfaces
     */
   protected val interfaceCheckImplementations = new mutable.HashMap[String, mutable.HashSet[String]]
-  var types: TypeContext     = _
-  var IR   : List[UserType]  = _
+  var types       : TypeContext         = _
+  var IR          : List[UserType]      = _
+  var IRInterfaces: List[InterfaceType] = _
   /**
     * This flag is set iff the specification is too large to be passed as parameter list
     */
-  var largeSpecificationMode = false
+  var largeSpecificationMode            = false
 
   /**
     * If set to true, the generated API will contain is_interface methods.
@@ -114,7 +117,9 @@ trait GeneralOutputMaker extends Generator {
   // remove special stuff
   final def setTC(tc: TypeContext) {
     this.types = tc
-    this.IR = tc.removeSpecialDeclarations().getUsertypes.asScala.to
+    val flat = tc.removeTypedefs.removeEnums
+    this.IR = flat.getUsertypes.asScala.to
+    this.IRInterfaces = flat.getInterfaces.asScala.to
     // set large specification mode; leave some spare parameters
     largeSpecificationMode = IR.size > 200
 
@@ -135,6 +140,8 @@ trait GeneralOutputMaker extends Generator {
 
   protected def storagePool(t: Type): String = escaped(t.getName.capital + "Pool")
 
+  protected def interface(t: Type): String = escaped(t.getName.capital + "Interface")
+
   protected def fieldDeclaration(t: Type, f: Field): String = escaped(t.getName.capital + f.getName.capital()) +
                                                               "FieldDeclaration"
 
@@ -154,7 +161,10 @@ trait GeneralOutputMaker extends Generator {
 
   final def field(f: Field): String = field(f.getName.camel())
 
-  final def field(t: Type): String = field(t.getName.camel())
+  final def field(t: Type): String = t match {
+    case t: InterfaceType ⇒ field(t.getBaseType.getName.camel())
+    case _             ⇒ field(t.getName.camel())
+  }
 
   final def traitName(t: Type): String = escaped(t.getName.capital)
 
@@ -200,4 +210,12 @@ trait GeneralOutputMaker extends Generator {
     * Assume a package prefix provider.
     */
   protected def packagePrefix(): String
+
+  protected def allSuperInterfaces[Base <: Declaration with WithInheritance](base: Base): List[InterfaceType] = {
+    var ret: List[InterfaceType] = base.getSuperInterfaces.asScala.toList
+    for (i ← base.getSuperInterfaces.asScala) {
+      ret = ret ::: allSuperInterfaces(i)
+    }
+    ret.distinct
+  }
 }
