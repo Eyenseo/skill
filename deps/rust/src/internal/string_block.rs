@@ -75,7 +75,7 @@ impl StringBlock {
         Ok(self.pool[i - 1].clone())
     }
 
-    pub fn read_string_block(&mut self, reader: &mut FileReader) -> Result<(), SkillFail> {
+    pub fn read_string_pool(&mut self, reader: &mut FileReader) -> Result<(), SkillFail> {
         info!(target: "SkillParsing", "~Block Start~");
         let string_amount = reader.read_v64()? as usize; // amount
         info!(target: "SkillParsing", "~Amount: {}", string_amount);

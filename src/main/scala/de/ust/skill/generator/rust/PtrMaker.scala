@@ -33,8 +33,7 @@ trait PtrMaker extends GeneralOutputMaker {
     ret.append(
                 e"""use common::Ptr;
                    §use common::internal::SkillObject;
-                   §use common::internal::UndefinedObject;
-                   §use common::internal::UndefinedObjectT;
+                   §use common::internal::foreign;
                    §
                    §use std::any::TypeId;
                    §
@@ -46,7 +45,7 @@ trait PtrMaker extends GeneralOutputMaker {
 
       ret.append(
                   e"""use $mod::${name(base)};
-                     §use $mod::${undefinedName(base)};
+                     §use $mod::${foreignName(base)};
                      §use $mod::${traitName(base)};
                      §""".stripMargin('§')
                 )
@@ -61,31 +60,31 @@ trait PtrMaker extends GeneralOutputMaker {
     e"""ptr_cast_able!(SkillObject =
        §    ${
       (for (t ← IR) yield {
-        e"""${genNucastTraitInner(t, undefined = false)}
-           §${genNucastTraitInner(t, undefined = true)}
+        e"""${genNucastTraitInner(t, foreign = false)}
+           §${genNucastTraitInner(t, foreign = true)}
            §""".stripMargin('§')
       }).mkString.trim
     }
-       §    UndefinedObject: {
+       §    foreign::ObjectProper: {
        §        SkillObject,
-       §        UndefinedObjectT,
+       §        foreign::Object,
        §    },
        §);
        §
-       §ptr_cast_able!(UndefinedObject = {
+       §ptr_cast_able!(foreign::ObjectProper = {
        §    SkillObject,
-       §    UndefinedObjectT,
+       §    foreign::Object,
        §});
-       §ptr_cast_able!(UndefinedObjectT =
+       §ptr_cast_able!(foreign::Object =
        §    ${
       (for (t ← IR) yield {
-        e"""${genNucastTraitInner(t, undefined = true)}
+        e"""${genNucastTraitInner(t, foreign = true)}
            §""".stripMargin('§')
       }).mkString.trim
     }
-       §    UndefinedObject: {
+       §    foreign::ObjectProper: {
        §        SkillObject,
-       §        UndefinedObjectT,
+       §        foreign::Object,
        §    },
        §);
        §
@@ -115,7 +114,7 @@ trait PtrMaker extends GeneralOutputMaker {
       }).mkString.trim
     }
        §});
-       §ptr_cast_able!(${undefinedName(base)} = {
+       §ptr_cast_able!(${foreignName(base)} = {
        §    SkillObject,
        §    ${
       (for (sub ← getAllSuperTypes(base)) yield {
@@ -123,7 +122,7 @@ trait PtrMaker extends GeneralOutputMaker {
            §""".stripMargin('§')
       }).mkString.trim
     }
-       §    UndefinedObjectT,
+       §    foreign::Object,
        §});
        §""".stripMargin('§')
   }.trim
@@ -132,8 +131,8 @@ trait PtrMaker extends GeneralOutputMaker {
     e"""ptr_cast_able!(${traitName(base)} =
        §    ${
       (for (t ← (getAllSuperTypes(base) ::: getAllSubTypes(base)).distinct) yield {
-        e"""${genNucastTraitInner(t, undefined = false)}
-           §${genNucastTraitInner(t, undefined = true)}
+        e"""${genNucastTraitInner(t, foreign = false)}
+           §${genNucastTraitInner(t, foreign = true)}
            §""".stripMargin('§')
       }).mkString.trim
     }
@@ -141,7 +140,7 @@ trait PtrMaker extends GeneralOutputMaker {
        §""".stripMargin('§')
   }.trim
 
-  def genNucastTraitInner(base: Type, undefined: Boolean): String = {
+  def genNucastTraitInner(base: Type, foreign: Boolean): String = {
     val t = {
       val t = IR.filter(u ⇒ u == base)
       if (t.size != 1) {
@@ -150,7 +149,7 @@ trait PtrMaker extends GeneralOutputMaker {
       t.head
     }
 
-    e"""${if (undefined) undefinedName(base) else name(base)}: {
+    e"""${if (foreign) foreignName(base) else name(base)}: {
        §    SkillObject,
        §    ${
       (for (base ← getAllSuperTypes(t)) yield {
@@ -158,8 +157,8 @@ trait PtrMaker extends GeneralOutputMaker {
            §""".stripMargin('§')
       }).mkString.trim
     }${
-      if (undefined) {
-        "\nUndefinedObjectT,"
+      if (foreign) {
+        "\nforeign::Object,"
       } else {
         ""
       }

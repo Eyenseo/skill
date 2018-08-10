@@ -58,11 +58,11 @@ mod tests {
                 // get objects
                 let a = match sf.a.borrow().get(a_id) {
                     Ok(ptr) => ptr,
-                    Err(e) => panic!("Object a was not retrieved because:{}", e),
+                    Err(e) => panic!("ObjectProper a was not retrieved because:{}", e),
                 };
                 let c = match sf.c.borrow().get(c_id) {
                     Ok(ptr) => ptr,
-                    Err(e) => panic!("Object c was not retrieved because:{}", e),
+                    Err(e) => panic!("ObjectProper c was not retrieved because:{}", e),
                 };
                 // assert fields
                 assert_eq!(a.borrow_mut().get_a().is_some(), true);
@@ -72,7 +72,7 @@ mod tests {
                         .as_ref()
                         .unwrap()
                         .nucast::<SkillObject>(),
-                    Some(a.clone().nucast::<AT>().unwrap())
+                    Some(a.clone().nucast::<A>().unwrap())
                         .unwrap()
                         .nucast::<SkillObject>(),
                 );
@@ -83,7 +83,7 @@ mod tests {
                         .as_ref()
                         .unwrap()
                         .nucast::<SkillObject>(),
-                    Some(c.clone().nucast::<AT>().unwrap())
+                    Some(c.clone().nucast::<A>().unwrap())
                         .unwrap()
                         .nucast::<SkillObject>(),
                 );
@@ -115,11 +115,11 @@ mod tests {
                 // get objects
                 let a = match sf.a.borrow().get(a_id) {
                     Ok(ptr) => ptr,
-                    Err(e) => panic!("Object a was not retrieved because:{}", e),
+                    Err(e) => panic!("ObjectProper a was not retrieved because:{}", e),
                 };
                 let c = match sf.c.borrow().get(c_id) {
                     Ok(ptr) => ptr,
-                    Err(e) => panic!("Object c was not retrieved because:{}", e),
+                    Err(e) => panic!("ObjectProper c was not retrieved because:{}", e),
                 };
                 // assert fields
                 assert_eq!(a.borrow_mut().get_a().is_some(), true);
@@ -129,7 +129,7 @@ mod tests {
                         .as_ref()
                         .unwrap()
                         .nucast::<SkillObject>(),
-                    Some(a.clone().nucast::<AT>().unwrap())
+                    Some(a.clone().nucast::<A>().unwrap())
                         .unwrap()
                         .nucast::<SkillObject>(),
                 );
@@ -140,7 +140,7 @@ mod tests {
                         .as_ref()
                         .unwrap()
                         .nucast::<SkillObject>(),
-                    Some(c.clone().nucast::<AT>().unwrap())
+                    Some(c.clone().nucast::<A>().unwrap())
                         .unwrap()
                         .nucast::<SkillObject>(),
                 );

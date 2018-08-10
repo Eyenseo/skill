@@ -73,12 +73,12 @@ trait GeneralOutputMaker extends Generator {
     val types = IR.map(_.getSkillName).toSet
     val fields =
       IR.flatMap(_.getFields.asScala)
-        .map(_.getSkillName).toSet ++
+      .map(_.getSkillName).toSet ++
       IR.flatMap(_.getFields.asScala)
-        .flatMap(_.getRestrictions.asScala)
-        .collect { case f: CodingRestriction ⇒ f }
-        .map(_.getValue)
-        .toSet --
+      .flatMap(_.getRestrictions.asScala)
+      .collect { case f: CodingRestriction ⇒ f }
+      .map(_.getValue)
+      .toSet --
       types
 
     (types, fields)
@@ -156,18 +156,17 @@ trait GeneralOutputMaker extends Generator {
 
   final def field(t: Type): String = field(t.getName.camel())
 
-  final def traitName(t: Type): String = escaped(t.getName.capital) + "T"
+  final def traitName(t: Type): String = escaped(t.getName.capital)
 
-  final def name(t: Type): String = escaped(t.getName.capital)
+  final def name(t: Type): String = traitName(t) + "Proper"
 
   final def name(f: Field): String = snakeCase(escaped(f.getName.camel)).toLowerCase
 
   final def name(f: LanguageCustomization): String = escaped(f.getName.camel)
 
-  final def undefinedName(t: Type): String = escaped(t.getName.capital) + "Undefined"
+  final def foreignName(t: Type): String = traitName(t) + "Foreign"
 
-  // FIXME use this for the fields that clash with the users
-  final def internalName(f: Field): String = escaped("_" + f.getName.camel())
+  final def internalName(f: Field): String = "u_" + name(f)
 
   final def snakeCase(str: String): String = GeneralOutputMaker.snakeCase(str)
 

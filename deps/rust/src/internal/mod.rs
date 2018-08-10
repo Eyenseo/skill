@@ -1,13 +1,15 @@
-pub mod instance_pool;
-pub mod lazy_field_reader;
-pub mod literal_keeper;
-pub mod object_reader;
+mod instance_pool;
+mod literal_keeper;
+mod object_reader;
+mod string_block;
+mod type_block;
 pub mod skill_object;
-pub mod undefined;
+pub mod foreign;
+
 
 pub use self::instance_pool::InstancePool;
-pub use self::lazy_field_reader::LazyFieldDeclaration;
 pub use self::literal_keeper::LiteralKeeper;
 pub use self::object_reader::ObjectReader;
 pub use self::skill_object::SkillObject;
-pub use self::undefined::{UndefinedFieldData, UndefinedObject, UndefinedObjectT, UndefinedPool};
+pub use self::string_block::StringBlock;
+pub use self::type_block::TypeBlock;

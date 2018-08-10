@@ -55,21 +55,21 @@ mod tests {
                     let d = sf.d.borrow_mut().add();
                     // set fields
                     a.borrow_mut()
-                        .set_a(Some(d.clone().nucast::<AT>().unwrap()));
+                        .set_a(Some(d.clone().nucast::<A>().unwrap()));
                     b.borrow_mut()
-                        .set_a(Some(d.clone().nucast::<AT>().unwrap()));
+                        .set_a(Some(d.clone().nucast::<A>().unwrap()));
                     b.borrow_mut()
-                        .set_b(Some(d.clone().nucast::<BT>().unwrap()));
+                        .set_b(Some(d.clone().nucast::<B>().unwrap()));
                     c.borrow_mut()
-                        .set_a(Some(d.clone().nucast::<AT>().unwrap()));
+                        .set_a(Some(d.clone().nucast::<A>().unwrap()));
                     c.borrow_mut()
-                        .set_c(Some(c.clone().nucast::<CT>().unwrap()));
+                        .set_c(Some(c.clone().nucast::<C>().unwrap()));
                     d.borrow_mut()
-                        .set_a(Some(d.clone().nucast::<AT>().unwrap()));
+                        .set_a(Some(d.clone().nucast::<A>().unwrap()));
                     d.borrow_mut()
-                        .set_b(Some(d.clone().nucast::<BT>().unwrap()));
+                        .set_b(Some(d.clone().nucast::<B>().unwrap()));
                     d.borrow_mut()
-                        .set_d(Some(d.clone().nucast::<DT>().unwrap()));
+                        .set_d(Some(d.clone().nucast::<D>().unwrap()));
                     // serialize
                     sf.close()?;
                     // remember object IDs - type hierarchy makes them difficult to calculate for the generator
@@ -107,11 +107,11 @@ mod tests {
                     // get objects
                     let a = match sf.a.borrow().get(a_id) {
                         Ok(ptr) => ptr,
-                        Err(e) => panic!("Object a was not retrieved because:{}", e),
+                        Err(e) => panic!("ObjectProper a was not retrieved because:{}", e),
                     };
                     let c = match sf.c.borrow().get(c_id) {
                         Ok(ptr) => ptr,
-                        Err(e) => panic!("Object c was not retrieved because:{}", e),
+                        Err(e) => panic!("ObjectProper c was not retrieved because:{}", e),
                     };
                     // assert fields
                     assert_eq!(a.borrow_mut().get_a().is_some(), true);
@@ -147,19 +147,19 @@ mod tests {
                         // get objects
                         let a = match sf.a.borrow().get(a_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object a was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper a was not retrieved because:{}", e),
                         };
                         let b = match sf.b.borrow().get(b_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object b was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper b was not retrieved because:{}", e),
                         };
                         let c = match sf.c.borrow().get(c_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object c was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper c was not retrieved because:{}", e),
                         };
                         let d = match sf.d.borrow().get(d_id) {
                             Ok(ptr) => ptr,
-                            Err(e) => panic!("Object d was not retrieved because:{}", e),
+                            Err(e) => panic!("ObjectProper d was not retrieved because:{}", e),
                         };
                         // assert fields
                         assert_eq!(a.borrow_mut().get_a().is_some(), true);
@@ -169,7 +169,7 @@ mod tests {
                                 .as_ref()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<AT>().unwrap())
+                            Some(d.clone().nucast::<A>().unwrap())
                                 .unwrap()
                                 .nucast::<SkillObject>(),
                         );
@@ -180,7 +180,7 @@ mod tests {
                                 .as_ref()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<AT>().unwrap())
+                            Some(d.clone().nucast::<A>().unwrap())
                                 .unwrap()
                                 .nucast::<SkillObject>(),
                         );
@@ -191,7 +191,7 @@ mod tests {
                                 .as_ref()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<BT>().unwrap())
+                            Some(d.clone().nucast::<B>().unwrap())
                                 .unwrap()
                                 .nucast::<SkillObject>(),
                         );
@@ -202,7 +202,7 @@ mod tests {
                                 .as_ref()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<AT>().unwrap())
+                            Some(d.clone().nucast::<A>().unwrap())
                                 .unwrap()
                                 .nucast::<SkillObject>(),
                         );
@@ -213,7 +213,7 @@ mod tests {
                                 .as_ref()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
-                            Some(c.clone().nucast::<CT>().unwrap())
+                            Some(c.clone().nucast::<C>().unwrap())
                                 .unwrap()
                                 .nucast::<SkillObject>(),
                         );
@@ -224,7 +224,7 @@ mod tests {
                                 .as_ref()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<AT>().unwrap())
+                            Some(d.clone().nucast::<A>().unwrap())
                                 .unwrap()
                                 .nucast::<SkillObject>(),
                         );
@@ -235,7 +235,7 @@ mod tests {
                                 .as_ref()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<BT>().unwrap())
+                            Some(d.clone().nucast::<B>().unwrap())
                                 .unwrap()
                                 .nucast::<SkillObject>(),
                         );
@@ -246,7 +246,7 @@ mod tests {
                                 .as_ref()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<DT>().unwrap())
+                            Some(d.clone().nucast::<D>().unwrap())
                                 .unwrap()
                                 .nucast::<SkillObject>(),
                         );

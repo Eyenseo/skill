@@ -2,12 +2,12 @@
 use common::error::*;
 use common::internal::InstancePool;
 use common::internal::SkillObject;
+use common::internal::StringBlock;
 use common::io::FileReader;
 use common::io::FileWriter;
 use common::iterator::dynamic_data;
 use common::Ptr;
 use common::SkillString;
-use common::StringBlock;
 
 use std::cell::RefCell;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
@@ -97,7 +97,7 @@ pub trait FieldDeclaration {
     fn read(
         &self,
         file_reader: &Vec<FileReader>,
-        string_block: &StringBlock,
+        string_pool: &StringBlock,
         blocks: &Vec<Block>,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
         instances: &[Ptr<SkillObject>],
@@ -105,7 +105,7 @@ pub trait FieldDeclaration {
     fn deserialize(
         &mut self,
         block_reader: &Vec<FileReader>,
-        string_block: &StringBlock,
+        string_pool: &StringBlock,
         blocks: &Vec<Block>,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
         instances: &[Ptr<SkillObject>],

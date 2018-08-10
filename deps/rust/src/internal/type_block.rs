@@ -1,5 +1,7 @@
 use common::error::*;
-use common::internal::{InstancePool, ObjectReader, SkillObject, UndefinedObject};
+use common::internal::foreign;
+use common::internal::StringBlock;
+use common::internal::{InstancePool, ObjectReader, SkillObject};
 use common::io::{
     Block, BlockIndex, BuildInType, ContinuationFieldChunk, DeclarationFieldChunk, FieldChunk,
     FieldType, FileReader, FileWriter,
@@ -7,7 +9,6 @@ use common::io::{
 use common::iterator::*;
 use common::PoolMaker;
 use common::Ptr;
-use common::StringBlock;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -27,7 +28,7 @@ impl TypeBlock {
         &self.pools
     }
 
-    pub fn read_type_block(
+    pub fn read_type_pool(
         &mut self,
         block: BlockIndex,
         reader: &mut FileReader,
@@ -418,7 +419,7 @@ impl TypeBlock {
                     vec.reserve(p.borrow().get_global_cached_count());
                     for _ in 0..p.borrow().get_global_cached_count() {
                         // TODO replace with garbage object
-                        vec.push(Ptr::new(UndefinedObject::new(0, 0)));
+                        vec.push(Ptr::new(foreign::ObjectProper::new(0, 0)));
                     }
 
                     let mut id = 1;

@@ -1,16 +1,15 @@
 use common::error::*;
+use common::internal::StringBlock;
 use common::internal::{ObjectReader, SkillObject};
 use common::io::{Block, FieldChunk, FieldDeclaration, FieldType, FileReader, FileWriter};
 use common::iterator::dynamic_data;
 use common::Ptr;
 use common::SkillString;
-use common::StringBlock;
 use SkillFile;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-// TODO rename
 // TODO reorder
 pub trait InstancePool {
     fn has_field(&self, name_id: usize) -> bool;
@@ -63,12 +62,12 @@ pub trait InstancePool {
     fn initialize(
         &self,
         block_reader: &Vec<FileReader>,
-        string_block: &StringBlock,
+        string_pool: &StringBlock,
         type_pools: &Vec<Rc<RefCell<InstancePool>>>,
     ) -> Result<(), SkillFail>;
     fn deserialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail>;
 
-    fn make_undefined(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject>;
+    fn make_foreign(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject>;
 
     fn set_next_pool(&mut self, pool: Option<Rc<RefCell<InstancePool>>>);
     fn get_next_pool(&self) -> Option<Rc<RefCell<InstancePool>>>;
