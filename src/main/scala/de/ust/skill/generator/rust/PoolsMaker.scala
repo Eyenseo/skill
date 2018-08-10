@@ -890,6 +890,13 @@ trait PoolsMaker extends GeneralOutputMaker {
         genPoolImplInstancePoolAddFieldField(base, f)
       }).mkString.trim
     } {
+       §        for f in self.fields.iter() {
+       §            if f.borrow().name().as_str() == field_name.as_str() {
+       §                Err(SkillFail::internal(InternalFail::SameField {
+       §                    field: field_name.string().clone()
+       §                }))?;
+       §            }
+       §        }
        §        let mut reader = Box::new(RefCell::new(
        §            foreign::FieldDeclaration::new(field_name, index, field_type)
        §        ));
@@ -922,6 +929,13 @@ trait PoolsMaker extends GeneralOutputMaker {
              §        found: format!("{}", field_type)
              §    })),
              §}?;
+             §for f in self.fields.iter() {
+             §    if f.borrow().name().as_str() == field_name.as_str() {
+             §        Err(SkillFail::internal(InternalFail::SameField {
+             §            field: field_name.string().clone()
+             §        }))?;
+             §    }
+             §}
              §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
              §    field_name,
              §    index,
@@ -940,6 +954,13 @@ trait PoolsMaker extends GeneralOutputMaker {
              §        found: format!("{}", field_type)
              §    })),
              §}?;
+             §for f in self.fields.iter() {
+             §    if f.borrow().name().as_str() == field_name.as_str() {
+             §        Err(SkillFail::internal(InternalFail::SameField {
+             §            field: field_name.string().clone()
+             §        }))?;
+             §    }
+             §}
              §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
              §    field_name,
              §    index,

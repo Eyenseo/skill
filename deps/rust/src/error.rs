@@ -62,7 +62,7 @@ pub enum InternalFail {
     #[fail(display = "The pool has to be a base pool but was not")]
     BasePoolRequired,
 
-    #[fail(display = "Seeking filed because:{}", why)]
+    #[fail(display = "Seeking field because:{}", why)]
     BadSeek { why: String },
     #[fail(display = "Writing failed because:{}", why)]
     BadWrite { why: String },
@@ -79,7 +79,7 @@ pub enum InternalFail {
     FailedToCreateMMap { why: String },
 
     #[fail(
-        display = "Wrong Filed type Expected:{} Found:{}",
+        display = "Wrong field type Expected:{} Found:{}",
         expected,
         found
     )]
@@ -144,17 +144,19 @@ pub enum InternalFail {
     )]
     InconsistentForeignIndex { old: usize, new: usize },
 
-    #[fail(display = "Wrong type of foreign filed")]
+    #[fail(display = "Wrong type of foreign field")]
     WrongForeignField,
 
     #[fail(display = "After a compress there should only be one declaration chunk")]
     OnlyOneChunk,
 
     #[fail(
-        display = "The filed {} is supposed to be an auto field but the file containes data for it.",
+        display = "The field {} is supposed to be an auto field but the file containes data for it.",
         field
     )]
     AutoNotAuto { field: String },
+    #[fail(display = "The field {} appeared twice.", field)]
+    SameField { field: String },
 }
 
 #[derive(Fail, Debug)]
