@@ -111,7 +111,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       }
     }
        §    ${
-      (for (f ← base.getAllFields.asScala) yield {
+      (for (f ← base.getAllFields.asScala.filterNot(_.isConstant)) yield {
         e"""${internalName(f)}: ${mapType(f.getType)},
            §""".stripMargin('§')
       }).mkString.trim
@@ -146,14 +146,20 @@ trait PoolsMaker extends GeneralOutputMaker {
             mapType(f.getType)
           }
         };${
-          if (f.getType.isInstanceOf[ReferenceType] || f.getType.isInstanceOf[ContainerType]) {
+          if (!f.isConstant && (f.getType.isInstanceOf[ReferenceType] || f.getType.isInstanceOf[ContainerType])) {
             e"""
                §fn get_${name(f)}_mut(&mut self) -> &mut ${mapType(f.getType)};""".stripMargin('§')
           } else {
             ""
           }
+        }${
+          if (!f.isConstant) {
+            e"""
+               §${com}fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});""".stripMargin('§')
+          } else {
+            ""
+          }
         }
-           §${com}fn set_${name(f)}(&mut self, ${name(f)}: ${mapType(f.getType)});
            §
            §""".stripMargin('§')
       }).mkString.trim
@@ -170,14 +176,23 @@ trait PoolsMaker extends GeneralOutputMaker {
       }
     } {
        §    ${
-      if (field.getType.isInstanceOf[ReferenceType] || field.getType.isInstanceOf[ContainerType]) {
+      if (field.isConstant) {
+        e"""unsafe {
+           §    std::mem::transmute::<${
+          mapType(field.getType).replace('i', 'u')
+        }, ${
+          mapType(field.getType)
+        }>(${field.constantValue()})
+           §}""".stripMargin('§')
+      } else if (field.getType.isInstanceOf[ReferenceType] || field.getType.isInstanceOf[ContainerType]) {
         e"&self.${internalName(field)}"
       } else {
         e"self.${internalName(field)}"
       }
     }
        §}${
-      if (field.getType.isInstanceOf[ReferenceType] || field.getType.isInstanceOf[ContainerType]) {
+      if (!field.isConstant &&
+          (field.getType.isInstanceOf[ReferenceType] || field.getType.isInstanceOf[ContainerType])) {
         e"""
            §fn get_${name(field)}_mut(&mut self) -> &mut ${mapType(field.getType)} {
            §    &mut self.${internalName(field)}
@@ -185,10 +200,16 @@ trait PoolsMaker extends GeneralOutputMaker {
       } else {
         ""
       }
-    }
-       §fn set_${name(field)}(&mut self, value: ${mapType(field.getType)}) {
-       §    self.${internalName(field)} = value;
-       §}""".stripMargin('§')
+    }${
+      if (!field.isConstant) {
+        e"""
+           §fn set_${name(field)}(&mut self, value: ${mapType(field.getType)}) {
+           §    self.${internalName(field)} = value;
+           §}""".stripMargin('§')
+      } else {
+        ""
+      }
+    }""".stripMargin('§')
   }
 
   private final def genTypeImpl(base: UserType, foreign: Boolean): String = {
@@ -207,7 +228,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       }
     }
        §            ${
-      (for (f ← base.getAllFields.asScala) yield {
+      (for (f ← base.getAllFields.asScala.filterNot(_.isConstant)) yield {
         e"""${internalName(f)}: ${defaultValue(f)},
            §""".stripMargin('§')
       }).mkString.trim
@@ -890,6 +911,44 @@ trait PoolsMaker extends GeneralOutputMaker {
         genPoolImplInstancePoolAddFieldField(base, f)
       }).mkString.trim
     } {
+       §        match &field_type {
+       §            FieldType::BuildIn(field_type) =>{
+       §                match field_type {
+       §                    BuildInType::ConstTi8 => Err(SkillFail::internal(
+       §                        InternalFail::UnknownConstantField{
+       §                            field: field_name.string().clone(),
+       §                            type_name: self.name.string().clone(),
+       §                        }
+       §                    ))?,
+       §                    BuildInType::ConstTi16 => Err(SkillFail::internal(
+       §                        InternalFail::UnknownConstantField{
+       §                            field: field_name.string().clone(),
+       §                            type_name: self.name.string().clone(),
+       §                        }
+       §                    ))?,
+       §                    BuildInType::ConstTi32 => Err(SkillFail::internal(
+       §                        InternalFail::UnknownConstantField{
+       §                            field: field_name.string().clone(),
+       §                            type_name: self.name.string().clone(),
+       §                        }
+       §                    ))?,
+       §                    BuildInType::ConstTi64 => Err(SkillFail::internal(
+       §                        InternalFail::UnknownConstantField{
+       §                            field: field_name.string().clone(),
+       §                            type_name: self.name.string().clone(),
+       §                        }
+       §                    ))?,
+       §                    BuildInType::ConstTv64 => Err(SkillFail::internal(
+       §                        InternalFail::UnknownConstantField{
+       §                            field: field_name.string().clone(),
+       §                            type_name: self.name.string().clone(),
+       §                        }
+       §                    ))?,
+       §                    _ => {}
+       §                }
+       §            },
+       §            _ => {}
+       §        }
        §        for f in self.fields.iter() {
        §            if f.borrow().name().as_str() == field_name.as_str() {
        §                Err(SkillFail::internal(InternalFail::SameField {
@@ -1169,13 +1228,40 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                                    o + block.bpo,
        §                                );
        §                                o += 1;
-       §                                match obj.nucast::<${traitName(base)}>() {
-       §                                    Some(obj) =>
-       §                                        obj.borrow_mut().set_${name(f)}(${
-      genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
-    }),
-       §                                    None => return Err(SkillFail::internal(InternalFail::BadCast)),
-       §                                }
+       §                                ${
+      if (f.isConstant) {
+        e"""let val = ${
+          genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
+        };
+           §if unsafe {
+           §    std::mem::transmute::<${
+          mapType(f.getType).replace('i', 'u')
+        }, ${
+          mapType(f.getType)
+        }>(${f.constantValue()})
+           §} != val {
+           §    return Err(SkillFail::internal(InternalFail::BadConstantValue{
+           §        field: self.name.string().clone(),
+           §        expected: format!("{}", unsafe {
+           §            std::mem::transmute::<${
+          mapType(f.getType).replace('i', 'u')
+        }, ${
+          mapType(f.getType)
+        }>(${f.constantValue()})
+           §        }),
+           §        found: format!("{}", val),
+           §    }));
+           §}""".stripMargin('§')
+      } else {
+        e"""match obj.nucast::<${traitName(base)}>() {
+           §    Some(obj) =>
+           §        obj.borrow_mut().set_${name(f)}(${
+          genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
+        }),
+           §    None => return Err(SkillFail::internal(InternalFail::BadCast)),
+           §}""".stripMargin('§')
+      }
+    }
        §                            }
        §                        }
        §                    }
@@ -1187,6 +1273,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §
        §                    if chunk.count > 0 {
        §                        let mut o = 0;
+       §
        §                        for obj in instances.iter()
        §                            .skip(chunk.bpo)
        §                            .take(chunk.count)
@@ -1198,14 +1285,40 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                                o + chunk.bpo,
        §                            );
        §                            o += 1;
-       §
-       §                            match obj.nucast::<${traitName(base)}>() {
-       §                                Some(obj) =>
-       §                                    obj.borrow_mut().set_${name(f)}(${
-      genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
-    }),
-       §                                None => return Err(SkillFail::internal(InternalFail::BadCast)),
-       §                            }
+       §                            ${
+      if (f.isConstant) {
+        e"""let val = ${
+          genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
+        };
+           §if unsafe {
+           §    std::mem::transmute::<${
+          mapType(f.getType).replace('i', 'u')
+        }, ${
+          mapType(f.getType)
+        }>(${f.constantValue()})
+           §} != val {
+           §    return Err(SkillFail::internal(InternalFail::BadConstantValue{
+           §        field: self.name.string().clone(),
+           §        expected: format!("{}", unsafe {
+           §            std::mem::transmute::<${
+          mapType(f.getType).replace('i', 'u')
+        }, ${
+          mapType(f.getType)
+        }>(${f.constantValue()})
+           §        }),
+           §        found: format!("{}", val),
+           §    }));
+           §}""".stripMargin('§')
+      } else {
+        e"""match obj.nucast::<${traitName(base)}>() {
+           §    Some(obj) =>
+           §        obj.borrow_mut().set_${name(f)}(${
+          genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
+        }),
+           §    None => return Err(SkillFail::internal(InternalFail::BadCast)),
+           §}""".stripMargin('§')
+      }
+    }
        §                        }
        §                    }
        §                }

@@ -151,12 +151,29 @@ pub enum InternalFail {
     OnlyOneChunk,
 
     #[fail(
-        display = "The field {} is supposed to be an auto field but the file containes data for it.",
+        display = "The field '{}' is supposed to be an auto field but the file containes data for it.",
         field
     )]
     AutoNotAuto { field: String },
-    #[fail(display = "The field {} appeared twice.", field)]
+    #[fail(display = "The field '{}' appeared twice.", field)]
     SameField { field: String },
+    #[fail(
+        display = "The constant field '{}' expected a value of:{} but found:{}",
+        field,
+        expected,
+        found
+    )]
+    BadConstantValue {
+        field: String,
+        expected: String,
+        found: String,
+    },
+    #[fail(
+        display = "The constant field '{}' was not expected by '{}'.",
+        field,
+        type_name
+    )]
+    UnknownConstantField { field: String, type_name: String },
 }
 
 #[derive(Fail, Debug)]

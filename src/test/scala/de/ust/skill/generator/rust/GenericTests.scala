@@ -45,7 +45,7 @@ class GenericTests extends common.GenericTests {
                               // "partial", // TODO - is this really successful?
                               // "trivialType",
                               // "twoNodeBlocks",
-                              // "twoTypes", // FIXME
+                              // "twoTypes",
                               // "unicode-reference",
 
                               "restrictionsAll",
@@ -57,7 +57,7 @@ class GenericTests extends common.GenericTests {
   val skipGeneration = Array(
                               // "age",
                               // "annotation",
-                              // "auto", // TODO - is this really successful?
+                              // "auto",
                               // "basicTypes",
                               // "constants",
                               // "container",

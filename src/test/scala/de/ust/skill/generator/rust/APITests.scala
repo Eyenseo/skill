@@ -76,6 +76,7 @@ class APITests extends common.GenericAPITests {
                               // "annotation",
                               // "auto",
                               // "basicTypes",
+                              // "constants",
                               // "container",
                               // "custom", // TODO -  is this really successful?
                               // "empty",
@@ -92,9 +93,6 @@ class APITests extends common.GenericAPITests {
                               // "user",
                               // "unknown", // NOTE in this test there happens nothing "unknown"
 
-                              // FIXME currently a setter is generated that is needed for the reader thus constant fields are not constant
-                              // FIXME the test pass so the generator has to be adjusted
-                              "constants",
                               "enums", // FIXME test fail
                               "restrictionsAll", // FIXME broken generation
                               "restrictionsCore", // FIXME broken generation
