@@ -149,6 +149,12 @@ pub enum InternalFail {
 
     #[fail(display = "After a compress there should only be one declaration chunk")]
     OnlyOneChunk,
+
+    #[fail(
+        display = "The filed {} is supposed to be an auto field but the file containes data for it.",
+        field
+    )]
+    AutoNotAuto { field: String },
 }
 
 #[derive(Fail, Debug)]

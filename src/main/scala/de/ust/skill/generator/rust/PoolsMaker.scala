@@ -886,7 +886,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    chunk: FieldChunk,
        §) -> Result<(), SkillFail> {
        §    ${
-      (for (f ← base.getFields.asScala.filterNot(_.isAuto)) yield {
+      (for (f ← base.getFields.asScala) yield {
         genPoolImplInstancePoolAddFieldField(base, f)
       }).mkString.trim
     } {
@@ -904,47 +904,55 @@ trait PoolsMaker extends GeneralOutputMaker {
   // TODO do something about these stupid names
   private final def genPoolImplInstancePoolAddFieldField(base: UserType,
                                                          f: Field): String = {
-    val userType = collectUserTypes(f.getType)
-    e"""if self.string_pool.borrow().lit().${field(f)} == field_name.as_str() {
-       §    ${
-      if (userType.isEmpty) {
-        e"""match field_type {
-           §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(f.getType)},
-           §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
-           §        expected: "${mapTypeToUser(f.getType)}",
-           §        found: format!("{}", field_type)
-           §    })),
-           §}?;
-           §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
-           §    field_name,
-           §    index,
-           §    field_type,
-           §)));
-           §reader.borrow_mut().add_chunk(chunk);;
-           §self.fields.push(reader);
-           §""".stripMargin('§')
-      } else {
-        e"""let mut object_readers: Vec<Rc<RefCell<InstancePool>>> = Vec::new();
-           §object_readers.reserve(${userType.size});
-           §match field_type {
-           §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(f.getType)},
-           §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
-           §        expected: "${mapTypeToUser(f.getType)}",
-           §        found: format!("{}", field_type)
-           §    })),
-           §}?;
-           §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
-           §    field_name,
-           §    index,
-           §    field_type,
-           §    object_readers,
-           §)));
-           §reader.borrow_mut().add_chunk(chunk);;
-           §self.fields.push(reader);
-           §""".stripMargin('§')
+    if (f.isAuto) {
+      e"""if self.string_pool.borrow().lit().${field(f)} == field_name.as_str() {
+         §    Err(SkillFail::internal(InternalFail::AutoNotAuto {
+         §        field: field_name.string().clone(),
+         §    }))?;
+         §} else """.stripMargin('§')
+    } else {
+      val userType = collectUserTypes(f.getType)
+      e"""if self.string_pool.borrow().lit().${field(f)} == field_name.as_str() {
+         §    ${
+        if (userType.isEmpty) {
+          e"""match field_type {
+             §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(f.getType)},
+             §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
+             §        expected: "${mapTypeToUser(f.getType)}",
+             §        found: format!("{}", field_type)
+             §    })),
+             §}?;
+             §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
+             §    field_name,
+             §    index,
+             §    field_type,
+             §)));
+             §reader.borrow_mut().add_chunk(chunk);;
+             §self.fields.push(reader);
+             §""".stripMargin('§')
+        } else {
+          e"""let mut object_readers: Vec<Rc<RefCell<InstancePool>>> = Vec::new();
+             §object_readers.reserve(${userType.size});
+             §match field_type {
+             §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(f.getType)},
+             §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
+             §        expected: "${mapTypeToUser(f.getType)}",
+             §        found: format!("{}", field_type)
+             §    })),
+             §}?;
+             §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
+             §    field_name,
+             §    index,
+             §    field_type,
+             §    object_readers,
+             §)));
+             §reader.borrow_mut().add_chunk(chunk);;
+             §self.fields.push(reader);
+             §""".stripMargin('§')
+        }
       }
+         §} else """.stripMargin('§')
     }
-       §} else """.stripMargin('§')
   }
 
   private final def genPoolImplInstancePoolAddFieldFieldUnwrapValidate(tt: Type): String = {

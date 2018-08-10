@@ -74,7 +74,7 @@ class APITests extends common.GenericAPITests {
   val skipGeneration = Array(
                               // "age",
                               // "annotation",
-                              // "auto", // FIXME check - has to fail if bin has auto as normal field! -> FieldDeclel check => error
+                              // "auto",
                               // "basicTypes",
                               // "container",
                               // "custom", // TODO -  is this really successful?
