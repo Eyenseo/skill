@@ -1,8 +1,7 @@
 use common::error::*;
-use common::internal::InstancePool;
-use common::internal::StringBlock;
-use common::io::base_reader::*;
-use common::io::magic::*;
+use common::internal::io::base_reader::*;
+use common::internal::io::magic::*;
+use common::internal::*;
 use common::Ptr;
 
 use memmap::Mmap;
@@ -11,7 +10,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Debug)]
-pub struct FileReader {
+pub(crate) struct FileReader {
     position: usize,
     end: usize,
     mmap: Rc<Mmap>,
@@ -29,7 +28,7 @@ impl From<Rc<Mmap>> for FileReader {
 }
 
 impl FileReader {
-    pub fn jump(&mut self, len: usize) -> FileReader {
+    pub(crate) fn jump(&mut self, len: usize) -> FileReader {
         let reader = FileReader {
             position: self.position,
             end: self.position + len,
@@ -39,7 +38,7 @@ impl FileReader {
         reader
     }
 
-    pub fn rel_view(&self, from: usize, to: usize) -> FileReader {
+    pub(crate) fn rel_view(&self, from: usize, to: usize) -> FileReader {
         FileReader {
             position: self.position + from,
             end: self.position + to,
@@ -47,63 +46,63 @@ impl FileReader {
         }
     }
 
-    pub fn pos(&self) -> usize {
+    pub(crate) fn pos(&self) -> usize {
         self.position
     }
 
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.end - self.position
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.position >= self.end
     }
 
     // Reading
     // boolean
-    pub fn read_bool(&mut self) -> Result<bool, SkillFail> {
+    pub(crate) fn read_bool(&mut self) -> Result<bool, SkillFail> {
         read_bool(&mut self.position, self.end, &*self.mmap)
     }
 
     // integer types
-    pub fn read_i8(&mut self) -> Result<i8, SkillFail> {
+    pub(crate) fn read_i8(&mut self) -> Result<i8, SkillFail> {
         read_i8(&mut self.position, self.end, &*self.mmap)
     }
 
-    pub fn read_i16(&mut self) -> Result<i16, SkillFail> {
+    pub(crate) fn read_i16(&mut self) -> Result<i16, SkillFail> {
         read_i16(&mut self.position, self.end, &*self.mmap)
     }
 
-    pub fn read_i32(&mut self) -> Result<i32, SkillFail> {
+    pub(crate) fn read_i32(&mut self) -> Result<i32, SkillFail> {
         read_i32(&mut self.position, self.end, &*self.mmap)
     }
 
-    pub fn read_i64(&mut self) -> Result<i64, SkillFail> {
+    pub(crate) fn read_i64(&mut self) -> Result<i64, SkillFail> {
         read_i64(&mut self.position, self.end, &*self.mmap)
     }
 
-    pub fn read_v64(&mut self) -> Result<i64, SkillFail> {
+    pub(crate) fn read_v64(&mut self) -> Result<i64, SkillFail> {
         read_v64(&mut self.position, self.end, &*self.mmap)
     }
 
     // float types
-    pub fn read_f32(&mut self) -> Result<f32, SkillFail> {
+    pub(crate) fn read_f32(&mut self) -> Result<f32, SkillFail> {
         read_f32(&mut self.position, self.end, &*self.mmap)
     }
 
-    pub fn read_f64(&mut self) -> Result<f64, SkillFail> {
+    pub(crate) fn read_f64(&mut self) -> Result<f64, SkillFail> {
         read_f64(&mut self.position, self.end, &*self.mmap)
     }
 
     // string
     // TODO replace String with lazy loading
-    pub fn read_raw_string(&mut self, length: u32) -> Result<String, SkillFail> {
+    pub(crate) fn read_raw_string(&mut self, length: u32) -> Result<String, SkillFail> {
         read_string(&mut self.position, self.end, &*self.mmap, length)
     }
 
-    pub fn read_field_type(
+    pub(crate) fn read_field_type(
         &mut self,
-        pools: &Vec<Rc<RefCell<InstancePool>>>,
+        pools: &Vec<Rc<RefCell<PoolProxy>>>,
     ) -> Result<FieldType, SkillFail> {
         let field_type = self.read_v64()?; // type of field
 

@@ -36,15 +36,10 @@ trait SkillFileMaker extends GeneralOutputMaker {
     val ret = new StringBuilder()
 
     ret.append(
-                e"""use common::internal::{InstancePool, ObjectReader, SkillObject};
-                   §use common::internal::foreign;
-                   §use common::io::{FieldDeclaration, BlockIndex, FieldType, FileWriter, FileReader};
-                   §use common::PoolMaker;
-                   §use common::Ptr;
+                e"""use common::internal::*;
+                   §use common::internal::io::*;
+                   §use common::*;
                    §use common::error::*;
-                   §use common::SkillString;
-                   §use common::internal::StringBlock;
-                   §use common::internal::TypeBlock;
                    §
                    §use memmap::Mmap;
                    §
@@ -82,14 +77,15 @@ trait SkillFileMaker extends GeneralOutputMaker {
   }
 
   private final def genSkillFileStruct(): String = {
+    // FIXME pub(crate) fields
     e"""pub struct SkillFile {
        §    file: Rc<RefCell<std::fs::File>>,
-       §    pub block_reader: Rc<RefCell<Vec<FileReader>>>,
-       §    pub type_pool: TypeBlock,
-       §    pub strings: Rc<RefCell<StringBlock>>,${
+       §    block_reader: Rc<RefCell<Vec<FileReader>>>,
+       §    type_pool: TypeBlock,
+       §    string_pool: StringPool,${
       (for (base ← IR) yield {
         e"""
-           §pub ${field(base)}: Rc<RefCell<${storagePool(base)}>>,""".stripMargin('§')
+           §${field(base)}: Rc<RefCell<${storagePool(base)}>>,""".stripMargin('§')
       }).mkString
     }
        §    foreign_pools: Vec<Rc<RefCell<foreign::Pool>>>
@@ -98,13 +94,69 @@ trait SkillFileMaker extends GeneralOutputMaker {
 
   private final def genSkillFileImpl(): String = {
     e"""impl SkillFile {
-       §    fn complete(&mut self) {
-       §        ${
+       §
+       §    pub(crate) fn block_reader(&self) -> std::cell::Ref<Vec<FileReader>> {
+       §        self.block_reader.borrow()
+       §    }
+       §
+       §    pub(crate) fn type_pool(&self) -> &TypeBlock {
+       §        &self.type_pool
+       §    }
+       §
+       §    pub fn strings(&self) -> &StringPool {
+       §        &self.string_pool
+       §    }
+       §    pub fn strings_mut(&mut self) -> &mut StringPool {
+       §        &mut self.string_pool
+       §    }
+       §
+       §    ${
       (for (base ← IR) yield {
-        e"""self.${field(base)}.borrow_mut().complete(&self);
+        e"""pub fn ${field(base)}(&self) -> std::cell::Ref<${storagePool(base)}> {
+           §    self.${field(base)}.borrow()
+           §}
+           §pub fn ${field(base)}_mut(&self) -> std::cell::RefMut<${storagePool(base)}> {
+           §    self.${field(base)}.borrow_mut()
+           §}
+           §
            §""".stripMargin('§')
       }).mkString.trim
     }
+       §
+       §    pub fn delete(&self, instance: WeakPtr<SkillObject>) -> Result<(), SkillFail> {
+       §        match instance.upgrade() {
+       §            Some(instance) => {
+       §                // NOTE parameter + (base_array || new_instances)
+       §                if instance.weak_count() != 1 || instance.strong_count() > 1 {
+       §                    return Err(SkillFail::user(UserFail::DeleteInUse { id: instance.borrow().get_skill_id() }));
+       §                }
+       §                let mut proxy = self.type_pool.pools()[instance.borrow().skill_type_id() - 32].borrow_mut();
+       §                proxy.pool_mut().delete(instance);
+       §            }
+       §            None => {}
+       §        }
+       §        Ok(())
+       §    }
+       §
+       §    pub fn delete_strong(&self, instance: Ptr<SkillObject>) -> Result<(), SkillFail> {
+       §        // NOTE parameter + (base_array || new_instances)
+       §        if instance.weak_count() != 0 || instance.strong_count() > 2 {
+       §            return Err(SkillFail::user(UserFail::DeleteInUse { id: instance.borrow().get_skill_id() }));
+       §        }
+       §        let mut proxy = self.type_pool.pools()[instance.borrow().skill_type_id() - 32].borrow_mut();
+       §        proxy.pool_mut().delete(instance);
+       §        Ok(())
+       §    }
+       §
+       §    /// This will delete an instance without checking if somewhere in the state another instance uses this one
+       §    pub fn delete_force(&self, instance: WeakPtr<SkillObject>) {
+       §        match instance.upgrade() {
+       §            Some(instance) => {
+       §                let mut proxy = self.type_pool.pools()[instance.borrow().skill_type_id() - 32].borrow_mut();
+       §                proxy.pool_mut().delete(instance);
+       §            }
+       §            None => {}
+       §        }
        §    }
        §
        §    pub fn open(file: &str) -> Result<Self, SkillFail> {
@@ -177,11 +229,12 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §            &data_chunk_reader,
        §            &string_pool.borrow(),
        §        )?;
+       §        file_builder.complete();
        §        let mut sf = SkillFile {
        §            file: Rc::new(RefCell::new(f)),
        §            block_reader: Rc::new(RefCell::new(data_chunk_reader)),
        §            type_pool,
-       §            strings: string_pool,${
+       §            string_pool: StringPool::new(string_pool),${
       (for (base ← IR) yield {
         e"""
            §${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin('§')
@@ -189,7 +242,6 @@ trait SkillFileMaker extends GeneralOutputMaker {
     }
        §            foreign_pools: file_builder.foreign_pools,
        §        };
-       §        sf.complete();
        §        info!(
        §            target:"SkillWriting",
        §            "Done opening"
@@ -225,11 +277,12 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §            &data_chunk_reader,
        §            &string_pool.borrow(),
        §        )?;
+       §        file_builder.complete();
        §        let mut sf = SkillFile {
        §            file: Rc::new(RefCell::new(f)),
        §            block_reader: Rc::new(RefCell::new(data_chunk_reader)),
        §            type_pool,
-       §            strings: string_pool,${
+       §            string_pool: StringPool::new(string_pool),${
       (for (base ← IR) yield {
         e"""
            §${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin('§')
@@ -237,7 +290,6 @@ trait SkillFileMaker extends GeneralOutputMaker {
     }
        §            foreign_pools: file_builder.foreign_pools,
        §        };
-       §        sf.complete();
        §        info!(
        §            target: "SkillWriting",
        §            "Done creating"
@@ -255,7 +307,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §
        §        // Load foreign fields
        §        for pool in self.type_pool.pools().iter() {
-       §            pool.borrow().deserialize(self)?;
+       §            pool.borrow().pool().deserialize(self)?;
        §        }
        §
        §        // check
@@ -265,7 +317,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        let local_bpos = self.type_pool.compress()?;
        §
        §        let mut writer = FileWriter::new(self.file.clone());
-       §        self.strings.borrow().write_block(&mut writer)?;
+       §        self.string_pool.string_block().borrow().write_block(&mut writer)?;
        §        self.type_pool.write_block(&mut writer, &local_bpos)?;
        §
        §        self.type_pool.set_invariant(false);
@@ -315,10 +367,10 @@ trait SkillFileMaker extends GeneralOutputMaker {
   }
 
   private final def genSkillFileBuilderStruct(): String = {
-    e"""pub struct SkillFileBuilder {
+    e"""pub(crate) struct SkillFileBuilder {
        §    ${
       (for (base ← IR) yield {
-        e"""pub ${field(base)}: Option<Rc<RefCell<${storagePool(base)}>>>,
+        e"""pub(crate) ${field(base)}: Option<Rc<RefCell<${storagePool(base)}>>>,
            §""".stripMargin('§')
       }).mkString.trim
     }
@@ -329,7 +381,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
 
   private final def genSkillFileBuilderImpl(): String = {
     e"""impl SkillFileBuilder {
-       §    pub fn new(string_pool: Rc<RefCell<StringBlock>>) -> SkillFileBuilder {
+       §    pub(crate) fn new(string_pool: Rc<RefCell<StringBlock>>) -> SkillFileBuilder {
        §        SkillFileBuilder {
        §            ${
       (for (base ← IR) yield {
@@ -358,8 +410,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §    ));${
           if (base.getSuperType != null) {
             e"""
-               §self.${field(base.getSuperType)}.as_ref().unwrap().borrow_mut().add_sub(pool.clone());
-               §pool.borrow_mut().set_super(self.${field(base.getSuperType)}.as_ref().unwrap().clone());"""
+               §self.${field(base.getSuperType)}.as_ref().unwrap().borrow_mut().pool_mut().add_sub(pool.clone());
+               §pool.borrow_mut().pool_mut().set_super(self.${field(base.getSuperType)}.as_ref().unwrap().clone());"""
               .stripMargin('§')
           } else {
             ""
@@ -373,10 +425,10 @@ trait SkillFileMaker extends GeneralOutputMaker {
     }
        §        ${
       (for (base ← IR) yield {
-        e"""self.${field(base)}.as_ref().unwrap().borrow_mut().allocate();${
+        e"""self.${field(base)}.as_ref().unwrap().borrow_mut().pool_mut().allocate();${
           if (base.getBaseType.equals(base)) {
             e"""
-               §self.${field(base)}.as_ref().unwrap().borrow_mut().set_next_pool(None);""".stripMargin('§')
+               §self.${field(base)}.as_ref().unwrap().borrow_mut().pool_mut().set_next_pool(None);""".stripMargin('§')
           } else {
             ""
           }
@@ -385,9 +437,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
       }).mkString.trim
     }
        §        for pool in self.foreign_pools.iter() {
-       §            pool.borrow_mut().allocate();
-       §            if pool.borrow().is_base() {
-       §                pool.borrow_mut().set_next_pool(None);
+       §            pool.borrow_mut().pool_mut().allocate();
+       §            if pool.borrow().pool().is_base() {
+       §                pool.borrow_mut().pool_mut().set_next_pool(None);
        §            }
        §        }
        §        Ok(())
@@ -402,6 +454,15 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        type_pool.initialize(string_pool, file_reader)?;
        §        Ok(())
        §    }
+       §
+       §    fn complete(&mut self) {
+       §        ${
+      (for (base ← IR) yield {
+        e"""self.${field(base)}.as_ref().unwrap().borrow_mut().complete(&self);
+           §""".stripMargin('§')
+      }).mkString.trim
+    }
+       §    }
        §}""".stripMargin('§')
   }
 
@@ -411,8 +472,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        &mut self,
        §        type_name: &Rc<SkillString>,
        §        type_id: usize,
-       §        super_pool: Option<Rc<RefCell<InstancePool>>>,
-       §    ) -> Result<Rc<RefCell<InstancePool>>, SkillFail> {
+       §        super_pool: Option<Rc<RefCell<PoolProxy>>>,
+       §    ) -> Result<Rc<RefCell<PoolProxy>>, SkillFail> {
        §        ${
       (for (base ← IR) yield {
         e"""if type_name.as_str() == self.string_pool.borrow().lit().${field(base)}  {
@@ -428,7 +489,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §        if let Some(super_pool) = super_pool {
            §            let super_name = {
            §                let tmp = super_pool.borrow();
-           §                tmp.name().as_str().to_owned()
+           §                tmp.pool().name().as_str().to_owned()
            §            };
            §            ${
           if (base.getSuperType == null) {
@@ -445,8 +506,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
                §        found: super_name,
                §    }));
                §} else {
-               §    super_pool.borrow_mut().add_sub(self.${field(base)}.as_ref().unwrap().clone());
-               §    self.${field(base)}.as_ref().unwrap().borrow_mut().set_super(super_pool);
+               §    super_pool.borrow_mut().pool_mut().add_sub(self.${field(base)}.as_ref().unwrap().clone());
+               §    self.${field(base)}.as_ref().unwrap().borrow_mut().pool_mut().set_super(super_pool);
                §}
                §""".stripMargin('§').trim
           }
@@ -470,35 +531,36 @@ trait SkillFileMaker extends GeneralOutputMaker {
       }).mkString
     }{
        §            for pool in self.foreign_pools.iter() {
-       §                if pool.borrow().get_type_id() == type_id {
+       §                if pool.borrow().pool().get_type_id() == type_id {
        §                    return Ok(pool.clone());
        §                }
        §            }
        §            let pool = Rc::new(RefCell::new(foreign::Pool::new(
        §                type_name.clone(),
-       §                type_id
+       §                type_id,
+       §                super_pool.clone(),
        §            )));
        §            if let Some(super_pool) = super_pool {
-       §                super_pool.borrow_mut().add_sub(pool.clone());
-       §                pool.borrow_mut().set_super(super_pool);
+       §                super_pool.borrow_mut().pool_mut().add_sub(pool.clone());
+       §                pool.borrow_mut().pool_mut().set_super(super_pool);
        §            }
        §            self.foreign_pools.push(pool.clone());
        §            Ok(pool)
        §        }
        §    }
        §
-       §    fn get_pool(&self, type_name_index: usize) -> Option<Rc<RefCell<InstancePool>>> {
+       §    fn get_pool(&self, type_name_index: usize) -> Option<Rc<RefCell<PoolProxy>>> {
        §        ${
       (for (base ← IR) yield {
         e"""if self.${field(base)}.is_some()
-           §    && type_name_index == self.${field(base)}.as_ref().unwrap().borrow().name().get_skill_id()
+           §    && type_name_index == self.${field(base)}.as_ref().unwrap().borrow().pool().name().get_skill_id()
            §{
            §    return Some(self.${field(base)}.as_ref().unwrap().clone());
            §} else """.stripMargin('§')
       }).mkString
     }{
        §            for pool in self.foreign_pools.iter() {
-       §                if pool.borrow().name().get_skill_id() == type_name_index {
+       §                if pool.borrow().pool().name().get_skill_id() == type_name_index {
        §                    return Some(pool.clone());
        §                }
        §            }

@@ -156,7 +156,7 @@ class GenericTests extends common.GenericTests {
                    §    extern crate failure;
                    §
                    §    use $pkgEsc::common::error::*;
-                   §    use $pkgEsc::skill_file::SkillFile;
+                   §    use $pkgEsc::SkillFile;
                    §
                    §    use self::failure::Fail;""".stripMargin('§')
               )

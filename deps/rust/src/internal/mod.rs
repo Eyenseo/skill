@@ -1,15 +1,13 @@
-mod instance_pool;
+pub(crate) mod foreign;
+pub(crate) mod io;
 mod literal_keeper;
 mod object_reader;
+mod pool;
 mod string_block;
 mod type_block;
-pub mod skill_object;
-pub mod foreign;
 
-
-pub use self::instance_pool::InstancePool;
-pub use self::literal_keeper::LiteralKeeper;
-pub use self::object_reader::ObjectReader;
-pub use self::skill_object::SkillObject;
-pub use self::string_block::StringBlock;
-pub use self::type_block::TypeBlock;
+pub(crate) use self::literal_keeper::LiteralKeeper;
+pub(crate) use self::object_reader::ObjectReader;
+pub(crate) use self::pool::{Pool, PoolMaker, PoolPartsMaker, PoolProxy};
+pub(crate) use self::string_block::StringBlock;
+pub(crate) use self::type_block::TypeBlock;

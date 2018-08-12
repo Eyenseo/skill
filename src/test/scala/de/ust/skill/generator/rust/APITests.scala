@@ -59,6 +59,12 @@ class APITests extends common.GenericAPITests {
                                                 "basicTypes",
                                               )
                                        ),
+                          new ExtraTest(
+                                         new File("deps/rust/tests/subtypes_delete.rs"),
+                                         Array(
+                                                "subtypes",
+                                              )
+                                       ),
                         )
 
   var skipTestCases  = Array(
@@ -198,6 +204,7 @@ class APITests extends common.GenericAPITests {
                    §extern crate $pkgEsc;
                    §
                    §#[cfg(test)]
+                   §#[allow(unused_mut)]
                    §#[allow(non_snake_case)]
                    §#[allow(unused_imports)]
                    §#[allow(unused_variables)]
@@ -207,8 +214,8 @@ class APITests extends common.GenericAPITests {
                    §
                    §    use $pkgEsc::common::*;
                    §    use $pkgEsc::common::error::*;
-                   §    use $pkgEsc::common::internal::SkillObject;
-                   §    use $pkgEsc::skill_file::*;
+                   §    use $pkgEsc::common::SkillObject;
+                   §    use $pkgEsc::SkillFile;
                    §    use $pkgEsc::*;
                    §
                    §    use self::failure::Fail;
@@ -264,7 +271,7 @@ class APITests extends common.GenericAPITests {
                   §        ${objectIDs(root)}
                   §
                   §        match SkillFile::create("/tmp/${funName}_$uuid.sf") {
-                  §            Ok(sf) => match || -> Result<(), SkillFail> {
+                  §            Ok(mut sf) => match || -> Result<(), SkillFail> {
                   §                sf.check()?;
                   §                // create objects
                   §                ${createObjects(root, tc, name)}
@@ -293,7 +300,7 @@ class APITests extends common.GenericAPITests {
                   §        };
                   §
                   §        match SkillFile::open("/tmp/${funName}_$uuid.sf") {
-                  §            Ok(sf) => match sf.check() {
+                  §            Ok(mut sf) => match sf.check() {
                   §                Ok(_) => {
                   §                    // get objects
                   §                    ${readObjects(root, tc, name)}
@@ -356,12 +363,8 @@ class APITests extends common.GenericAPITests {
         case "f64"         ⇒ v.toString + " as f64"
 
         case "string" if null != v ⇒
-          // NOTE currently NLL doesn't fix this mess
-          s"""{
-             §    let mut sp = sf.strings.borrow_mut();
-             §    let s = sp.add("${v.toString}");
-             §    s
-             §}""".stripMargin('§')
+          s"""sf.strings_mut().add("${v.toString}")
+             §""".stripMargin('§').trim
 
         case _ ⇒
           if (null == v || v.toString.equals("null")) {
@@ -369,7 +372,7 @@ class APITests extends common.GenericAPITests {
           } else {
             // NOTE all objects are read back so these names have to be valid
             // NOTE unwrapping is done to trigger a panic in case the cast ist illegal
-            e"Some(${v.toString}.clone().nucast::<SkillObject>().unwrap())"
+            e"Some(${v.toString}.clone().nucast::<SkillObject>().unwrap().downgrade())"
           }
       }
     case t: ConstantLengthArrayType ⇒
@@ -427,7 +430,7 @@ class APITests extends common.GenericAPITests {
       } else {
         // NOTE all objects are read back so these names have to be valid
         // NOTE unwrapping is done to trigger a panic in case the cast ist illegal
-        e"Some(${v.toString}.clone().nucast::<${gen.traitName(t)}>().unwrap())"
+        e"Some(${v.toString}.clone().nucast::<${gen.traitName(t)}>().unwrap().downgrade())"
       }
     case t: InterfaceType        ⇒
       t.getBaseType match {
@@ -437,7 +440,7 @@ class APITests extends common.GenericAPITests {
           } else {
             // NOTE all objects are read back so these names have to be valid
             // NOTE unwrapping is done to trigger a panic in case the cast ist illegal
-            e"Some(${v.toString}.clone().nucast::<${gen.traitName(t)}>().unwrap())"
+            e"Some(${v.toString}.clone().nucast::<${gen.traitName(t)}>().unwrap().downgrade())"
           }
         case _           ⇒
           if (null == v || v.toString.equals("null")) {
@@ -445,7 +448,7 @@ class APITests extends common.GenericAPITests {
           } else {
             // NOTE all objects are read back so these names have to be valid
             // NOTE unwrapping is done to trigger a panic in case the cast ist illegal
-            e"Some(${v.toString}.clone().nucast::<SkillObject>().unwrap())"
+            e"Some(${v.toString}.clone().nucast::<SkillObject>().unwrap().downgrade())"
           }
       }
     case _                       ⇒
@@ -517,7 +520,7 @@ class APITests extends common.GenericAPITests {
         val objType = getType(tc, JSONObject.getNames(obj).head)
         val pool = snakeCase(gen.escaped(objType.getName.camel()))
 
-        e"""let $name = sf.$pool.borrow_mut().add();
+        e"""let $name = sf.${pool}_mut().add();
            §""".stripMargin('§')
       }).mkString
     }
@@ -532,7 +535,7 @@ class APITests extends common.GenericAPITests {
         val objType = getType(tc, JSONObject.getNames(obj).head)
         val pool = snakeCase(gen.escaped(objType.getName.camel()))
 
-        e"""let $name = match sf.$pool.borrow().get(${name}_id) {
+        e"""let $name = match sf.$pool().get(${name}_id) {
            §    Ok(ptr) => ptr,
            §    Err(e) => panic!("Object $name was not retrieved because:{}", e),
            §};
@@ -599,8 +602,8 @@ class APITests extends common.GenericAPITests {
                 e"""assert_eq!(
                    §    $name.borrow_mut().$getter().is_some(), true);
                    §assert_eq!(
-                   §    $name.borrow_mut().$getter().as_ref().unwrap().nucast::<SkillObject>(),
-                   §    $expected.unwrap().nucast::<SkillObject>(),
+                   §    $name.borrow_mut().$getter().as_ref().unwrap().upgrade().unwrap().nucast::<SkillObject>(),
+                   §    ${objFieldNames.get(fieldName).toString}.clone().nucast::<SkillObject>(),
                    §);
                    §""".stripMargin('§')
               }

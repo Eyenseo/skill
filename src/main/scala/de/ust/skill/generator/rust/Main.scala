@@ -61,7 +61,7 @@ final class Main extends FakeMain
       case "f64" ⇒ "f64"
 
       case "string"     ⇒ "Rc<SkillString>"
-      case "annotation" ⇒ "Option<Ptr<SkillObject>>"
+      case "annotation" ⇒ "Option<WeakPtr<SkillObject>>"
 
       case _ ⇒ throw new GeneratorException(s"Unhandled type $t")
     }
@@ -72,10 +72,10 @@ final class Main extends FakeMain
     case t: SetType                 ⇒ s"HashSet<${mapType(t.getBaseType)}>"
     case t: MapType                 ⇒ mapMapTypes(t.getBaseTypes.asScala.toList)
 
-    case t: UserType      ⇒ s"Option<Ptr<${traitName(t)}>>"
+    case t: UserType      ⇒ s"Option<WeakPtr<${traitName(t)}>>"
     case t: InterfaceType ⇒ t.getBaseType match {
-      case _: UserType ⇒ s"Option<Ptr<${traitName(t)}>>"
-      case _           ⇒ "Option<Ptr<SkillObject>>"
+      case _: UserType ⇒ s"Option<WeakPtr<${traitName(t)}>>"
+      case _           ⇒ "Option<WeakPtr<SkillObject>>"
     }
 
     case _ ⇒ throw new GeneratorException(s"Unknown type $t")

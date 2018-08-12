@@ -1,21 +1,16 @@
-// TODO rename
 use common::error::*;
-use common::internal::InstancePool;
-use common::internal::SkillObject;
-use common::internal::StringBlock;
-use common::io::FileReader;
-use common::io::FileWriter;
+use common::internal::io::*;
+use common::internal::*;
 use common::iterator::dynamic_data;
-use common::Ptr;
-use common::SkillString;
+use common::*;
 
 use std::cell::RefCell;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::rc::Rc;
 
 #[derive(Default, Debug, Clone, Copy)]
-pub struct BlockIndex {
-    pub block: usize,
+pub(crate) struct BlockIndex {
+    pub(crate) block: usize,
 }
 impl From<usize> for BlockIndex {
     fn from(val: usize) -> BlockIndex {
@@ -53,31 +48,31 @@ impl AddAssign<BlockIndex> for BlockIndex {
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct Block {
-    pub block: BlockIndex,
-    pub bpo: usize,           // TODO Strongly type
-    pub static_count: usize,  // TODO rename
-    pub dynamic_count: usize, // TODO rename
+pub(crate) struct Block {
+    pub(crate) block: BlockIndex,
+    pub(crate) bpo: usize, // TODO Strongly type
+    pub(crate) static_count: usize,
+    pub(crate) dynamic_count: usize,
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct DeclarationFieldChunk {
-    pub begin: usize,
-    pub end: usize,
-    pub count: usize,
-    pub appearance: BlockIndex,
+pub(crate) struct DeclarationFieldChunk {
+    pub(crate) begin: usize,
+    pub(crate) end: usize,
+    pub(crate) count: usize,
+    pub(crate) appearance: BlockIndex,
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct ContinuationFieldChunk {
-    pub begin: usize,
-    pub end: usize,
-    pub count: usize,
-    pub bpo: usize, // TODO strongly type
+pub(crate) struct ContinuationFieldChunk {
+    pub(crate) begin: usize,
+    pub(crate) end: usize,
+    pub(crate) count: usize,
+    pub(crate) bpo: usize, // TODO strongly type
 }
 
 #[derive(Debug, Clone)]
-pub enum FieldChunk {
+pub(crate) enum FieldChunk {
     Declaration(DeclarationFieldChunk),
     Continuation(ContinuationFieldChunk),
 }
@@ -93,13 +88,13 @@ impl From<DeclarationFieldChunk> for FieldChunk {
     }
 }
 
-pub trait FieldDeclaration {
+pub(crate) trait FieldDeclaration {
     fn read(
         &self,
         file_reader: &Vec<FileReader>,
         string_pool: &StringBlock,
         blocks: &Vec<Block>,
-        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
+        type_pools: &Vec<Rc<RefCell<PoolProxy>>>,
         instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillFail>;
     fn deserialize(
@@ -107,7 +102,7 @@ pub trait FieldDeclaration {
         block_reader: &Vec<FileReader>,
         string_pool: &StringBlock,
         blocks: &Vec<Block>,
-        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
+        type_pools: &Vec<Rc<RefCell<PoolProxy>>>,
         instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillFail>;
 

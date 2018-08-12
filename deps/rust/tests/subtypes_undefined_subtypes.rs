@@ -39,8 +39,7 @@ mod tests {
         let mut d_id = 0;
         {
             use subtypes::common::error::*;
-            use subtypes::common::internal::SkillObject;
-            use subtypes::skill_file::SkillFile;
+            use subtypes::common::*;
             use subtypes::*;
 
             match SkillFile::create(
@@ -49,27 +48,27 @@ mod tests {
                 Ok(sf) => match || -> Result<(), SkillFail> {
                     sf.check()?;
                     // create objects
-                    let a = sf.a.borrow_mut().add();
-                    let b = sf.b.borrow_mut().add();
-                    let c = sf.c.borrow_mut().add();
-                    let d = sf.d.borrow_mut().add();
+                    let a = sf.a_mut().add();
+                    let b = sf.b_mut().add();
+                    let c = sf.c_mut().add();
+                    let d = sf.d_mut().add();
                     // set fields
                     a.borrow_mut()
-                        .set_a(Some(d.clone().nucast::<A>().unwrap()));
+                        .set_a(Some(d.clone().nucast::<A>().unwrap().downgrade()));
                     b.borrow_mut()
-                        .set_a(Some(d.clone().nucast::<A>().unwrap()));
+                        .set_a(Some(d.clone().nucast::<A>().unwrap().downgrade()));
                     b.borrow_mut()
-                        .set_b(Some(d.clone().nucast::<B>().unwrap()));
+                        .set_b(Some(d.clone().nucast::<B>().unwrap().downgrade()));
                     c.borrow_mut()
-                        .set_a(Some(d.clone().nucast::<A>().unwrap()));
+                        .set_a(Some(d.clone().nucast::<A>().unwrap().downgrade()));
                     c.borrow_mut()
-                        .set_c(Some(c.clone().nucast::<C>().unwrap()));
+                        .set_c(Some(c.clone().nucast::<C>().unwrap().downgrade()));
                     d.borrow_mut()
-                        .set_a(Some(d.clone().nucast::<A>().unwrap()));
+                        .set_a(Some(d.clone().nucast::<A>().unwrap().downgrade()));
                     d.borrow_mut()
-                        .set_b(Some(d.clone().nucast::<B>().unwrap()));
+                        .set_b(Some(d.clone().nucast::<B>().unwrap().downgrade()));
                     d.borrow_mut()
-                        .set_d(Some(d.clone().nucast::<D>().unwrap()));
+                        .set_d(Some(d.clone().nucast::<D>().unwrap().downgrade()));
                     // serialize
                     sf.close()?;
                     // remember object IDs - type hierarchy makes them difficult to calculate for the generator
@@ -95,8 +94,7 @@ mod tests {
         }
         {
             use unknown::common::error::*;
-            use unknown::common::internal::SkillObject;
-            use unknown::skill_file::SkillFile;
+            use unknown::common::*;
             use unknown::*;
 
             match SkillFile::open(
@@ -105,11 +103,11 @@ mod tests {
                 Ok(sf) => match || -> Result<(), SkillFail> {
                     sf.check()?;
                     // get objects
-                    let a = match sf.a.borrow().get(a_id) {
+                    let a = match sf.a().get(a_id) {
                         Ok(ptr) => ptr,
                         Err(e) => panic!("ObjectProper a was not retrieved because:{}", e),
                     };
-                    let c = match sf.c.borrow().get(c_id) {
+                    let c = match sf.c().get(c_id) {
                         Ok(ptr) => ptr,
                         Err(e) => panic!("ObjectProper c was not retrieved because:{}", e),
                     };
@@ -135,8 +133,7 @@ mod tests {
         }
         {
             use subtypes::common::error::*;
-            use subtypes::common::internal::SkillObject;
-            use subtypes::skill_file::SkillFile;
+            use subtypes::common::*;
             use subtypes::*;
 
             match SkillFile::open(
@@ -145,19 +142,19 @@ mod tests {
                 Ok(sf) => match sf.check() {
                     Ok(_) => {
                         // get objects
-                        let a = match sf.a.borrow().get(a_id) {
+                        let a = match sf.a().get(a_id) {
                             Ok(ptr) => ptr,
                             Err(e) => panic!("ObjectProper a was not retrieved because:{}", e),
                         };
-                        let b = match sf.b.borrow().get(b_id) {
+                        let b = match sf.b().get(b_id) {
                             Ok(ptr) => ptr,
                             Err(e) => panic!("ObjectProper b was not retrieved because:{}", e),
                         };
-                        let c = match sf.c.borrow().get(c_id) {
+                        let c = match sf.c().get(c_id) {
                             Ok(ptr) => ptr,
                             Err(e) => panic!("ObjectProper c was not retrieved because:{}", e),
                         };
-                        let d = match sf.d.borrow().get(d_id) {
+                        let d = match sf.d().get(d_id) {
                             Ok(ptr) => ptr,
                             Err(e) => panic!("ObjectProper d was not retrieved because:{}", e),
                         };
@@ -168,10 +165,10 @@ mod tests {
                                 .get_a()
                                 .as_ref()
                                 .unwrap()
-                                .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<A>().unwrap())
+                                .upgrade()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
+                            d.clone().nucast::<SkillObject>(),
                         );
                         assert_eq!(b.borrow_mut().get_a().is_some(), true);
                         assert_eq!(
@@ -179,10 +176,10 @@ mod tests {
                                 .get_a()
                                 .as_ref()
                                 .unwrap()
-                                .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<A>().unwrap())
+                                .upgrade()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
+                            d.clone().nucast::<SkillObject>(),
                         );
                         assert_eq!(b.borrow_mut().get_b().is_some(), true);
                         assert_eq!(
@@ -190,10 +187,10 @@ mod tests {
                                 .get_b()
                                 .as_ref()
                                 .unwrap()
-                                .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<B>().unwrap())
+                                .upgrade()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
+                            d.clone().nucast::<SkillObject>(),
                         );
                         assert_eq!(c.borrow_mut().get_a().is_some(), true);
                         assert_eq!(
@@ -201,10 +198,10 @@ mod tests {
                                 .get_a()
                                 .as_ref()
                                 .unwrap()
-                                .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<A>().unwrap())
+                                .upgrade()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
+                            d.nucast::<SkillObject>(),
                         );
                         assert_eq!(c.borrow_mut().get_c().is_some(), true);
                         assert_eq!(
@@ -212,10 +209,10 @@ mod tests {
                                 .get_c()
                                 .as_ref()
                                 .unwrap()
-                                .nucast::<SkillObject>(),
-                            Some(c.clone().nucast::<C>().unwrap())
+                                .upgrade()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
+                            c.clone().nucast::<SkillObject>(),
                         );
                         assert_eq!(d.borrow_mut().get_a().is_some(), true);
                         assert_eq!(
@@ -223,10 +220,10 @@ mod tests {
                                 .get_a()
                                 .as_ref()
                                 .unwrap()
-                                .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<A>().unwrap())
+                                .upgrade()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
+                            d.clone().nucast::<SkillObject>(),
                         );
                         assert_eq!(d.borrow_mut().get_b().is_some(), true);
                         assert_eq!(
@@ -234,10 +231,10 @@ mod tests {
                                 .get_b()
                                 .as_ref()
                                 .unwrap()
-                                .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<B>().unwrap())
+                                .upgrade()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
+                            d.clone().nucast::<SkillObject>(),
                         );
                         assert_eq!(d.borrow_mut().get_d().is_some(), true);
                         assert_eq!(
@@ -245,10 +242,10 @@ mod tests {
                                 .get_d()
                                 .as_ref()
                                 .unwrap()
-                                .nucast::<SkillObject>(),
-                            Some(d.clone().nucast::<D>().unwrap())
+                                .upgrade()
                                 .unwrap()
                                 .nucast::<SkillObject>(),
+                            d.clone().nucast::<SkillObject>(),
                         );
                     }
                     Err(e) => if let Some(bt) = e.backtrace() {

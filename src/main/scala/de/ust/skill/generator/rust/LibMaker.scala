@@ -48,9 +48,10 @@ trait LibMaker extends GeneralOutputMaker {
                   §#[macro_use]
                   §pub mod common;
                   §
-                  §pub mod skill_file;
+                  §mod skill_file;
                   §pub mod ptr;
                   §
+                  §pub(crate) use self::skill_file::SkillFileBuilder;
                   §pub use self::skill_file::SkillFile;
                   §
                   §${genModuleUsage()}

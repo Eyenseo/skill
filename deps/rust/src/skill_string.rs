@@ -1,6 +1,5 @@
 use common::error::*;
-use common::internal::skill_object;
-use common::internal::SkillObject;
+use common::*;
 
 use std::cell::Cell;
 use std::collections::hash_map::DefaultHasher;
@@ -9,15 +8,15 @@ use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Default)]
 pub struct SkillString {
-    // NOTE this is bad! but since we want to modify id without having to rely on RefCell (we need
-    // to be hashable) this is our only option
+    // NOTE this is bad! but since we want to modify id without having to rely on RefCell
+    // (we need to be hashable) this is our only option
     id: Cell<usize>,
     string: String,
     hash: u64,
 }
 
 impl SkillString {
-    pub fn new(id: usize, string: &str) -> SkillString {
+    pub(crate) fn new(id: usize, string: &str) -> SkillString {
         SkillString {
             id: Cell::new(id),
             string: String::from(string),
@@ -58,11 +57,13 @@ impl SkillObject for SkillString {
         self.id.set(id);
         Ok(())
     }
+}
 
-    fn mark_for_pruning(&self) {
+impl Deletable for SkillString {
+    fn mark_for_deletion(&mut self) {
         self.id.set(skill_object::DELETE);
     }
-    fn to_prune(&self) -> bool {
+    fn to_delete(&self) -> bool {
         self.id.get() == skill_object::DELETE
     }
 }

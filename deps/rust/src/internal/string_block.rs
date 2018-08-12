@@ -1,16 +1,14 @@
 use common::error::*;
-use common::internal::LiteralKeeper;
-use common::internal::SkillObject;
-use common::io::magic::bytes_v64;
-use common::io::FileReader;
-use common::io::FileWriter;
-use common::SkillString;
+use common::internal::io::magic::bytes_v64;
+use common::internal::io::*;
+use common::internal::*;
+use common::*;
 
 use std::collections::HashSet;
 use std::rc::Rc;
 
 #[derive(Default, Debug)]
-pub struct StringBlock {
+pub(crate) struct StringBlock {
     pool: Vec<Rc<SkillString>>,
     set: HashSet<Rc<SkillString>>,
     literal_keeper: LiteralKeeper,
@@ -19,7 +17,7 @@ pub struct StringBlock {
 // TODO improve user interface
 // => split reading to another type
 impl StringBlock {
-    pub fn new() -> StringBlock {
+    pub(crate) fn new() -> StringBlock {
         StringBlock {
             pool: Vec::default(),
             set: HashSet::default(),
@@ -27,7 +25,7 @@ impl StringBlock {
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.pool.len()
     }
 
@@ -35,9 +33,8 @@ impl StringBlock {
         self.pool.reserve(size);
         self.set.reserve(size);
     }
-    fn extend(&mut self, size: usize) {
+    pub(crate) fn extend(&mut self, size: usize) {
         let reserve = self.pool.len();
-        self.reserve(reserve + size);
         self.reserve(reserve + size);
     }
     fn add_raw(&mut self, s: &str) -> Result<(), SkillFail> {
@@ -58,7 +55,7 @@ impl StringBlock {
         self.set.insert(ss);
         Ok(())
     }
-    pub fn add(&mut self, s: &str) -> Rc<SkillString> {
+    pub(crate) fn add(&mut self, s: &str) -> Rc<SkillString> {
         // this is bad ...
         let v = Rc::new(SkillString::new(self.pool.len() + 1, s));
         if let Some(v) = self.set.get(&v) {
@@ -68,14 +65,14 @@ impl StringBlock {
         self.set.insert(v.clone());
         v
     }
-    pub fn get(&self, i: usize) -> Result<Rc<SkillString>, SkillFail> {
+    pub(crate) fn get(&self, i: usize) -> Result<Rc<SkillString>, SkillFail> {
         if i == 0 {
             return Err(SkillFail::user(UserFail::ReservedID { id: 0 }));
         }
         Ok(self.pool[i - 1].clone())
     }
 
-    pub fn read_string_pool(&mut self, reader: &mut FileReader) -> Result<(), SkillFail> {
+    pub(crate) fn read_string_pool(&mut self, reader: &mut FileReader) -> Result<(), SkillFail> {
         info!(target: "SkillParsing", "~Block Start~");
         let string_amount = reader.read_v64()? as usize; // amount
         info!(target: "SkillParsing", "~Amount: {}", string_amount);
@@ -101,7 +98,7 @@ impl StringBlock {
         Ok(())
     }
 
-    pub fn finalize(&mut self) -> Result<(), SkillFail> {
+    pub(crate) fn finalize(&mut self) -> Result<(), SkillFail> {
         // TODO this shoudl be done on write?
         for s in self.literal_keeper.get_rest() {
             s.set_skill_id(self.pool.len() + 1)?;
@@ -111,11 +108,11 @@ impl StringBlock {
         Ok(())
     }
 
-    pub fn lit(&self) -> &LiteralKeeper {
+    pub(crate) fn lit(&self) -> &LiteralKeeper {
         &self.literal_keeper
     }
 
-    pub fn write_block(&self, writer: &mut FileWriter) -> Result<(), SkillFail> {
+    pub(crate) fn write_block(&self, writer: &mut FileWriter) -> Result<(), SkillFail> {
         // TODO strings should be pruned/compressed when strong_count is 1
         info!(
             target: "SkillWriting",

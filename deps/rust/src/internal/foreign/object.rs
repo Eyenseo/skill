@@ -1,7 +1,6 @@
 use common::error::*;
-use common::internal::foreign;
-use common::internal::skill_object;
-use common::internal::SkillObject;
+use common::internal::*;
+use common::*;
 
 use std::cell::Cell;
 
@@ -18,7 +17,7 @@ pub(crate) trait Object: SkillObject {
 }
 
 impl ObjectProper {
-    pub fn new(skill_id: usize, skill_type_id: usize) -> ObjectProper {
+    pub(crate) fn new(skill_id: usize, skill_type_id: usize) -> ObjectProper {
         ObjectProper {
             skill_id: Cell::new(skill_id),
             skill_type_id,
@@ -53,11 +52,13 @@ impl SkillObject for ObjectProper {
         self.skill_id.set(skill_id);
         Ok(())
     }
+}
 
-    fn mark_for_pruning(&self) {
+impl Deletable for ObjectProper {
+    fn mark_for_deletion(&mut self) {
         self.skill_id.set(skill_object::DELETE);
     }
-    fn to_prune(&self) -> bool {
+    fn to_delete(&self) -> bool {
         self.skill_id.get() == skill_object::DELETE
     }
 }

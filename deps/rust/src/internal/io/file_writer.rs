@@ -1,7 +1,7 @@
 use common::error::*;
+use common::internal::io::base_writer::*;
+use common::internal::io::magic::*;
 use common::internal::StringBlock;
-use common::io::base_writer::*;
-use common::io::magic::*;
 use common::Ptr;
 
 use memmap::MmapMut;
@@ -48,14 +48,14 @@ impl<'v> DerefMut for Out<'v> {
 }
 
 #[derive(Debug)]
-pub struct FileWriter<'v> {
+pub(crate) struct FileWriter<'v> {
     file: Rc<RefCell<std::fs::File>>,
     buffer_position: usize,
     out: Out<'v>,
 }
 
 impl<'v> FileWriter<'v> {
-    pub fn new(file: Rc<RefCell<std::fs::File>>) -> FileWriter<'v> {
+    pub(crate) fn new(file: Rc<RefCell<std::fs::File>>) -> FileWriter<'v> {
         FileWriter {
             file,
             buffer_position: 0,
@@ -63,7 +63,7 @@ impl<'v> FileWriter<'v> {
         }
     }
 
-    pub fn jump<'vv>(&'vv mut self, len: usize) -> Result<FileWriter<'v>, SkillFail> {
+    pub(crate) fn jump<'vv>(&'vv mut self, len: usize) -> Result<FileWriter<'v>, SkillFail> {
         self.flush()?;
 
         let new_pos = match self.file.borrow_mut().seek(SeekFrom::Current(len as i64)) {
@@ -101,7 +101,7 @@ impl<'v> FileWriter<'v> {
         Ok(writer)
     }
 
-    pub fn rel_view(&mut self, from: usize, to: usize) -> Result<FileWriter, SkillFail> {
+    pub(crate) fn rel_view(&mut self, from: usize, to: usize) -> Result<FileWriter, SkillFail> {
         match self.out {
             Out::Buffer(_) => Err(SkillFail::internal(InternalFail::ViewOnBuffer)),
             Out::MMap(ref mut map) => Ok(FileWriter {
@@ -141,7 +141,7 @@ impl<'v> FileWriter<'v> {
         Ok(())
     }
 
-    pub fn flush(&mut self) -> Result<usize, SkillFail> {
+    pub(crate) fn flush(&mut self) -> Result<usize, SkillFail> {
         match self.out {
             Out::Buffer(ref mut buf) => {
                 match self
@@ -195,58 +195,58 @@ impl<'v> FileWriter<'v> {
 
     // writeing
     // boolean
-    pub fn write_bool(&mut self, what: bool) -> Result<(), SkillFail> {
+    pub(crate) fn write_bool(&mut self, what: bool) -> Result<(), SkillFail> {
         self.require_buffer(1)?;
         write_bool(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
     // integer types
-    pub fn write_i8(&mut self, what: i8) -> Result<(), SkillFail> {
+    pub(crate) fn write_i8(&mut self, what: i8) -> Result<(), SkillFail> {
         self.require_buffer(1)?;
         write_i8(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
-    pub fn write_i16(&mut self, what: i16) -> Result<(), SkillFail> {
+    pub(crate) fn write_i16(&mut self, what: i16) -> Result<(), SkillFail> {
         self.require_buffer(2)?;
         write_i16(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
-    pub fn write_i32(&mut self, what: i32) -> Result<(), SkillFail> {
+    pub(crate) fn write_i32(&mut self, what: i32) -> Result<(), SkillFail> {
         self.require_buffer(4)?;
         write_i32(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
-    pub fn write_i64(&mut self, what: i64) -> Result<(), SkillFail> {
+    pub(crate) fn write_i64(&mut self, what: i64) -> Result<(), SkillFail> {
         self.require_buffer(8)?;
         write_i64(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
-    pub fn write_v64(&mut self, what: i64) -> Result<(), SkillFail> {
+    pub(crate) fn write_v64(&mut self, what: i64) -> Result<(), SkillFail> {
         self.require_buffer(9)?;
         write_v64(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
     // float types
-    pub fn write_f32(&mut self, what: f32) -> Result<(), SkillFail> {
+    pub(crate) fn write_f32(&mut self, what: f32) -> Result<(), SkillFail> {
         self.require_buffer(4)?;
         write_f32(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
-    pub fn write_f64(&mut self, what: f64) -> Result<(), SkillFail> {
+    pub(crate) fn write_f64(&mut self, what: f64) -> Result<(), SkillFail> {
         self.require_buffer(8)?;
         write_f64(&mut self.buffer_position, &mut self.out, what);
         Ok(())
     }
 
     // string
-    pub fn write_raw_string(&mut self, what: &str) -> Result<(), SkillFail> {
+    pub(crate) fn write_raw_string(&mut self, what: &str) -> Result<(), SkillFail> {
         self.require_buffer(what.len())?;
         match self.out {
             Out::Buffer(ref mut buf) => {
@@ -281,7 +281,7 @@ impl<'v> FileWriter<'v> {
         Ok(())
     }
 
-    pub fn write_field_type(&mut self, field_type: &FieldType) -> Result<(), SkillFail> {
+    pub(crate) fn write_field_type(&mut self, field_type: &FieldType) -> Result<(), SkillFail> {
         match field_type {
             FieldType::BuildIn(BuildInType::ConstTi8) => {
                 info!(target: "SkillWriting", "~~~~FieldType = const i8");
@@ -378,10 +378,10 @@ impl<'v> FileWriter<'v> {
                 info!(
                     target: "SkillWriting",
                     "~~~~FieldType = User{} ID:{}",
-                    user.borrow().name().as_str(),
-                    user.borrow().get_type_id()
+                    user.borrow().pool().name().as_str(),
+                    user.borrow().pool().get_type_id()
                 );
-                self.write_v64(user.borrow().get_type_id() as i64)?;
+                self.write_v64(user.borrow().pool().get_type_id() as i64)?;
             }
         }
         Ok(())

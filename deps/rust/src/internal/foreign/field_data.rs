@@ -1,6 +1,4 @@
-use common::internal::SkillObject;
-use common::Ptr;
-use common::SkillString;
+use common::*;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -8,7 +6,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-pub enum FieldData {
+pub(crate) enum FieldData {
     Bool(bool),
     I8(i8),
     I16(i16),

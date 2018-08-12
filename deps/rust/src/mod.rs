@@ -1,13 +1,16 @@
 #[macro_use]
-pub mod ptr;
+pub(crate) mod ptr;
 
 pub mod error;
-pub mod internal;
-pub mod io;
-pub mod iterator;
-mod pool_maker;
+pub(crate) mod internal;
+pub(crate) mod iterator;
+pub(crate) mod skill_object;
 mod skill_string;
+mod string_pool;
 
-pub use self::ptr::{BorrowError, BorrowMutError, Ptr, Ref, RefMut, TraitObject, WeakPtr};
-pub use self::pool_maker::PoolMaker;
+pub(crate) use self::ptr::{BorrowError, BorrowMutError, Ref, RefMut, TraitObject};
+pub use self::ptr::{Ptr, WeakPtr};
+pub(crate) use self::skill_object::Deletable;
+pub use self::skill_object::SkillObject;
 pub use self::skill_string::SkillString;
+pub use self::string_pool::StringPool;

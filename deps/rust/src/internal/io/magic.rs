@@ -1,10 +1,10 @@
-use common::internal::InstancePool;
+use common::internal::PoolProxy;
 
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
-pub enum BuildInType {
+pub(crate) enum BuildInType {
     ConstTi8,
     ConstTi16,
     ConstTi32,
@@ -24,7 +24,7 @@ pub enum BuildInType {
     Tarray(Box<FieldType>),
     Tlist(Box<FieldType>),
     Tset(Box<FieldType>),
-    // TODO this should be changed to a vec - the encapulation is not needed
+    // TODO this should be changed to a vec - the encapsulation is not needed
     Tmap(Box<FieldType>, Box<FieldType>),
     // NOTE user types start from >32
 }
@@ -56,12 +56,12 @@ impl fmt::Display for BuildInType {
     }
 }
 
-pub enum FieldType {
+pub(crate) enum FieldType {
     BuildIn(BuildInType),
-    User(Rc<RefCell<InstancePool>>),
+    User(Rc<RefCell<PoolProxy>>),
 }
 
-pub fn bytes_v64(what: i64) -> usize {
+pub(crate) fn bytes_v64(what: i64) -> usize {
     if (what as u64) < 0x80 {
         1
     } else if (what as u64) < 0x4000 {
@@ -82,21 +82,22 @@ pub fn bytes_v64(what: i64) -> usize {
         9
     }
 }
+
 impl fmt::Display for FieldType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             FieldType::BuildIn(build_in) => write!(f, "{}", build_in),
             FieldType::User(pool) => match pool.try_borrow() {
-                Ok(pool) => write!(f, "User{}", pool.name().as_str()),
+                Ok(pool) => write!(f, "User{}", pool.pool().name().as_str()),
                 Err(_) => {
                     write!(
                         f,
                         "Some UserType - the pool is borrowed \
                          mutable so there is no more information \
                          available than its pointer: {:?} Good Luck!",
-                        pool as *const Rc<RefCell<InstancePool>>,
+                        pool as *const Rc<RefCell<PoolProxy>>,
                         // NOTE use with care! It destroyes all guarantees
-                        // unsafe { (*pool.as_ptr()).name().as_str() }
+                        // unsafe { (*pool.as_ptr()).pool().name().as_str() }
                     )
                 }
             },

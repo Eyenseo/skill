@@ -15,7 +15,7 @@ pub(crate) fn read_byte_unchecked(position: &mut usize, mmap: &Mmap) -> u8 {
 }
 
 // boolean
-pub fn read_bool(position: &mut usize, end: usize, mmap: &Mmap) -> Result<bool, SkillFail> {
+pub(crate) fn read_bool(position: &mut usize, end: usize, mmap: &Mmap) -> Result<bool, SkillFail> {
     if *position < end {
         let val = read_byte_unchecked(position, mmap) != 0;
         trace!(
@@ -33,7 +33,7 @@ pub fn read_bool(position: &mut usize, end: usize, mmap: &Mmap) -> Result<bool, 
 }
 
 // integer types
-pub fn read_i8(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i8, SkillFail> {
+pub(crate) fn read_i8(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i8, SkillFail> {
     if *position < end {
         let val = read_byte_unchecked(position, mmap) as i8;
         trace!(
@@ -50,7 +50,7 @@ pub fn read_i8(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i8, Skil
     }
 }
 
-pub fn read_i16(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i16, SkillFail> {
+pub(crate) fn read_i16(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i16, SkillFail> {
     if *position + 1 < end {
         let mut val: i16 = (i16::from(read_byte_unchecked(position, mmap))) << 8;
         val |= i16::from(read_byte_unchecked(position, mmap));
@@ -68,7 +68,7 @@ pub fn read_i16(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i16, Sk
     }
 }
 
-pub fn read_i32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i32, SkillFail> {
+pub(crate) fn read_i32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i32, SkillFail> {
     if *position + 3 < end {
         let mut val: i32 = (i32::from(read_byte_unchecked(position, mmap))) << 24;
         val |= (i32::from(read_byte_unchecked(position, mmap))) << 16;
@@ -88,7 +88,7 @@ pub fn read_i32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i32, Sk
     }
 }
 
-pub fn read_i64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, SkillFail> {
+pub(crate) fn read_i64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, SkillFail> {
     if *position + 7 < end {
         let mut val: i64 = (i64::from(read_byte_unchecked(position, mmap))) << 56;
         val |= (i64::from(read_byte_unchecked(position, mmap))) << 48;
@@ -112,7 +112,7 @@ pub fn read_i64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, Sk
     }
 }
 
-pub fn read_v64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, SkillFail> {
+pub(crate) fn read_v64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, SkillFail> {
     let mut byte_val: i64 = 0;
     let mut val: i64 = 0;
     {
@@ -165,7 +165,7 @@ pub fn read_v64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, Sk
 }
 
 // float types
-pub fn read_f32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<f32, SkillFail> {
+pub(crate) fn read_f32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<f32, SkillFail> {
     #[repr(C)]
     union U {
         i: i32,
@@ -188,7 +188,7 @@ pub fn read_f32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<f32, Sk
     }
 }
 
-pub fn read_f64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<f64, SkillFail> {
+pub(crate) fn read_f64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<f64, SkillFail> {
     #[repr(C)]
     union U {
         i: i64,
@@ -212,7 +212,7 @@ pub fn read_f64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<f64, Sk
 
 // string
 // TODO replace String with lazy loading
-pub fn read_string(
+pub(crate) fn read_string(
     position: &mut usize,
     end: usize,
     mmap: &Mmap,

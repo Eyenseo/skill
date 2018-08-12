@@ -27,6 +27,8 @@ trait PoolsMaker extends GeneralOutputMaker {
                     §
                     §${genType(base)}
                     §
+                    §${genPoolPartsMaker(base)}
+                    §
                     §${genPool(base)}
                     §
                     §${genFieldDeclaration(base)}
@@ -53,12 +55,13 @@ trait PoolsMaker extends GeneralOutputMaker {
     // TODO Sort
     e"""use common::error::*;
        §use common::internal::*;
-       §use common::io::magic::bytes_v64;
-       §use common::io::*;
+       §use common::internal::io::magic::bytes_v64;
+       §use common::internal::io::*;
        §use common::iterator::*;
+       §use common::skill_object;
        §use common::*;
        §
-       §use skill_file::SkillFile;
+       §use skill_file::SkillFileBuilder;
        §
        §${getUsageStd()}
        §
@@ -378,11 +381,13 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        self.skill_id.set(skill_id);
        §        Ok(())
        §    }
+       §}
        §
-       §    fn mark_for_pruning(&self) {
+       §impl Deletable for ${if (foreign) foreignName(base) else name(base)} {
+       §    fn mark_for_deletion(&mut self) {
        §        self.skill_id.set(skill_object::DELETE);
        §    }
-       §    fn to_prune(&self) -> bool {
+       §    fn to_delete(&self) -> bool {
        §        self.skill_id.get() == skill_object::DELETE
        §    }
        §}
@@ -407,437 +412,145 @@ trait PoolsMaker extends GeneralOutputMaker {
     }
   }
 
-
   //----------------------------------------
-  // TypePool
+  // TypePoolPartsMaker
   //----------------------------------------
-  private final def genPool(base: UserType): String = {
+  private final def genPoolPartsMaker(base: UserType): String = {
     e"""//----------------------------------------
-       §// ${base.getName}Pool aka ${storagePool(base)}
+       §// ${base.getName}PoolPartsMaker aka ${poolPartsMaker(base)}
        §//----------------------------------------
-       §${genPoolStruct(base)}
+       §#[derive(Default)]
+       §pub(crate) struct ${poolPartsMaker(base)} {
+       §    type_name: Rc<SkillString>,
+       §}
        §
-       §${genPoolImpl(base)}
-       §
-       §${genPoolImplInstancePool(base)}
-       §""".stripMargin('§')
-  }.trim
-
-  private final def genPoolStruct(base: UserType): String = {
-    e"""#[derive(Default)]
-       §pub struct ${storagePool(base)} {
-       §    string_pool: Rc<RefCell<StringBlock>>,
-       §    instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
-       §    own_static_instances: Vec<Ptr<SkillObject>>,
-       §    own_new_instances: Vec<Ptr<SkillObject>>,
-       §    fields: Vec<Box<RefCell<FieldDeclaration>>>,
-       §    name: Rc<SkillString>,
-       §    type_id: usize,
-       §    blocks: Vec<Block>,
-       §    super_pool: Option<Rc<RefCell<InstancePool>>>,
-       §    sub_pools: Vec<Rc<RefCell<InstancePool>>>,
-       §    base_pool: Option<Rc<RefCell<InstancePool>>>,
-       §    next_pool: Option<Rc<RefCell<InstancePool>>>,
-       §    static_count: usize,
-       §    dynamic_count: usize,
-       §    cached_count: usize,
-       §    deleted_count: usize,
-       §    type_hierarchy_height: usize,
-       §    invariant: bool,
-       §    foreign_fields: bool,
-       §}""".stripMargin('§')
-  }
-
-  private final def genPoolImpl(base: UserType): String = {
-    e"""impl ${storagePool(base)} {
-       §    pub fn new(
-       §        string_pool: Rc<RefCell<StringBlock>>,
-       §        name: Rc<SkillString>,
-       §        type_id: usize,
-       §    ) -> ${storagePool(base)} {
-       §        ${storagePool(base)} {
-       §            string_pool,
-       §            instances: Rc::default(),
-       §            own_static_instances: Vec::new(),
-       §            own_new_instances: Vec::new(),
-       §            fields: Vec::new(),
-       §            name,
-       §            type_id,
-       §            blocks: Vec::new(),
-       §            super_pool: None,
-       §            base_pool: None,
-       §            next_pool: None,
-       §            sub_pools: Vec::new(),
-       §            static_count: 0,
-       §            dynamic_count: 0,
-       §            cached_count: 0,
-       §            deleted_count: 0,
-       §            type_hierarchy_height: 0,
-       §            invariant: false,
-       §            foreign_fields: false,
+       §impl ${poolPartsMaker(base)} {
+       §    fn new(type_name: Rc<SkillString>) -> ${poolPartsMaker(base)} {
+       §        ${poolPartsMaker(base)} {
+       §            type_name,
        §        }
        §    }
+       §}
        §
-       §    pub fn complete(&mut self, file: &SkillFile) {
-       §        ${
-      val fields = base.getFields.asScala.filterNot(_.isAuto).toList :::
-                   allSuperInterfaces(base).flatMap(t ⇒ t.getFields.asScala).filterNot(_.isAuto)
-      if (fields.nonEmpty) {
-        e"""
-           §        let mut set = HashSet::with_capacity(${fields.size});
-           §        let mut string_pool = self.string_pool.borrow_mut();
-           §        {
-           §            let lit = string_pool.lit();
-           §            ${
-          (for (field ← fields) yield {
-            e"""set.insert(lit.${name(field)});
-               §""".stripMargin('§')
-          }).mkString.trim()
-        }
-           §        }
-           §
-           §        for f in self.fields.iter() {
-           §            set.remove(f.borrow().name().as_str());
-           §        }
-           §
-           §        ${
-          (for (ft ← fields) yield {
-            e"""if set.contains(string_pool.lit().${name(ft)}) {
-               §    let index = self.fields.len() + 1;
-               §    let name = string_pool.lit().${name(ft)};${
-              "" // FIXME accessing the fields of lit will create _copies_! else this would be illegal
-            }
-               §    self.fields.push(Box::new(RefCell::new(
-               §        ${fieldDeclaration(base, ft)}::new(
-               §            string_pool.add(name),
-               §            index,
-               §            ${mapTypeToMagicDef(ft.getType)},${
-              val userTypes = collectUserTypes(ft.getType)
-              if (userTypes.nonEmpty) {
-                e"""
-                   §vec!{
-                   §    ${
-                  (for (ut ← userTypes) yield {
-                    e"""file.${field(ut)}.clone(),
-                       §""".stripMargin('§')
-                  }).mkString.trim
-                }
-                   §}""".stripMargin('§')
-              } else {
-                ""
-              }
-            }
-               §        )
-               §    )));
-               §}
-               §""".stripMargin('§')
-          }).mkString
-        }
-           §""".stripMargin('§').trim
-      } else {
-        "// nothing to do"
-      }
-    }
-       §    }
-       §
-       §    pub fn get(&self, index: usize) -> Result<Ptr<${traitName(base)}>, SkillFail> {
-       §        if index == 0 {
-       §            return Err(SkillFail::user(UserFail::ReservedID { id: 0 }));
-       §        }
-       §        match self.instances.borrow().get(index - 1) {
-       §            Some(obj) => {
-       §                if obj.borrow().get_skill_id() == skill_object::DELETE {
-       §                    return Err(SkillFail::user(UserFail::AccessDeleted));
-       §                }
-       §                match obj.nucast::<${traitName(base)}>() {
-       §                    Some(obj) => Ok(obj.clone()),
-       §                    None => Err(SkillFail::user(UserFail::BadCastID { id:index })),
-       §                }
-       §            },
-       §            None => Err(SkillFail::user(UserFail::UnknownObjectID { id:index })),
-       §        }
-       §    }
-       §
-       §    pub fn add(&mut self) -> Ptr<${name(base)}> {
-       §        let ret = Ptr::new(${name(base)}::new(0, self.type_id));
-       §        self.own_new_instances.push(ret.clone());
-       §        ret
-       §    }
-       §
-       §    pub fn delete(&mut self, ${field(base)}: Ptr<${name(base)}>) -> Result<(), SkillFail> {${
-      "" // NOTE this is wrong after a compress but we consume the state on write, so its "fine"
-    }
-       §        // NOTE this is wrong after a compress but we consume the state on write, so its fine
-       §        // NOTE base array + own (book) array + parameter = 3 strong counts
-       §        //      in case of a deserialized instance
-       §        //      own (book) array + parameter = 2 strong count in case of a new instance
-       §        if ${field(base)}.weak_count() != 0
-       §            || (${field(base)}.borrow().get_skill_id() != 0 && ${field(base)}.strong_count() > 3)
-       §            || ${field(base)}.strong_count() > 2
-       §        {
-       §            return Err(SkillFail::user(UserFail::DeleteInUse { id: ${field(base)}.borrow().get_skill_id() }));
-       §        }
-       §        ${field(base)}.borrow().mark_for_pruning();
-       §        self.deleted_count += 1;
-       §        Ok(())
-       §    }
-       §
-       §    /// This will delete an instance without checking if somewhere in the state another instance uses this one
-       §    pub fn delete_force(&mut self, ${field(base)}: Ptr<${name(base)}>) -> Result<(), SkillFail> {
-       §        ${field(base)}.borrow().mark_for_pruning();
-       §        self.deleted_count += 1;
-       §        Ok(())
-       §    }
-       §}""".stripMargin('§')
-  }
-
-  private final def genPoolImplInstancePool(base: UserType): String = {
-    e"""impl InstancePool for ${storagePool(base)} {
-       §    ${genPoolImplInstancePoolAddField(base)}
-       §
-       §    fn initialize(
+       §impl PoolPartsMaker for ${poolPartsMaker(base)} {
+       §    fn make_field(
        §        &self,
-       §        block_reader: &Vec<FileReader>,
+       §        index: usize,
+       §        field_name: Rc<SkillString>,
+       §        mut field_type: FieldType,
        §        string_pool: &StringBlock,
-       §        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
-       §    ) -> Result<(), SkillFail> {
-       §        for f in self.fields.iter() {
-       §            let instances = self.instances.borrow();
-       §            f.borrow().read(
-       §                block_reader,
-       §                string_pool,
-       §                &self.blocks,
-       §                type_pools,
-       §                &instances
-       §            )?;
-       §        }
-       §        Ok(())
-       §    }
-       §
-       §    fn deserialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail> {
-       §        info!(
-       §            target:"SkillWriting",
-       §            "~~~Deserialize undefind Data for ${name(base)}",
-       §        );
-       §
-       §        let block_reader =  skill_file.block_reader.borrow();
-       §        let string_pool = skill_file.strings.borrow();
-       §
-       §        for f in self.fields.iter() {
-       §            let instances = self.instances.borrow();
-       §            f.borrow_mut().deserialize(
-       §                &block_reader,
-       §                &string_pool,
-       §                &self.blocks,
-       §                skill_file.type_pool.pools(),
-       §                &instances,
-       §            )?;
-       §        }
-       §        Ok(())
-       §    }
-       §
-       §    fn allocate(&mut self) {
-       §        let mut vec = self.instances.borrow_mut();
-       §        if self.is_base() {${
-      "" // TODO add garbage type
-    }
-       §            let tmp = Ptr::new(foreign::ObjectProper::new(0, 0));
-       §            info!(
-       §                target:"SkillParsing",
-       §                "Allocate space for:${base.getName} aka ${name(base)} amount:{}",
-       §                self.get_global_cached_count(),
-       §            );
-       §            trace!(
-       §                target:"SkillParsing",
-       §                "Allocate space for:${name(base)} with:{:?}",
-       §                tmp,
-       §            );
-       §
-       §            vec.reserve(self.get_global_cached_count()); // FIXME check if dynamic count is the correct one
-       §            // TODO figure out a better way - set_len doesn't wrk as dtor will be called on garbage data
-       §
-       §            for _ in 0..self.get_global_cached_count() {
-       §                vec.push(tmp.clone());
+       §    ) -> Result<(bool, Box<RefCell<FieldDeclaration>>), SkillFail> {
+       §        ${
+      (for (f ← base.getFields.asScala.toList :::
+                allSuperInterfaces(base).flatMap(t ⇒ t.getFields.asScala)) yield {
+        if (f.isAuto) {
+          e"""if string_pool.lit().${field(f)} == field_name.as_str() {
+             §    Err(SkillFail::internal(InternalFail::AutoNotAuto {
+             §        field: field_name.string().clone(),
+             §    }))
+             §} else """.stripMargin('§')
+        } else {
+          val userType = collectUserTypes(f.getType)
+          e"""if string_pool.lit().${field(f)} == field_name.as_str() {
+             §    ${
+            if (userType.isEmpty) {
+              e"""match field_type {
+                 §    ${genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(f.getType)},
+                 §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
+                 §        expected: "${mapTypeToUser(f.getType)}",
+                 §        found: format!("{}", field_type)
+                 §    })),
+                 §}?;
+                 §Ok((
+                 §    false,
+                 §    Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
+                 §        field_name,
+                 §        index,
+                 §        field_type,
+                 §    ))),
+                 §))
+                 §""".stripMargin('§')
+            } else {
+              e"""let mut object_readers: Vec<Rc<RefCell<PoolProxy>>> = Vec::new();
+                 §object_readers.reserve(${userType.size});
+                 §match field_type {
+                 §    ${genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(f.getType)},
+                 §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
+                 §        expected: "${mapTypeToUser(f.getType)}",
+                 §        found: format!("{}", field_type)
+                 §    })),
+                 §}?;
+                 §Ok((
+                 §    false,
+                 §    Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
+                 §        field_name,
+                 §        index,
+                 §        field_type,
+                 §        object_readers,
+                 §    ))),
+                 §))
+                 §""".stripMargin('§')
+            }
+          }
+             §} else """.stripMargin('§')
+        }
+      }).mkString.trim
+    } {
+       §            match &field_type {
+       §                FieldType::BuildIn(field_type) =>{
+       §                    match field_type {
+       §                        BuildInType::ConstTi8 => Err(SkillFail::internal(
+       §                            InternalFail::UnknownConstantField{
+       §                                field: field_name.string().clone(),
+       §                                type_name: self.type_name.string().clone(),
+       §                            }
+       §                        ))?,
+       §                        BuildInType::ConstTi16 => Err(SkillFail::internal(
+       §                            InternalFail::UnknownConstantField{
+       §                                field: field_name.string().clone(),
+       §                                type_name: self.type_name.string().clone(),
+       §                            }
+       §                        ))?,
+       §                        BuildInType::ConstTi32 => Err(SkillFail::internal(
+       §                            InternalFail::UnknownConstantField{
+       §                                field: field_name.string().clone(),
+       §                                type_name: self.type_name.string().clone(),
+       §                            }
+       §                        ))?,
+       §                        BuildInType::ConstTi64 => Err(SkillFail::internal(
+       §                            InternalFail::UnknownConstantField{
+       §                                field: field_name.string().clone(),
+       §                                type_name: self.type_name.string().clone(),
+       §                            }
+       §                        ))?,
+       §                        BuildInType::ConstTv64 => Err(SkillFail::internal(
+       §                            InternalFail::UnknownConstantField{
+       §                                field: field_name.string().clone(),
+       §                                type_name: self.type_name.string().clone(),
+       §                            }
+       §                        ))?,
+       §                        _ => {}
+       §                    }
+       §                },
+       §                _ => {}
        §            }
+       §            Ok((
+       §                true,
+       §                Box::new(RefCell::new(foreign::FieldDeclaration::new(
+       §                    field_name,
+       §                    index,
+       §                    field_type
+       §                ))),
+       §            ))
        §        }
-       §        self.own_static_instances.reserve(self.static_count);
+       §    }
        §
-       §        info!(
+       §    fn make_instance(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
+       §        trace!(
        §            target:"SkillParsing",
-       §            "Initialize ${base.getName} aka ${name(base)} id:{}",
-       §            self.get_type_id(),
+       §            "Create new ${name(base)}",
        §        );
-       §
-       §        if !self.foreign_fields {
-       §            for block in self.blocks.iter() {
-       §                let begin = block.bpo + 1;
-       §                let end = begin + block.static_count;
-       §                for id in begin..end {
-       §                    trace!(
-       §                        target:"SkillParsing",
-       §                        "${name(base)} id:{} block:{:?}",
-       §                        id,
-       §                        block,
-       §                    );
-       §
-       §                    self.own_static_instances.push(Ptr::new(${name(base)}::new(id, self.type_id)));
-       §                    vec[id - 1] = self.own_static_instances.last().unwrap().clone();
-       §                }
-       §            }
-       §        } else {
-       §            for block in self.blocks.iter() {
-       §                let begin = block.bpo + 1;
-       §                let end = begin + block.static_count;
-       §                for id in begin..end {
-       §                    trace!(
-       §                        target:"SkillParsing",
-       §                        "${foreignName(base)} id:{} block:{:?}",
-       §                        id,
-       §                        block,
-       §                    );
-       §
-       §                    self.own_static_instances.push(Ptr::new(${foreignName(base)}::new(id, self.type_id)));
-       §                    vec[id - 1] = self.own_static_instances.last().unwrap().clone();
-       §                }
-       §            }
-       §        }
-       §    }
-       §    fn has_field(&self, name_id: usize) -> bool {
-       §        for f in self.fields.iter() {
-       §            if f.borrow().name().get_skill_id() == name_id {
-       §                return true
-       §            }
-       §        }
-       §        false
-       §    }
-       §
-       §    fn field_amount(&self) -> usize {
-       §        self.fields.len()
-       §    }
-       §
-       §    fn add_chunk_to(&mut self, field_id: usize, chunk: FieldChunk) -> Result<(), SkillFail> {
-       §        for f in &mut self.fields.iter() {
-       §            let mut f = f.borrow_mut();
-       §            if f.field_id() == field_id {
-       §                f.add_chunk(chunk);
-       §                return Ok(());
-       §            }
-       §        }
-       §        Err(SkillFail::internal(InternalFail::UnknownField {
-       §            id: field_id,
-       §        }))
-       §    }
-       §
-       §    fn set_type_id(&mut self, id: usize) {
-       §        self.type_id = id;
-       §    }
-       §    fn get_type_id(&self) -> usize {
-       §        self.type_id
-       §    }
-       §
-       §    fn name(&self) -> &Rc<SkillString> {
-       §        &self.name
-       §    }
-       §
-       §    fn get_base_vec(&self) -> Rc<RefCell<Vec<Ptr<SkillObject>>>> {
-       §        self.instances.clone()
-       §    }
-       §
-       §    fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillFail> {
-       §        if index == 0 {
-       §            return Err(SkillFail::internal(InternalFail::ReservedID { id: 0 }));
-       §        }
-       §        info!(
-       §            target:"SkillParsing",
-       §            "read user instance:{} from:{}",
-       §            index,
-       §            self.instances.borrow().len(),
-       §        );
-       §        Ok(self.instances.borrow()[index - 1].clone())
-       §    }
-       §
-       §    fn add_block(&mut self, block: Block) {
-       §        self.blocks.push(block);
-       §    }
-       §    fn blocks(&self) -> &Vec<Block> {
-       §        &self.blocks
-       §    }
-       §    fn blocks_mut(&mut self) -> &mut Vec<Block> {
-       §        &mut self.blocks
-       §    }
-       §
-       §    fn add_sub(&mut self, pool: Rc<RefCell<InstancePool>>) {
-       §        self.sub_pools.push(pool);
-       §    }
-       §
-       §    fn set_super(&mut self, pool: Rc<RefCell<InstancePool>>) {
-       §        if pool.borrow().is_base() {
-       §            self.base_pool = Some(pool.clone());
-       §        } else {
-       §            self.base_pool = pool.borrow().get_base(); // TODO check?
-       §        }
-       §        self.instances = self.base_pool.as_ref().unwrap().borrow().get_base_vec();
-       §        self.type_hierarchy_height = pool.borrow().type_hierarchy_height() + 1;
-       §        self.super_pool = Some(pool);
-       §    }
-       §    fn get_super(&self) -> Option<Rc<RefCell<InstancePool>>> {
-       §        self.super_pool.clone()
-       §    }
-       §
-       §    fn get_base(&self) -> Option<Rc<RefCell<InstancePool>>> {
-       §        self.base_pool.clone()
-       §    }
-       §    fn is_base(&self) -> bool {
-       §        self.super_pool.is_none()
-       §    }
-       §
-       §    fn get_local_static_count(&self) -> usize {
-       §        return self.blocks.last().unwrap().static_count;
-       §    }
-       §    fn set_local_static_count(&mut self, count: usize) {
-       §        self.blocks.last_mut().unwrap().static_count = count
-       §    }
-       §
-       §    fn get_local_dynamic_count(&self) -> usize {
-       §        return self.blocks.last().unwrap().dynamic_count;
-       §    }
-       §
-       §    fn get_local_bpo(&self) -> usize {
-       §        self.blocks.last().unwrap().bpo
-       §    }
-       §
-       §    fn set_invariant(&mut self, invariant: bool) {
-       §        if self.invariant != invariant {
-       §            self.invariant = invariant;
-       §            if invariant {
-       §                self.cached_count = self.static_size() - self.deleted_count;
-       §                for s in self.sub_pools.iter() {
-       §                    let mut s = s.borrow_mut();
-       §                    s.set_invariant(true);
-       §                    self.cached_count += s.get_global_cached_count();
-       §                }
-       §            } else if self.super_pool.is_some() {
-       §                self.super_pool
-       §                    .as_ref()
-       §                    .unwrap()
-       §                    .borrow_mut()
-       §                    .set_invariant(false);
-       §            }
-       §        }
-       §    }
-       §
-       §    fn get_global_static_count(&self) -> usize {
-       §        self.static_count
-       §    }
-       §    fn set_global_static_count(&mut self, count: usize) {
-       §        self.static_count = count;
-       §    }
-       §
-       §    fn get_global_cached_count(&self) -> usize {
-       §        self.cached_count
-       §    }
-       §    fn set_global_cached_count(&mut self, count: usize) {
-       §        self.cached_count = count;
+       §        Ptr::new(${name(base)}::new(skill_id, skill_type_id))
        §    }
        §
        §    fn make_foreign(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
@@ -847,286 +560,12 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        );
        §        Ptr::new(${foreignName(base)}::new(skill_id, skill_type_id))
        §    }
-       §
-       §    fn update_after_compress(
-       §        &mut self,
-       §        local_bpo: &Vec<usize>,
-       §        vec: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
-       §    ) {
-       §        self.instances = vec;
-       §        self.static_count += self.own_new_instances.len();
-       §        self.own_new_instances = Vec::new();
-       §        self.blocks = Vec::with_capacity(1);
-       §        let static_size = self.static_size();
-       §        self.blocks.push(Block {
-       §            block: BlockIndex::from(0), // TODO remove strong type
-       §            bpo: local_bpo[self.type_id - 32],
-       §            static_count: static_size,
-       §            dynamic_count: self.cached_count,
-       §        });
-       §        trace!(
-       §            target:"SkillWriting",
-       §            "Updated Block:{:?}",
-       §            self.blocks.last().unwrap(),
-       §        );
-       §    }
-       §
-       §    fn static_instances(&self) -> &Vec<Ptr<SkillObject>> {
-       §        &self.own_static_instances
-       §    }
-       §    fn new_instances(&self) -> &Vec<Ptr<SkillObject>> {
-       §        &self.own_new_instances
-       §    }
-       §
-       §    fn static_size(&self) -> usize {
-       §        self.static_count + self.own_new_instances.len()
-       §    }
-       §    fn dynamic_size(&self) -> usize {
-       §        if self.invariant {
-       §            self.cached_count
-       §        } else {
-       §            let mut ret = self.static_size();
-       §            for s in self.sub_pools.iter() {
-       §                ret += s.borrow().static_size();
-       §            }
-       §            ret
-       §        }
-       §    }
-       §    fn deleted(&self) -> usize {
-       §        self.deleted_count
-       §    }
-       §
-       §    fn set_next_pool(&mut self, pool: Option<Rc<RefCell<InstancePool>>>) {
-       §        if self.sub_pools.len() > 0 {
-       §            self.next_pool = Some(self.sub_pools.first().unwrap().clone());
-       §            for i in 0..self.sub_pools.len() - 1 {
-       §                self.sub_pools[i]
-       §                    .borrow_mut()
-       §                    .set_next_pool(Some(self.sub_pools[i + 1].clone()));
-       §            }
-       §            self.sub_pools
-       §                .last()
-       §                .unwrap()
-       §                .borrow_mut()
-       §                .set_next_pool(pool);
-       §        } else {
-       §            self.next_pool = pool;
-       §        }
-       §    }
-       §    fn get_next_pool(&self) -> Option<Rc<RefCell<InstancePool>>> {
-       §        self.next_pool.clone()
-       §    }
-       §    fn type_hierarchy_height(&self) -> usize {
-       §        self.type_hierarchy_height
-       §    }
-       §
-       §    fn compress_field_chunks(&mut self, local_bpo: &Vec<usize>) {
-       §        let total_count = self.get_global_cached_count();
-       §        for f in self.fields.iter() {
-       §            f.borrow_mut().compress_chunks(total_count);
-       §        }
-       §    }
-       §    fn write_type_meta(&self, writer: &mut FileWriter, local_bpos: &Vec<usize>) -> Result<(), SkillFail> {
-       §        info!(
-       §            target:"SkillWriting",
-       §            "~~~Write Meta Data for ${name(base)}:{} Instances; Static:{} Dynamic:{}",
-       §            self.name.as_ref(),
-       §            self.get_local_static_count(),
-       §            self.get_local_dynamic_count(),
-       §        );
-       §
-       §        writer.write_v64(self.name().get_skill_id() as i64)?;
-       §        writer.write_v64(self.get_local_dynamic_count() as i64)?;
-       §        // FIXME restrictions
-       §        writer.write_v64(0)?;
-       §        if let Some(s) = self.get_super() {
-       §            writer.write_v64((s.borrow().get_type_id() - 31) as i64)?;
-       §            if self.get_local_dynamic_count() != 0 {
-       §                writer.write_v64(local_bpos[self.get_type_id() - 32] as i64)?;
-       §            }
-       §        } else {
-       §            // tiny optimisation
-       §            writer.write_i8(0)?;
-       §        }
-       §        writer.write_v64(self.field_amount() as i64)?;
-       §        Ok(())
-       §    }
-       §    fn write_field_meta(
-       §        &self,
-       §        writer: &mut FileWriter,
-       §        iter: dynamic_data::Iter,
-       §        mut offset: usize
-       §    ) -> Result<usize, SkillFail> {
-       §        info!(
-       §            target:"SkillWriting",
-       §            "~~~Write Field Meta Data for ${name(base)}:{} Fields:{}",
-       §            self.name.as_ref(),
-       §            self.fields.len(),
-       §        );
-       §        for f in self.fields.iter() {
-       §            offset = f.borrow_mut().write_meta(writer, iter.clone(), offset)?;
-       §        }
-       §        Ok(offset)
-       §    }
-       §    fn write_field_data(
-       §        &self,
-       §        writer: &mut FileWriter,
-       §        iter: dynamic_data::Iter
-       §    ) -> Result<(), SkillFail> {
-       §        info!(
-       §            target:"SkillWriting",
-       §            "~~~Write Field Data for ${name(base)}:{} Fields:{}",
-       §            self.name.as_ref(),
-       §            self.fields.len(),
-       §        );
-       §        for f in self.fields.iter() {
-       §            f.borrow().write_data(writer, iter.clone())?;
-       §        }
-       §        Ok(())
-       §    }
-       §}""".stripMargin('§')
-  }
-
-  private final def genPoolImplInstancePoolAddField(base: UserType): String = {
-    e"""// TODO is the field type important for something? apparent from the restrictions?
-       §fn add_field(
-       §    &mut self,
-       §    index: usize,
-       §    field_name: Rc<SkillString>,
-       §    mut field_type: FieldType,
-       §    chunk: FieldChunk,
-       §) -> Result<(), SkillFail> {
-       §    ${
-      (for (f ← base.getFields.asScala.toList :::
-                allSuperInterfaces(base).flatMap(t ⇒ t.getFields.asScala)) yield {
-        genPoolImplInstancePoolAddFieldField(base, f)
-      }).mkString.trim
-    } {
-       §        match &field_type {
-       §            FieldType::BuildIn(field_type) =>{
-       §                match field_type {
-       §                    BuildInType::ConstTi8 => Err(SkillFail::internal(
-       §                        InternalFail::UnknownConstantField{
-       §                            field: field_name.string().clone(),
-       §                            type_name: self.name.string().clone(),
-       §                        }
-       §                    ))?,
-       §                    BuildInType::ConstTi16 => Err(SkillFail::internal(
-       §                        InternalFail::UnknownConstantField{
-       §                            field: field_name.string().clone(),
-       §                            type_name: self.name.string().clone(),
-       §                        }
-       §                    ))?,
-       §                    BuildInType::ConstTi32 => Err(SkillFail::internal(
-       §                        InternalFail::UnknownConstantField{
-       §                            field: field_name.string().clone(),
-       §                            type_name: self.name.string().clone(),
-       §                        }
-       §                    ))?,
-       §                    BuildInType::ConstTi64 => Err(SkillFail::internal(
-       §                        InternalFail::UnknownConstantField{
-       §                            field: field_name.string().clone(),
-       §                            type_name: self.name.string().clone(),
-       §                        }
-       §                    ))?,
-       §                    BuildInType::ConstTv64 => Err(SkillFail::internal(
-       §                        InternalFail::UnknownConstantField{
-       §                            field: field_name.string().clone(),
-       §                            type_name: self.name.string().clone(),
-       §                        }
-       §                    ))?,
-       §                    _ => {}
-       §                }
-       §            },
-       §            _ => {}
-       §        }
-       §        for f in self.fields.iter() {
-       §            if f.borrow().name().as_str() == field_name.as_str() {
-       §                Err(SkillFail::internal(InternalFail::SameField {
-       §                    field: field_name.string().clone()
-       §                }))?;
-       §            }
-       §        }
-       §        let mut reader = Box::new(RefCell::new(
-       §            foreign::FieldDeclaration::new(field_name, index, field_type)
-       §        ));
-       §        reader.borrow_mut().add_chunk(chunk);
-       §        self.fields.push(reader);
-       §        self.foreign_fields = true;
-       §    }
-       §    Ok(())
-       §}""".stripMargin('§')
-  }
+       §}
+       §""".stripMargin('§')
+  }.trim
 
   // TODO do something about these stupid names
-  private final def genPoolImplInstancePoolAddFieldField(base: UserType,
-                                                         f: Field): String = {
-    if (f.isAuto) {
-      e"""if self.string_pool.borrow().lit().${field(f)} == field_name.as_str() {
-         §    Err(SkillFail::internal(InternalFail::AutoNotAuto {
-         §        field: field_name.string().clone(),
-         §    }))?;
-         §} else """.stripMargin('§')
-    } else {
-      val userType = collectUserTypes(f.getType)
-      e"""if self.string_pool.borrow().lit().${field(f)} == field_name.as_str() {
-         §    ${
-        if (userType.isEmpty) {
-          e"""match field_type {
-             §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(f.getType)},
-             §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
-             §        expected: "${mapTypeToUser(f.getType)}",
-             §        found: format!("{}", field_type)
-             §    })),
-             §}?;
-             §for f in self.fields.iter() {
-             §    if f.borrow().name().as_str() == field_name.as_str() {
-             §        Err(SkillFail::internal(InternalFail::SameField {
-             §            field: field_name.string().clone()
-             §        }))?;
-             §    }
-             §}
-             §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
-             §    field_name,
-             §    index,
-             §    field_type,
-             §)));
-             §reader.borrow_mut().add_chunk(chunk);;
-             §self.fields.push(reader);
-             §""".stripMargin('§')
-        } else {
-          e"""let mut object_readers: Vec<Rc<RefCell<InstancePool>>> = Vec::new();
-             §object_readers.reserve(${userType.size});
-             §match field_type {
-             §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(f.getType)},
-             §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
-             §        expected: "${mapTypeToUser(f.getType)}",
-             §        found: format!("{}", field_type)
-             §    })),
-             §}?;
-             §for f in self.fields.iter() {
-             §    if f.borrow().name().as_str() == field_name.as_str() {
-             §        Err(SkillFail::internal(InternalFail::SameField {
-             §            field: field_name.string().clone()
-             §        }))?;
-             §    }
-             §}
-             §let mut reader = Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
-             §    field_name,
-             §    index,
-             §    field_type,
-             §    object_readers,
-             §)));
-             §reader.borrow_mut().add_chunk(chunk);;
-             §self.fields.push(reader);
-             §""".stripMargin('§')
-        }
-      }
-         §} else """.stripMargin('§')
-    }
-  }
-
-  private final def genPoolImplInstancePoolAddFieldFieldUnwrapValidate(tt: Type): String = {
+  private final def genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(tt: Type): String = {
     tt match {
       case t: ConstantLengthArrayType ⇒
         e"""${mapTypeToMagicMatch(t)} => {
@@ -1137,7 +576,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §        }));
            §    }
            §    match **box_v {
-           §        ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(t.getBaseType)},
+           §        ${genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(t.getBaseType)},
            §        _ => Err(SkillFail::internal(InternalFail::BadFieldType {
            §            expected: "${mapTypeToUser(t.getBaseType)}",
            §            found: format!("{}", **box_v)
@@ -1147,7 +586,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       case t: SingleBaseTypeContainer ⇒
         e"""${mapTypeToMagicMatch(t)} => {
            §    match **box_v {
-           §        ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(t.getBaseType)},
+           §        ${genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(t.getBaseType)},
            §        _ => Err(SkillFail::internal(InternalFail::BadFieldType {
            §            expected: "${mapTypeToUser(t.getBaseType)}",
            §            found: format!("{}", **box_v)
@@ -1156,7 +595,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §}""".stripMargin('§')
       case t: MapType                 ⇒
         e"""${mapTypeToMagicMatch(t)} => {
-           §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidateMap(t.getBaseTypes.asScala.toList)}
+           §    ${genPoolPartsMakerImplPoolPartsMakerMakeFieldValidateMap(t.getBaseTypes.asScala.toList)}
            §}
            §""".stripMargin('§')
       case t: GroundType              ⇒
@@ -1183,11 +622,11 @@ trait PoolsMaker extends GeneralOutputMaker {
     }
   }.trim
 
-  private final def genPoolImplInstancePoolAddFieldFieldUnwrapValidateMap(tts: List[Type]): String = {
+  private final def genPoolPartsMakerImplPoolPartsMakerMakeFieldValidateMap(tts: List[Type]): String = {
     val (key, remainder) = tts.splitAt(1)
 
     e"""match **key_box_v {
-       §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidate(key.head)},
+       §    ${genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(key.head)},
        §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
        §        expected: "${mapTypeToUser(key.head)}",
        §        found: format!("{}", **key_box_v)
@@ -1197,16 +636,151 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    ${
       if (remainder.size >= 2) {
         e"""FieldType::BuildIn(BuildInType::Tmap(ref key_box_v, ref box_v)) => {
-           §    ${genPoolImplInstancePoolAddFieldFieldUnwrapValidateMap(remainder)}
+           §    ${genPoolPartsMakerImplPoolPartsMakerMakeFieldValidateMap(remainder)}
            §}""".stripMargin('§')
       } else {
-        genPoolImplInstancePoolAddFieldFieldUnwrapValidate(remainder.head)
+        genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(remainder.head)
       }
     },
        §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
        §        expected: "${mapTypeToUser(remainder.head)}",
        §        found: format!("{}", **box_v)
        §    })),
+       §}
+       §""".stripMargin('§')
+  }.trim
+
+  //----------------------------------------
+  // TypePool
+  //----------------------------------------
+  private final def genPool(base: UserType): String = {
+    e"""//----------------------------------------
+       §// ${base.getName}Pool aka ${storagePool(base)}
+       §//----------------------------------------
+       §${genPoolStruct(base)}
+       §
+       §${genPoolImpl(base)}
+       §
+       §${genPoolImplPoolProxy(base)}
+       §""".stripMargin('§')
+  }.trim
+
+  private final def genPoolStruct(base: UserType): String = {
+    e"""pub struct ${storagePool(base)} {
+       §    pool: Pool,
+       §    string_pool: Rc<RefCell<StringBlock>>,
+       §}""".stripMargin('§')
+  }
+
+  private final def genPoolImpl(base: UserType): String = {
+    e"""impl ${storagePool(base)} {
+       §    pub(crate) fn new(
+       §        string_pool: Rc<RefCell<StringBlock>>,
+       §        name: Rc<SkillString>,
+       §        type_id: usize,
+       §    ) -> ${storagePool(base)} {
+       §        ${storagePool(base)} {
+       §            pool: Pool::new(
+       §                name.clone(),
+       §                type_id,
+       §                Box::new(${poolPartsMaker(base)}::new(name))
+       §            ),
+       §            string_pool
+       §        }
+       §    }
+       §
+       §    pub fn get(&self, index: usize) -> Result<Ptr<${traitName(base)}>, SkillFail> {
+       §        match self.pool.read_object(index) {
+       §            Ok(obj) => {
+       §                if obj.borrow().get_skill_id() == skill_object::DELETE {
+       §                    return Err(SkillFail::user(UserFail::AccessDeleted));
+       §                }
+       §                match obj.nucast::<${traitName(base)}>() {
+       §                    Some(obj) => Ok(obj.clone()),
+       §                    None => Err(SkillFail::user(UserFail::BadCastID { id:index })),
+       §                }
+       §            },
+       §            Err(e) => Err(e),
+       §        }
+       §    }
+       §
+       §    pub fn add(&mut self) -> Ptr<${name(base)}> {
+       §        let ret = Ptr::new(${name(base)}::new(0, self.pool.get_type_id()));
+       §        self.pool.add(ret.clone());
+       §        ret
+       §    }
+       §}""".stripMargin('§')
+  }
+
+  private final def genPoolImplPoolProxy(base: UserType): String = {
+    e"""impl PoolProxy for ${storagePool(base)} {
+       §    fn pool(&self) -> &Pool {
+       §        &self.pool
+       §    }
+       §    fn pool_mut(&mut self) -> &mut Pool {
+       §        &mut self.pool
+       §    }
+       §
+       §    fn complete(&mut self, file: &SkillFileBuilder) {
+       §        ${
+      val fields = base.getFields.asScala.filterNot(_.isAuto).toList :::
+                   allSuperInterfaces(base).flatMap(t ⇒ t.getFields.asScala).filterNot(_.isAuto)
+      if (fields.nonEmpty) {
+        e"""let mut set = HashSet::with_capacity(${fields.size});
+           §let mut string_pool = self.string_pool.borrow_mut();
+           §{
+           §    let lit = string_pool.lit();
+           §    ${
+          (for (field ← fields) yield {
+            e"""set.insert(lit.${name(field)});
+               §""".stripMargin('§')
+          }).mkString.trim()
+        }
+           §}
+           §
+           §for f in self.pool.fields().iter() {
+           §    set.remove(f.borrow().name().as_str());
+           §}
+           §
+           §${
+          (for (ft ← fields) yield {
+            e"""if set.contains(string_pool.lit().${name(ft)}) {
+               §    let index = self.pool.fields().len() + 1;
+               §    let name = string_pool.lit().${name(ft)};${
+              "" // FIXME accessing the fields of lit will create _copies_! else this would be illegal
+            }
+               §    self.pool.fields_mut().push(Box::new(RefCell::new(
+               §        ${fieldDeclaration(base, ft)}::new(
+               §            string_pool.add(name),
+               §            index,
+               §            ${mapTypeToMagicDef(ft.getType)},${
+              val userTypes = collectUserTypes(ft.getType)
+              if (userTypes.nonEmpty) {
+                e"""
+                   §vec!{
+                   §    ${
+                  (for (ut ← userTypes) yield {
+                    e"""file.${field(ut)}.as_ref().unwrap().clone(),
+                       §""".stripMargin('§')
+                  }).mkString.trim
+                }
+                   §}""".stripMargin('§')
+              } else {
+                ""
+              }
+            }
+               §        )
+               §    )));
+               §}
+               §""".stripMargin('§')
+          }).mkString
+        }
+           §""".stripMargin('§').trim
+      } else {
+        "// nothing to do"
+      }
+    }
+       §    }
        §}
        §""".stripMargin('§')
   }.trim
@@ -1249,7 +823,7 @@ trait PoolsMaker extends GeneralOutputMaker {
         ""
       } else {
         e"""
-           §object_reader: Vec<Rc<RefCell<InstancePool>>>,""".stripMargin('§')
+           §object_reader: Vec<Rc<RefCell<PoolProxy>>>,""".stripMargin('§')
       }
     }
        §}""".stripMargin('§')
@@ -1279,7 +853,7 @@ trait PoolsMaker extends GeneralOutputMaker {
          §        name: Rc<SkillString>,
          §        field_id: usize,
          §        field_type: FieldType,
-         §        object_reader: Vec<Rc<RefCell<InstancePool>>>
+         §        object_reader: Vec<Rc<RefCell<PoolProxy>>>
          §    ) -> ${fieldDeclaration(base, field)} {
          §        ${fieldDeclaration(base, field)} {
          §            name,
@@ -1301,7 +875,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        block_reader: &Vec<FileReader>,
        §        string_pool: &StringBlock,
        §        blocks: &Vec<Block>,
-       §        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
+       §        type_pools: &Vec<Rc<RefCell<PoolProxy>>>,
        §        instances: &[Ptr<SkillObject>],
        §    ) -> Result<(), SkillFail> {
        §        let mut block_index = BlockIndex::from(0);
@@ -1434,7 +1008,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        block_reader: &Vec<FileReader>,
        §        string_pool: &StringBlock,
        §        blocks: &Vec<Block>,
-       §        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
+       §        type_pools: &Vec<Rc<RefCell<PoolProxy>>>,
        §        instances: &[Ptr<SkillObject>],
        §    ) -> Result<(), SkillFail> {
        §        Ok(())
@@ -1558,11 +1132,14 @@ trait PoolsMaker extends GeneralOutputMaker {
                §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
                §    let tmp = tmp.borrow(); // borrowing madness
                §    offset += match tmp.get_${field(f)}() {
-               §        Some(ref val) => if val.borrow().to_prune() {
-               §            2
-               §        } else {
-               §            bytes_v64((val.borrow().skill_type_id() - 31) as i64)
-               §                + bytes_v64(val.borrow().get_skill_id() as i64)
+               §        Some(ref val) => match val.upgrade() {
+               §            Some(val) => if val.borrow().to_delete() {
+               §                2
+               §            } else {
+               §                bytes_v64((val.borrow().skill_type_id() - 31) as i64)
+               §                    + bytes_v64(val.borrow().get_skill_id() as i64)
+               §            },
+               §            None => 2,
                §        },
                §        None => 2,
                §    };
@@ -1611,10 +1188,13 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
            §    let tmp = tmp.borrow(); // borrowing madness
            §    offset += match tmp.get_${field(f)}() {
-           §        Some(ref val) => if val.borrow().to_prune() {
-           §            1
-           §        } else {
-           §            bytes_v64(val.borrow().get_skill_id() as i64)
+           §        Some(ref val) => match val.upgrade() {
+           §            Some(val) => if val.borrow().to_delete() {
+           §                1
+           §            } else {
+           §                bytes_v64(val.borrow().get_skill_id() as i64)
+           §            },
+           §            None => 1,
            §        },
            §        None => 1,
            §    };
@@ -1628,10 +1208,13 @@ trait PoolsMaker extends GeneralOutputMaker {
                                 §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
                                 §    let tmp = tmp.borrow(); // borrowing madness
                                 §    offset += match tmp.get_${field(f)}() {
-                                §        Some(ref val) => if val.borrow().to_prune() {
-                                §            1
-                                §        } else {
-                                §            bytes_v64(val.borrow().get_skill_id() as i64)
+                                §        Some(ref val) => match val.upgrade() {
+                                §            Some(val) => if val.borrow().to_delete() {
+                                §                1
+                                §            } else {
+                                §                bytes_v64(val.borrow().get_skill_id() as i64)
+                                §            },
+                                §            None => 1,
                                 §        },
                                 §        None => 1,
                                 §    };
@@ -1643,11 +1226,14 @@ trait PoolsMaker extends GeneralOutputMaker {
                                 §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
                                 §    let tmp = tmp.borrow(); // borrowing madness
                                 §    offset += match tmp.get_${field(f)}() {
-                                §        Some(ref val) => if val.borrow().to_prune() {
-                                §            2
-                                §        } else {
-                                §            bytes_v64((val.borrow().skill_type_id() - 31) as i64)
-                                §                + bytes_v64(val.borrow().get_skill_id() as i64)
+                                §        Some(ref val) =>  match val.upgrade() {
+                                §            Some(val) => if val.borrow().to_delete() {
+                                §                2
+                                §            } else {
+                                §                bytes_v64((val.borrow().skill_type_id() - 31) as i64)
+                                §                    + bytes_v64(val.borrow().get_skill_id() as i64)
+                                §            },
+                                §            None => 2,
                                 §        },
                                 §        None => 2,
                                 §    };
@@ -1685,11 +1271,14 @@ trait PoolsMaker extends GeneralOutputMaker {
                §""".stripMargin('§')
           case "annotation"  ⇒
             e"""match val {
-               §    Some(ref val) => if val.borrow().to_prune() {
-               §        2
-               §    } else {
-               §        bytes_v64((val.borrow().skill_type_id() - 31) as i64)
-               §            + bytes_v64(val.borrow().get_skill_id() as i64)
+               §    Some(ref val) =>  match val.upgrade() {
+               §        Some(val) => if val.borrow().to_delete() {
+               §            2
+               §        } else {
+               §            bytes_v64((val.borrow().skill_type_id() - 31) as i64)
+               §                + bytes_v64(val.borrow().get_skill_id() as i64)
+               §        },
+               §        None => 2,
                §    },
                §    None => 2,
                §}
@@ -1725,31 +1314,40 @@ trait PoolsMaker extends GeneralOutputMaker {
            §""".stripMargin('§')
       case _: UserType                ⇒
         e"""match val {
-           §    Some(ref val) => if val.borrow().to_prune() {
-           §        1
-           §    } else {
-           §        bytes_v64(val.borrow().get_skill_id() as i64)
-           §    }
+           §    Some(ref val) =>  match val.upgrade() {
+           §        Some(val) => if val.borrow().to_delete() {
+           §            1
+           §        } else {
+           §            bytes_v64(val.borrow().get_skill_id() as i64)
+           §        },
+           §        None => 1,
+           §    },
            §    None => 1,
            §}
            §""".stripMargin('§')
       case t: InterfaceType           ⇒
         t.getBaseType match {
           case _: UserType ⇒ e"""match val {
-                                §    Some(ref val) => if val.borrow().to_prune() {
-                                §        1
-                                §    } else {
-                                §        bytes_v64(val.borrow().get_skill_id() as i64)
-                                §    }
+                                §    Some(ref val) =>  match val.upgrade() {
+                                §        Some(val) => if val.borrow().to_delete() {
+                                §            1
+                                §        } else {
+                                §            bytes_v64(val.borrow().get_skill_id() as i64)
+                                §        },
+                                §        None => 1,
+                                §    },
                                 §    None => 1,
                                 §}
                                 §""".stripMargin('§')
           case _           ⇒ e"""match val {
-                                §    Some(ref val) => if val.borrow().to_prune() {
-                                §        2
-                                §    } else {
-                                §        bytes_v64((val.borrow().skill_type_id() - 31) as i64)
-                                §            + bytes_v64(val.borrow().get_skill_id() as i64)
+                                §    Some(ref val) =>  match val.upgrade() {
+                                §        Some(val) => if val.borrow().to_delete() {
+                                §            2
+                                §        } else {
+                                §            bytes_v64((val.borrow().skill_type_id() - 31) as i64)
+                                §                + bytes_v64(val.borrow().get_skill_id() as i64)
+                                §        },
+                                §        None => 2,
                                 §    },
                                 §    None => 2,
                                 §}
@@ -1820,12 +1418,18 @@ trait PoolsMaker extends GeneralOutputMaker {
                §""".stripMargin('§')
           case "annotation" ⇒
             e"""match val {
-               §    Some(ref val) => if val.borrow().to_prune() {
-               §        writer.write_i8(0)?;
-               §        writer.write_i8(0)?;
-               §    } else {
-               §        writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
-               §        writer.write_v64(val.borrow().get_skill_id() as i64)?;
+               §    Some(ref val) => match val.upgrade() {
+               §        Some(val) => if val.borrow().to_delete() {
+               §            writer.write_i8(0)?;
+               §            writer.write_i8(0)?;
+               §        } else {
+               §            writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
+               §            writer.write_v64(val.borrow().get_skill_id() as i64)?;
+               §        },
+               §        None =>{
+               §            writer.write_i8(0)?;
+               §            writer.write_i8(0)?;
+               §        },
                §    },
                §    None => {
                §        writer.write_i8(0)?;
@@ -1851,10 +1455,15 @@ trait PoolsMaker extends GeneralOutputMaker {
         genFieldDeclarationImplFieldDeclarationWriteMap(ft.getBaseTypes.asScala.toList)
       case _: UserType                 ⇒
         e"""match val {
-           §    Some(ref val) => if val.borrow().to_prune() {
-           §        writer.write_i8(0)?
-           §    } else {
-           §        writer.write_v64(val.borrow().get_skill_id() as i64)?
+           §    Some(ref val) => match val.upgrade() {
+           §        Some(val) => if val.borrow().to_delete() {
+           §            writer.write_i8(0)?;
+           §        } else {
+           §            writer.write_v64(val.borrow().get_skill_id() as i64)?;
+           §        },
+           §        None =>{
+           §            writer.write_i8(0)?;
+           §        },
            §    },
            §    None => writer.write_i8(0)?,
            §}
@@ -1862,21 +1471,32 @@ trait PoolsMaker extends GeneralOutputMaker {
       case t: InterfaceType            ⇒
         t.getBaseType match {
           case _: UserType ⇒ e"""match val {
-                                §    Some(ref val) => if val.borrow().to_prune() {
-                                §        writer.write_i8(0)?
-                                §    } else {
-                                §        writer.write_v64(val.borrow().get_skill_id() as i64)?
+                                §    Some(ref val) => match val.upgrade() {
+                                §        Some(val) => if val.borrow().to_delete() {
+                                §            writer.write_i8(0)?;
+                                §        } else {
+                                §            writer.write_v64(val.borrow().get_skill_id() as i64)?;
+                                §        },
+                                §        None =>{
+                                §            writer.write_i8(0)?;
+                                §        },
                                 §    },
                                 §    None => writer.write_i8(0)?,
                                 §}
                                 §""".stripMargin('§')
           case _           ⇒ e"""match val {
-                                §    Some(ref val) => if val.borrow().to_prune() {
-                                §        writer.write_i8(0)?;
-                                §        writer.write_i8(0)?;
-                                §    } else {
-                                §        writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
-                                §        writer.write_v64(val.borrow().get_skill_id() as i64)?;
+                                §    Some(ref val) => match val.upgrade() {
+                                §        Some(val) => if val.borrow().to_delete() {
+                                §            writer.write_i8(0)?;
+                                §            writer.write_i8(0)?;
+                                §        } else {
+                                §            writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
+                                §            writer.write_v64(val.borrow().get_skill_id() as i64)?;
+                                §        },
+                                §        None =>{
+                                §            writer.write_i8(0)?;
+                                §            writer.write_i8(0)?;
+                                §        },
                                 §    },
                                 §    None => {
                                 §        writer.write_i8(0)?;
@@ -1923,12 +1543,18 @@ trait PoolsMaker extends GeneralOutputMaker {
                §""".stripMargin('§')
           case "annotation" ⇒
             e"""match val {
-               §    Some(ref val) => if val.borrow().to_prune() {
-               §        writer.write_i8(0)?;
-               §        writer.write_i8(0)?;
-               §    } else {
-               §        writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
-               §        writer.write_v64(val.borrow().get_skill_id() as i64)?;
+               §    Some(ref val) => match val.upgrade() {
+               §        Some(val) => if val.borrow().to_delete() {
+               §            writer.write_i8(0)?;
+               §            writer.write_i8(0)?;
+               §        } else {
+               §            writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
+               §            writer.write_v64(val.borrow().get_skill_id() as i64)?;
+               §        },
+               §        None =>{
+               §            writer.write_i8(0)?;
+               §            writer.write_i8(0)?;
+               §        },
                §    },
                §    None => {
                §        writer.write_i8(0)?;
@@ -1954,10 +1580,15 @@ trait PoolsMaker extends GeneralOutputMaker {
         genFieldDeclarationImplFieldDeclarationWriteMap(ft.getBaseTypes.asScala.toList)
       case _: UserType                 ⇒
         e"""match val {
-           §    Some(ref val) => if val.borrow().to_prune() {
-           §        writer.write_i8(0)?
-           §    } else {
-           §        writer.write_v64(val.borrow().get_skill_id() as i64)?
+           §    Some(ref val) => match val.upgrade() {
+           §        Some(val) => if val.borrow().to_delete() {
+           §            writer.write_i8(0)?;
+           §        } else {
+           §            writer.write_v64(val.borrow().get_skill_id() as i64)?;
+           §        },
+           §        None =>{
+           §            writer.write_i8(0)?;
+           §        },
            §    },
            §    None => writer.write_i8(0)?,
            §}
@@ -1965,21 +1596,32 @@ trait PoolsMaker extends GeneralOutputMaker {
       case t: InterfaceType            ⇒
         t.getBaseType match {
           case _: UserType ⇒ e"""match val {
-                                §    Some(ref val) => if val.borrow().to_prune() {
-                                §        writer.write_i8(0)?
-                                §    } else {
-                                §        writer.write_v64(val.borrow().get_skill_id() as i64)?
+                                §    Some(ref val) => match val.upgrade() {
+                                §        Some(val) => if val.borrow().to_delete() {
+                                §            writer.write_i8(0)?;
+                                §        } else {
+                                §            writer.write_v64(val.borrow().get_skill_id() as i64)?;
+                                §        },
+                                §        None =>{
+                                §            writer.write_i8(0)?;
+                                §        },
                                 §    },
                                 §    None => writer.write_i8(0)?,
                                 §}
                                 §""".stripMargin('§')
           case _           ⇒ e"""match val {
-                                §    Some(ref val) => if val.borrow().to_prune() {
-                                §        writer.write_i8(0)?;
-                                §        writer.write_i8(0)?;
-                                §    } else {
-                                §        writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
-                                §        writer.write_v64(val.borrow().get_skill_id() as i64)?;
+                                §    Some(ref val) => match val.upgrade() {
+                                §        Some(val) => if val.borrow().to_delete() {
+                                §            writer.write_i8(0)?;
+                                §            writer.write_i8(0)?;
+                                §        } else {
+                                §            writer.write_v64((val.borrow().skill_type_id() - 31) as i64)?;
+                                §            writer.write_v64(val.borrow().get_skill_id() as i64)?;
+                                §        },
+                                §        None =>{
+                                §            writer.write_i8(0)?;
+                                §            writer.write_i8(0)?;
+                                §        },
                                 §    },
                                 §    None => {
                                 §        writer.write_i8(0)?;
@@ -2034,10 +1676,11 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    if pool != 0 && object != 0 {
            §        if let Some(object) = type_pools[pool - 1]
            §            .borrow()
+           §            .pool()
            §            .read_object(object)?
            §            .nucast::<SkillObject>()
            §        {
-           §            Ok(Some(object))
+           §            Ok(Some(object.downgrade()))
            §        } else {
            §            Err(SkillFail::internal(InternalFail::BadCast))
            §        }
@@ -2099,10 +1742,11 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    if object != 0 {
            §        if let Some(object) = self.object_reader[${user.next()}]
            §            .borrow()
+           §            .pool()
            §            .read_object(object)?
            §            .nucast::<${traitName(t)}>()
            §        {
-           §            Ok(Some(object))
+           §            Ok(Some(object.downgrade()))
            §        } else {
            §            return Err(SkillFail::internal(InternalFail::BadCast))
            §        }
@@ -2118,10 +1762,11 @@ trait PoolsMaker extends GeneralOutputMaker {
                                 §    if object != 0 {
                                 §        if let Some(object) = self.object_reader[${user.next()}]
                                 §            .borrow()
+                                §            .pool()
                                 §            .read_object(object)?
                                 §            .nucast::<${traitName(t)}>()
                                 §        {
-                                §            Ok(Some(object))
+                                §            Ok(Some(object.downgrade()))
                                 §        } else {
                                 §            return Err(SkillFail::internal(InternalFail::BadCast))
                                 §        }
@@ -2136,10 +1781,11 @@ trait PoolsMaker extends GeneralOutputMaker {
                                 §    if pool != 0 && object != 0 {
                                 §        if let Some(object) = type_pools[pool - 1]
                                 §            .borrow()
+                                §            .pool()
                                 §            .read_object(object)?
                                 §            .nucast::<SkillObject>()
                                 §        {
-                                §            Ok(Some(object))
+                                §            Ok(Some(object.downgrade()))
                                 §        } else {
                                 §            Err(SkillFail::internal(InternalFail::BadCast))
                                 §        }
@@ -2226,10 +1872,10 @@ trait PoolsMaker extends GeneralOutputMaker {
          §    ),
          §))""".stripMargin('§')
     case t: UserType                ⇒
-      e"FieldType::User(file.${field(t)}.clone())"
+      e"FieldType::User(file.${field(t)}.as_ref().unwrap().clone())"
     case t: InterfaceType           ⇒
       t.getBaseType match {
-        case _: UserType ⇒ e"FieldType::User(file.${field(t)}.clone())"
+        case _: UserType ⇒ e"FieldType::User(file.${field(t)}.as_ref().unwrap().clone())"
         case _           ⇒ e"FieldType::BuildIn(BuildInType::Tannotation)"
       }
     case _                          ⇒

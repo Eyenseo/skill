@@ -58,15 +58,15 @@ trait LiteralKeeper extends GeneralOutputMaker {
 
   def genLiteralKeeperStruct(): String = {
     e"""#[derive(Debug)]
-       §pub struct LiteralKeeper {
+       §pub(crate) struct LiteralKeeper {
        §   ${
       (for (s ← allStrings._1; name = getName(s)) yield {
-        e"""pub $name: &'static str,
+        e"""pub(crate) $name: &'static str,
            §""".stripMargin('§')
       }).mkString
     }${
       (for (s ← allStrings._2; name = getName(s)) yield {
-        e"""pub $name: &'static str,
+        e"""pub(crate) $name: &'static str,
            §""".stripMargin('§')
       }).mkString.trim
     }
@@ -77,11 +77,11 @@ trait LiteralKeeper extends GeneralOutputMaker {
 
   def genLiteralKeeperImpl(): String = {
     e"""impl LiteralKeeper {
-       §    pub fn get(&mut self, lit: &Rc<SkillString>) -> Option<Rc<SkillString>> {
+       §    pub(crate) fn get(&mut self, lit: &Rc<SkillString>) -> Option<Rc<SkillString>> {
        §        self.set.take(lit)
        §    }
        §
-       §    pub fn get_rest(&mut self) -> Vec<Rc<SkillString>> {
+       §    pub(crate) fn get_rest(&mut self) -> Vec<Rc<SkillString>> {
        §        self.set.drain().collect()
        §    }
        §}

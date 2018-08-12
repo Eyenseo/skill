@@ -31,8 +31,7 @@ trait PtrMaker extends GeneralOutputMaker {
     val ret = new StringBuilder()
 
     ret.append(
-                e"""use common::Ptr;
-                   §use common::internal::SkillObject;
+                e"""use common::*;
                    §use common::internal::foreign;
                    §
                    §use std::any::TypeId;

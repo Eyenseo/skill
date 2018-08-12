@@ -13,7 +13,7 @@ pub(crate) fn write_byte_unchecked(position: &mut usize, out: &mut [u8], what: u
 }
 
 // boolean
-pub fn write_bool(position: &mut usize, out: &mut [u8], what: bool) {
+pub(crate) fn write_bool(position: &mut usize, out: &mut [u8], what: bool) {
     trace!(
         target: "SkillBaseTypewriting",
         "#W# Bool:|{:?}| position:{:?} out:{:?}",
@@ -25,7 +25,7 @@ pub fn write_bool(position: &mut usize, out: &mut [u8], what: bool) {
 }
 
 // integer types
-pub fn write_i8(position: &mut usize, out: &mut [u8], what: i8) {
+pub(crate) fn write_i8(position: &mut usize, out: &mut [u8], what: i8) {
     trace!(
         target: "SkillBaseTypewriting",
         "#W# i8:|{:?}| position:{:?} out:{:?}",
@@ -36,7 +36,7 @@ pub fn write_i8(position: &mut usize, out: &mut [u8], what: i8) {
     write_byte_unchecked(position, out, what as u8);
 }
 
-pub fn write_i16(position: &mut usize, out: &mut [u8], what: i16) {
+pub(crate) fn write_i16(position: &mut usize, out: &mut [u8], what: i16) {
     trace!(
         target: "SkillBaseTypewriting",
         "#W# i16:|{:?}| position:{:?} out:{:?}",
@@ -48,7 +48,7 @@ pub fn write_i16(position: &mut usize, out: &mut [u8], what: i16) {
     write_byte_unchecked(position, out, (what) as u8);
 }
 
-pub fn write_i32(position: &mut usize, out: &mut [u8], what: i32) {
+pub(crate) fn write_i32(position: &mut usize, out: &mut [u8], what: i32) {
     trace!(
         target: "SkillBaseTypewriting",
         "#W# i32:|{:?}| position:{:?} out:{:?}",
@@ -62,7 +62,7 @@ pub fn write_i32(position: &mut usize, out: &mut [u8], what: i32) {
     write_byte_unchecked(position, out, what as u8);
 }
 
-pub fn write_i64(position: &mut usize, out: &mut [u8], what: i64) {
+pub(crate) fn write_i64(position: &mut usize, out: &mut [u8], what: i64) {
     trace!(
         target: "SkillBaseTypewriting",
         "#W# i64:|{:?}| position:{:?} out:{:?}",
@@ -80,7 +80,7 @@ pub fn write_i64(position: &mut usize, out: &mut [u8], what: i64) {
     write_byte_unchecked(position, out, what as u8);
 }
 
-pub fn write_v64(position: &mut usize, out: &mut [u8], what: i64) {
+pub(crate) fn write_v64(position: &mut usize, out: &mut [u8], what: i64) {
     trace!(
         target: "SkillBaseTypewriting",
         "#W# v64:|{:?}| position:{:?} out:{:?}",
@@ -90,7 +90,7 @@ pub fn write_v64(position: &mut usize, out: &mut [u8], what: i64) {
     );
 
     // TODO check out of bounds?
-    // is this handeld through rust as rust will check the bounds of the slice ?
+    // is this handled through rust as rust will check the bounds of the slice ?
     if (what as u64) < 0x80 {
         write_byte_unchecked(position, out, what as u8);
     } else {
@@ -139,7 +139,7 @@ pub fn write_v64(position: &mut usize, out: &mut [u8], what: i64) {
 }
 
 // float types
-pub fn write_f32(position: &mut usize, out: &mut [u8], what: f32) {
+pub(crate) fn write_f32(position: &mut usize, out: &mut [u8], what: f32) {
     trace!(
         target: "SkillBaseTypewriting",
         "#W# i32=float:|{:?}| position:{:?} out:{:?}",
@@ -155,7 +155,7 @@ pub fn write_f32(position: &mut usize, out: &mut [u8], what: f32) {
     write_i32(position, out, unsafe { U { f: what }.i });
 }
 
-pub fn write_f64(position: &mut usize, out: &mut [u8], what: f64) {
+pub(crate) fn write_f64(position: &mut usize, out: &mut [u8], what: f64) {
     trace!(
         target: "SkillBaseTypewriting",
         "#W# i64=double:|{:?}| position:{:?} out:{:?}",
@@ -172,8 +172,11 @@ pub fn write_f64(position: &mut usize, out: &mut [u8], what: f64) {
 }
 
 // string
-// TODO replace String with lazy loading
-pub fn write_string(position: &mut usize, out: &mut [u8], what: &str) -> Result<(), SkillFail> {
+pub(crate) fn write_string(
+    position: &mut usize,
+    out: &mut [u8],
+    what: &str,
+) -> Result<(), SkillFail> {
     trace!(
         target: "SkillBaseTypewriting",
         "#W# str:|{:?}| position:{:?} out:{:?}",

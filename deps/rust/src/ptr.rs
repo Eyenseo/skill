@@ -263,12 +263,13 @@ impl<'a, T: ?Sized + fmt::Display> fmt::Display for RefMut<'a, T> {
 // Values [1, MAX-1] represent the number of `Ref` active
 // (will not outgrow its range since `usize` is the size of the address space)
 type BorrowFlag = usize;
+
 const UNUSED: BorrowFlag = 0;
 const WRITING: BorrowFlag = !0;
 
 #[derive(Debug)]
 struct MetaData {
-    type_id: TypeId, // TODO replace with generated ID?
+    type_id: TypeId,
     strong: Cell<usize>,
     weak: Cell<usize>,
     borrow: Cell<BorrowFlag>,
@@ -322,6 +323,7 @@ impl<T: ?Sized> Drop for Ptr<T> {
 mod diggsey {
     // Adapted from https://github.com/Diggsey/query_interface
     use super::*;
+
     /// Represents a trait object's vtable pointer. You shouldn't need to use this as a
     /// consumer of the crate but it is required for macro expansion.
     #[doc(hidden)]
@@ -330,7 +332,7 @@ mod diggsey {
     pub struct VTable(*const ());
 
     impl VTable {
-        pub fn none() -> VTable {
+        pub(crate) fn none() -> VTable {
             VTable(ptr::null())
         }
     }
@@ -340,12 +342,13 @@ mod diggsey {
     #[doc(hidden)]
     #[repr(C)]
     #[derive(Copy, Clone, Debug)]
-    pub struct TraitObject {
-        pub data: *const (),
-        pub vtable: VTable,
+    pub(crate) struct TraitObject {
+        pub(crate) data: *const (),
+        pub(crate) vtable: VTable,
     }
 }
-pub use self::diggsey::*;
+
+pub(crate) use self::diggsey::*;
 
 #[macro_export]
 macro_rules! ptr_cast_able {
@@ -459,7 +462,7 @@ where
         }
     }
 
-    pub fn ptr_type_id(&self) -> TypeId {
+    pub(crate) fn ptr_type_id(&self) -> TypeId {
         unsafe { self.meta.as_ref().type_id }
     }
 
@@ -844,9 +847,74 @@ impl<T: ?Sized> Drop for WeakPtr<T> {
 
 impl<T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<WeakPtr<U>> for WeakPtr<T> {}
 
+impl<T: ?Sized> fmt::Debug for WeakPtr<T> {
+    default fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        unsafe { self.meta.as_ref() }.fmt(f)?;
+        f.write_str("value: { ")?;
+        unsafe {
+            f.write_str(std::intrinsics::type_name::<T>())?;
+        }
+        f.write_str(" }")?;
+        Ok(())
+    }
+}
+
+impl<T: ?Sized> PartialEq for WeakPtr<T> {
+    #[inline(always)]
+    fn eq(&self, other: &WeakPtr<T>) -> bool {
+        self.meta == other.meta
+    }
+
+    #[inline(always)]
+    fn ne(&self, other: &WeakPtr<T>) -> bool {
+        self.meta != other.meta
+    }
+}
+
+impl<T: ?Sized> Eq for WeakPtr<T> {}
+
+impl<T: ?Sized> PartialOrd for WeakPtr<T> {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &WeakPtr<T>) -> Option<Ordering> {
+        (self.meta).partial_cmp(&other.meta)
+    }
+
+    #[inline(always)]
+    fn lt(&self, other: &WeakPtr<T>) -> bool {
+        self.meta < other.meta
+    }
+
+    #[inline(always)]
+    fn le(&self, other: &WeakPtr<T>) -> bool {
+        self.meta <= other.meta
+    }
+
+    #[inline(always)]
+    fn gt(&self, other: &WeakPtr<T>) -> bool {
+        self.meta > other.meta
+    }
+
+    #[inline(always)]
+    fn ge(&self, other: &WeakPtr<T>) -> bool {
+        self.meta >= other.meta
+    }
+}
+
+impl<T: ?Sized> Ord for WeakPtr<T> {
+    #[inline]
+    fn cmp(&self, other: &WeakPtr<T>) -> Ordering {
+        (self.meta).cmp(&other.meta)
+    }
+}
+
+impl<T: ?Sized> Hash for WeakPtr<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        (self.meta).hash(state);
+    }
+}
+
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     mod ptr {
@@ -913,6 +981,7 @@ mod tests {
                 "FooT::Default".to_string()
             }
         }
+
         trait BarT: Debug {
             fn test(&self) -> String {
                 "BarT::Default".to_string()
@@ -930,6 +999,7 @@ mod tests {
                 "Bar::FooT".to_string()
             }
         }
+
         impl BarT for Bar {
             fn test(&self) -> String {
                 "Bar::BarT".to_string()

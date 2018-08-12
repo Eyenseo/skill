@@ -1,19 +1,19 @@
 use common::error::*;
-use common::internal::{InstancePool, SkillObject};
-use common::iterator::{static_data, type_hierarchy};
-use common::Ptr;
+use common::internal::*;
+use common::iterator::*;
+use common::*;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Default)]
-pub struct Iter {
+pub(crate) struct Iter {
     type_hierarchy: type_hierarchy::Iter,
     static_data: Option<static_data::Iter>,
 }
 
 impl Iter {
-    pub fn new(pool: Rc<RefCell<InstancePool>>) -> Result<Iter, SkillFail> {
+    pub(crate) fn new(pool: Rc<RefCell<PoolProxy>>) -> Result<Iter, SkillFail> {
         let mut iter = Iter {
             type_hierarchy: type_hierarchy::Iter::new(pool.clone())?,
             static_data: None,
@@ -25,7 +25,7 @@ impl Iter {
     fn next_viable(&mut self) {
         loop {
             if let Some(p) = self.type_hierarchy.next() {
-                if p.borrow().static_size() > 0 {
+                if p.borrow().pool().static_size() > 0 {
                     self.static_data = Some(static_data::Iter::new(p));
                     return; // return else we assign None
                 }

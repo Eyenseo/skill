@@ -1,16 +1,15 @@
 use common::error::*;
-use common::internal::InstancePool;
-use common::internal::SkillObject;
+use common::internal::*;
 use common::iterator::type_hierarchy;
-use common::Ptr;
+use common::*;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Default, Clone)]
-pub struct Iter {
+pub(crate) struct Iter {
     type_hierarchy: type_hierarchy::Iter,
-    current: Option<Rc<RefCell<InstancePool>>>,
+    current: Option<Rc<RefCell<PoolProxy>>>,
     instance_index: usize,
     instance_end: usize,
     block_index: usize,
@@ -18,9 +17,9 @@ pub struct Iter {
 }
 
 impl Iter {
-    pub fn new(pool: Rc<RefCell<InstancePool>>) -> Result<Iter, SkillFail> {
+    pub(crate) fn new(pool: Rc<RefCell<PoolProxy>>) -> Result<Iter, SkillFail> {
         let mut iter = Iter {
-            block_end: pool.borrow().blocks().len(),
+            block_end: pool.borrow().pool().blocks().len(),
             type_hierarchy: type_hierarchy::Iter::new(pool.clone())?,
             current: Some(pool.clone()),
             instance_index: 0,
@@ -34,7 +33,8 @@ impl Iter {
     fn next_viable(&mut self) {
         // Get the next instance from the base pool
         {
-            let pool = self.current.as_ref().unwrap().borrow(); // this is has to be checked in the calling methods
+            let pool = self.current.as_ref().unwrap().borrow(); // this has to be checked in the calling methods
+            let pool = pool.pool();
             loop {
                 if self.instance_index != self.instance_end || self.block_index >= self.block_end {
                     break;
@@ -50,7 +50,7 @@ impl Iter {
             self.block_index += 1;
             loop {
                 if let Some(p) = self.type_hierarchy.next() {
-                    let objs = p.borrow().new_instances().len();
+                    let objs = p.borrow().pool().new_instances().len();
                     if objs > 0 {
                         self.instance_index = 0;
                         self.instance_end = objs;
@@ -80,7 +80,7 @@ impl Iterator for Iter {
         // clone because borrow madness
         {
             if self.block_index <= self.block_end {
-                let tmp = pool.borrow().get_base_vec();
+                let tmp = pool.borrow().pool().get_base_vec();
                 let ret = tmp.borrow()[self.instance_index].clone();
                 self.instance_index += 1;
 
@@ -88,13 +88,13 @@ impl Iterator for Iter {
 
                 Some(ret)
             } else {
-                let ret = pool.borrow().new_instances()[self.instance_index].clone();
+                let ret = pool.borrow().pool().new_instances()[self.instance_index].clone();
                 self.instance_index += 1;
 
                 if self.instance_index == self.instance_end {
                     loop {
                         if let Some(p) = self.type_hierarchy.next() {
-                            let objs = p.borrow().new_instances().len();
+                            let objs = p.borrow().pool().new_instances().len();
                             if objs > 0 {
                                 self.instance_index = 0;
                                 self.instance_end = objs;

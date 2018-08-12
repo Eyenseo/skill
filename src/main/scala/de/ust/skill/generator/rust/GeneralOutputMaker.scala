@@ -140,6 +140,10 @@ trait GeneralOutputMaker extends Generator {
 
   protected def storagePool(t: Type): String = escaped(t.getName.capital + "Pool")
 
+  protected def poolProxy(t: Type): String = escaped(t.getName.capital + "Proxy")
+
+  protected def poolPartsMaker(t: Type): String = escaped(t.getName.capital + "PartsMaker")
+
   protected def interface(t: Type): String = escaped(t.getName.capital + "Interface")
 
   protected def fieldDeclaration(t: Type, f: Field): String = escaped(t.getName.capital + f.getName.capital()) +

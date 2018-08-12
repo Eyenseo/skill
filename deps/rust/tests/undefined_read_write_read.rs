@@ -11,9 +11,7 @@ mod tests {
     extern crate failure;
 
     use unknown::common::error::*;
-    use unknown::common::internal::SkillObject;
     use unknown::common::*;
-    use unknown::skill_file::*;
     use unknown::*;
 
     use self::failure::Fail;
@@ -56,11 +54,11 @@ mod tests {
             Ok(sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
                 // get objects
-                let a = match sf.a.borrow().get(a_id) {
+                let a = match sf.a().get(a_id) {
                     Ok(ptr) => ptr,
                     Err(e) => panic!("ObjectProper a was not retrieved because:{}", e),
                 };
-                let c = match sf.c.borrow().get(c_id) {
+                let c = match sf.c().get(c_id) {
                     Ok(ptr) => ptr,
                     Err(e) => panic!("ObjectProper c was not retrieved because:{}", e),
                 };
@@ -71,10 +69,10 @@ mod tests {
                         .get_a()
                         .as_ref()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    Some(a.clone().nucast::<A>().unwrap())
+                        .upgrade()
                         .unwrap()
                         .nucast::<SkillObject>(),
+                    a.clone().nucast::<SkillObject>(),
                 );
                 assert_eq!(c.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -82,10 +80,10 @@ mod tests {
                         .get_a()
                         .as_ref()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    Some(c.clone().nucast::<A>().unwrap())
+                        .upgrade()
                         .unwrap()
                         .nucast::<SkillObject>(),
+                    c.clone().nucast::<SkillObject>(),
                 );
                 sf.close()?;
                 Ok(())
@@ -113,11 +111,11 @@ mod tests {
             Ok(sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
                 // get objects
-                let a = match sf.a.borrow().get(a_id) {
+                let a = match sf.a().get(a_id) {
                     Ok(ptr) => ptr,
                     Err(e) => panic!("ObjectProper a was not retrieved because:{}", e),
                 };
-                let c = match sf.c.borrow().get(c_id) {
+                let c = match sf.c().get(c_id) {
                     Ok(ptr) => ptr,
                     Err(e) => panic!("ObjectProper c was not retrieved because:{}", e),
                 };
@@ -128,10 +126,10 @@ mod tests {
                         .get_a()
                         .as_ref()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    Some(a.clone().nucast::<A>().unwrap())
+                        .upgrade()
                         .unwrap()
                         .nucast::<SkillObject>(),
+                    a.clone().nucast::<SkillObject>(),
                 );
                 assert_eq!(c.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -139,10 +137,10 @@ mod tests {
                         .get_a()
                         .as_ref()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    Some(c.clone().nucast::<A>().unwrap())
+                        .upgrade()
                         .unwrap()
                         .nucast::<SkillObject>(),
+                    c.clone().nucast::<SkillObject>(),
                 );
                 sf.close()?;
                 Ok(())

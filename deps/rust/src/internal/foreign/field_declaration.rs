@@ -1,6 +1,6 @@
 use common::error::*;
+use common::internal::io::*;
 use common::internal::*;
-use common::io::*;
 use common::iterator::dynamic_data;
 use common::*;
 
@@ -33,7 +33,7 @@ impl<'a> Iterator for SingleItemIter<'a> {
     }
 }
 
-pub struct FieldDeclaration {
+pub(crate) struct FieldDeclaration {
     name: Rc<SkillString>,
     field_id: usize,
     foreign_vec_index: usize,
@@ -42,7 +42,11 @@ pub struct FieldDeclaration {
 }
 
 impl FieldDeclaration {
-    pub fn new(name: Rc<SkillString>, field_id: usize, field_type: FieldType) -> FieldDeclaration {
+    pub(crate) fn new(
+        name: Rc<SkillString>,
+        field_id: usize,
+        field_type: FieldType,
+    ) -> FieldDeclaration {
         FieldDeclaration {
             name,
             field_id,
@@ -57,7 +61,7 @@ impl FieldDeclaration {
         field: &FieldType,
         reader: &mut FileReader,
         string_pool: &StringBlock,
-        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
+        type_pools: &Vec<Rc<RefCell<PoolProxy>>>,
     ) -> Result<foreign::FieldData, SkillFail> {
         Ok(match field {
             FieldType::BuildIn(ref field) => match field {
@@ -78,7 +82,7 @@ impl FieldDeclaration {
                     let pool = reader.read_v64()? as usize;
                     let object = reader.read_v64()? as usize;
                     if pool != 0 && object != 0 {
-                        Some(type_pools[pool - 1].borrow().read_object(object)?)
+                        Some(type_pools[pool - 1].borrow().pool().read_object(object)?)
                     } else {
                         None
                     }
@@ -164,7 +168,7 @@ impl FieldDeclaration {
             FieldType::User(ref pool) => foreign::FieldData::User({
                 let object = reader.read_v64()? as usize;
                 if object != 0 {
-                    Some(pool.borrow().read_object(object)?)
+                    Some(pool.borrow().pool().read_object(object)?)
                 } else {
                     None
                 }
@@ -195,7 +199,7 @@ impl FieldDeclaration {
                             if let Some(obj) = obj {
                                 let obj = obj.nucast::<foreign::Object>().unwrap();
                                 let obj = obj.borrow(); // borrowing madness
-                                if obj.to_prune() {
+                                if obj.to_delete() {
                                     offset += 2;
                                 } else {
                                     offset += bytes_v64(obj.skill_type_id() as i64)
@@ -281,7 +285,7 @@ impl FieldDeclaration {
                         if let Some(obj) = obj {
                             let obj = obj.nucast::<foreign::Object>().unwrap();
                             let obj = obj.borrow(); // borrowing madness
-                            if obj.to_prune() {
+                            if obj.to_delete() {
                                 offset += 1;
                             } else {
                                 offset += bytes_v64(obj.get_skill_id() as i64);
@@ -343,7 +347,7 @@ impl FieldDeclaration {
                                 let obj = obj.nucast::<foreign::Object>().unwrap();
                                 let obj = obj.borrow(); // borrowing madness
 
-                                if obj.to_prune() {
+                                if obj.to_delete() {
                                     writer.write_i8(0)?;
                                     writer.write_i8(0)?;
                                 } else {
@@ -474,7 +478,7 @@ impl FieldDeclaration {
                             let obj = obj.nucast::<foreign::Object>().unwrap();
                             let obj = obj.borrow(); // borrowing madness
 
-                            if obj.to_prune() {
+                            if obj.to_delete() {
                                 writer.write_i8(0)?;
                             } else {
                                 writer.write_v64(obj.get_skill_id() as i64)?;
@@ -491,13 +495,13 @@ impl FieldDeclaration {
     }
 }
 
-impl io::field_declaration::FieldDeclaration for FieldDeclaration {
+impl io::FieldDeclaration for FieldDeclaration {
     fn read(
         &self,
         block_reader: &Vec<FileReader>,
         string_pool: &StringBlock,
         blocks: &Vec<Block>,
-        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
+        type_pools: &Vec<Rc<RefCell<PoolProxy>>>,
         instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillFail> {
         Ok(())
@@ -508,7 +512,7 @@ impl io::field_declaration::FieldDeclaration for FieldDeclaration {
         block_reader: &Vec<FileReader>,
         string_pool: &StringBlock,
         blocks: &Vec<Block>,
-        type_pools: &Vec<Rc<RefCell<InstancePool>>>,
+        type_pools: &Vec<Rc<RefCell<PoolProxy>>>,
         instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillFail> {
         info!(
@@ -667,7 +671,7 @@ impl io::field_declaration::FieldDeclaration for FieldDeclaration {
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::User(obj) => {
                             if let Some(obj) = obj {
-                                if obj.borrow().to_prune() {
+                                if obj.borrow().to_delete() {
                                     offset += 2;
                                 } else {
                                     offset += bytes_v64(obj.borrow().skill_type_id() as i64)
@@ -775,7 +779,7 @@ impl io::field_declaration::FieldDeclaration for FieldDeclaration {
                 match &obj.foreign_fields()[self.foreign_vec_index] {
                     foreign::FieldData::User(obj) => {
                         if let Some(obj) = obj {
-                            if obj.borrow().to_prune() {
+                            if obj.borrow().to_delete() {
                                 offset += 1;
                             } else {
                                 offset += bytes_v64(obj.borrow().get_skill_id() as i64);
@@ -879,7 +883,7 @@ impl io::field_declaration::FieldDeclaration for FieldDeclaration {
                             if let Some(obj) = obj {
                                 let obj = obj.nucast::<foreign::Object>().unwrap();
                                 let obj = obj.borrow(); // borrowing madness
-                                if obj.to_prune() {
+                                if obj.to_delete() {
                                     writer.write_i8(0)?;
                                     writer.write_i8(0)?;
                                 } else {
@@ -1058,7 +1062,7 @@ impl io::field_declaration::FieldDeclaration for FieldDeclaration {
                             let obj = obj.nucast::<foreign::Object>().unwrap();
                             let obj = obj.borrow(); // borrowing madness
 
-                            if obj.to_prune() {
+                            if obj.to_delete() {
                                 writer.write_i8(0)?;
                             } else {
                                 writer.write_v64(obj.get_skill_id() as i64)?;

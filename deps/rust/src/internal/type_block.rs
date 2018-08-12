@@ -1,34 +1,28 @@
 use common::error::*;
 use common::internal::foreign;
-use common::internal::StringBlock;
-use common::internal::{InstancePool, ObjectReader, SkillObject};
-use common::io::{
-    Block, BlockIndex, BuildInType, ContinuationFieldChunk, DeclarationFieldChunk, FieldChunk,
-    FieldType, FileReader, FileWriter,
-};
+use common::internal::io::*;
+use common::internal::*;
 use common::iterator::*;
-use common::PoolMaker;
-use common::Ptr;
+use common::*;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Default)]
-// TODO rename
-pub struct TypeBlock {
-    pools: Vec<Rc<RefCell<InstancePool>>>,
+pub(crate) struct TypeBlock {
+    pools: Vec<Rc<RefCell<PoolProxy>>>,
 }
 
 impl TypeBlock {
-    pub fn new() -> TypeBlock {
+    pub(crate) fn new() -> TypeBlock {
         TypeBlock { pools: Vec::new() }
     }
 
-    pub fn pools(&self) -> &Vec<Rc<RefCell<InstancePool>>> {
+    pub(crate) fn pools(&self) -> &Vec<Rc<RefCell<PoolProxy>>> {
         &self.pools
     }
 
-    pub fn read_type_pool(
+    pub(crate) fn read_type_pool(
         &mut self,
         block: BlockIndex,
         reader: &mut FileReader,
@@ -95,7 +89,7 @@ impl TypeBlock {
                     info!(
                         target: "SkillParsing",
                         "~~Add Super Type:{:?} for:{:?}",
-                        self.pools[(super_type - 1) as usize].borrow().get_type_id(),
+                        self.pools[(super_type - 1) as usize].borrow().pool().get_type_id(),
                         type_id
                     );
                     // TODO check that this is the expected super type?
@@ -110,7 +104,8 @@ impl TypeBlock {
             };
 
             {
-                let mut type_pool = type_pool.borrow_mut();
+                let mut type_pool = type_pool.borrow();
+                let mut type_pool = type_pool.pool();
 
                 if previous_type_id < type_pool.get_type_id() {
                     previous_type_id = type_pool.get_type_id();
@@ -123,13 +118,14 @@ impl TypeBlock {
                 }
             }
             {
-                let mut local_bpo = if let Some(base_pool) = type_pool.borrow().get_base() {
-                    base_pool.borrow().get_global_cached_count()
+                let mut local_bpo = if let Some(base_pool) = type_pool.borrow().pool().get_base() {
+                    base_pool.borrow().pool().get_global_cached_count()
                 } else {
-                    type_pool.borrow().get_global_cached_count()
+                    type_pool.borrow().pool().get_global_cached_count()
                 };
                 // NOTE order prevents borrow panic
                 let mut type_pool = type_pool.borrow_mut();
+                let mut type_pool = type_pool.pool_mut();
 
                 if let Some(super_pool) = type_pool.get_super() {
                     let super_pool = super_pool.borrow();
@@ -137,16 +133,17 @@ impl TypeBlock {
                     if instances != 0 {
                         local_bpo += reader.read_v64()? as usize;
                     } else {
-                        local_bpo += super_pool.get_local_bpo();
+                        local_bpo += super_pool.pool().get_local_bpo();
                     }
 
-                    if local_bpo < super_pool.get_local_bpo()
-                        || super_pool.get_local_bpo() + super_pool.get_local_dynamic_count()
+                    if local_bpo < super_pool.pool().get_local_bpo()
+                        || super_pool.pool().get_local_bpo()
+                            + super_pool.pool().get_local_dynamic_count()
                             < local_bpo
                     {
                         return Err(SkillFail::internal(InternalFail::BadBasePoolOffset {
                             local_bpo,
-                            super_local_bpo: super_pool.get_local_bpo(),
+                            super_local_bpo: super_pool.pool().get_local_bpo(),
                         }));
                     }
                 }
@@ -168,6 +165,7 @@ impl TypeBlock {
         info!(target: "SkillParsing", "~Resize Pools~");
         for (ref pool, ref _field_count) in block_local_pools.iter() {
             let mut pool = pool.borrow_mut();
+            let mut pool = pool.pool_mut();
 
             if pool.get_local_dynamic_count() != 0 {
                 let tmp = pool.get_global_cached_count() + pool.get_local_dynamic_count();
@@ -175,6 +173,7 @@ impl TypeBlock {
 
                 if let Some(super_pool) = pool.get_super() {
                     let mut super_pool = super_pool.borrow_mut();
+                    let mut super_pool = super_pool.pool_mut();
 
                     let delta = super_pool.get_local_static_count() as i64
                         - (pool.get_local_bpo() as i64 - super_pool.get_local_bpo() as i64);
@@ -194,13 +193,13 @@ impl TypeBlock {
         let mut data_start = 0;
 
         for (pool, field_count) in block_local_pools {
-            let mut field_id_limit = 1 + pool.borrow().field_amount();
+            let mut field_id_limit = 1 + pool.borrow().pool().fields().len();
 
             info!(
                 target: "SkillParsing",
                 "~~FieldMetaData for type: {} ID:{:?} Fields:{:?} Limit:{:?}",
-                pool.borrow().name().as_str(),
-                pool.borrow().get_type_id(),
+                pool.borrow().pool().name().as_str(),
+                pool.borrow().pool().get_type_id(),
                 field_count,
                 field_id_limit,
             );
@@ -332,10 +331,13 @@ impl TypeBlock {
                         data_end
                     );
                     {
+                        let string_pool = string_pool.borrow();
                         let mut pool = pool.borrow_mut();
+                        let mut pool = pool.pool_mut();
                         let tmp_count = pool.get_global_cached_count();
                         let tmp_blocks = pool.blocks().len();
                         pool.add_field(
+                            &string_pool,
                             field_id as usize,
                             field_name,
                             field_type,
@@ -359,6 +361,7 @@ impl TypeBlock {
                     );
                     {
                         let mut pool = pool.borrow_mut();
+                        let mut pool = pool.pool_mut();
                         let tmp_count = pool.get_local_dynamic_count();
                         let tmp_bpo = pool.get_local_bpo();
                         pool.add_chunk_to(
@@ -380,15 +383,15 @@ impl TypeBlock {
         Ok(())
     }
 
-    pub fn add(&mut self, pool: Rc<RefCell<InstancePool>>) {
+    pub(crate) fn add(&mut self, pool: Rc<RefCell<PoolProxy>>) {
         self.pools.push(pool);
     }
 
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.pools.len()
     }
 
-    pub fn initialize(
+    pub(crate) fn initialize(
         &self,
         strings: &StringBlock,
         reader: &Vec<FileReader>,
@@ -397,14 +400,16 @@ impl TypeBlock {
             info!(
                 target: "SkillParsing",
                 "Initializing Pool {}",
-                pool.borrow().name().as_str(),
+                pool.borrow().pool().name().as_str(),
             );
-            pool.borrow().initialize(reader, strings, &self.pools)?;
+            pool.borrow()
+                .pool()
+                .initialize(reader, strings, &self.pools)?;
         }
         Ok(())
     }
 
-    pub fn compress(&mut self) -> Result<Vec<usize>, SkillFail> {
+    pub(crate) fn compress(&mut self) -> Result<Vec<usize>, SkillFail> {
         let mut local_bpos = Vec::new();
         local_bpos.reserve(self.pools.len());
         for _ in 0..self.pools.len() {
@@ -412,34 +417,37 @@ impl TypeBlock {
         }
 
         for p in self.pools.iter() {
-            if p.borrow().is_base() {
+            if p.borrow().pool().is_base() {
                 let vec: Rc<RefCell<Vec<Ptr<SkillObject>>>> = Rc::new(RefCell::new(Vec::new()));
                 {
                     let mut vec = vec.borrow_mut();
-                    vec.reserve(p.borrow().get_global_cached_count());
-                    for _ in 0..p.borrow().get_global_cached_count() {
+                    vec.reserve(p.borrow().pool().get_global_cached_count());
+                    for _ in 0..p.borrow().pool().get_global_cached_count() {
                         // TODO replace with garbage object
                         vec.push(Ptr::new(foreign::ObjectProper::new(0, 0)));
                     }
 
                     let mut id = 1;
                     for i in type_order::Iter::new(p.clone())? {
-                        i.borrow().set_skill_id(id)?;
-                        vec[id - 1] = i;
-                        id += 1;
+                        if !i.borrow().to_delete() {
+                            i.borrow().set_skill_id(id)?;
+                            vec[id - 1] = i;
+                            id += 1;
+                        }
                     }
                 }
 
                 // TODO does the reorder work?
                 let mut next = 0;
                 for p in type_hierarchy::Iter::new(p.clone())? {
-                    local_bpos[p.borrow().get_type_id() - 32] = next;
-                    next += p.borrow().static_size() - p.borrow().deleted();
-                    p.borrow_mut().compress_field_chunks(&local_bpos);
+                    local_bpos[p.borrow().pool().get_type_id() - 32] = next;
+                    next += p.borrow().pool().static_size() - p.borrow().pool().deleted_instances();
+                    p.borrow_mut().pool_mut().compress_field_chunks(&local_bpos);
                 }
 
                 for p in type_hierarchy::Iter::new(p.clone())? {
                     p.borrow_mut()
+                        .pool_mut()
                         .update_after_compress(&local_bpos, vec.clone());
                 }
             }
@@ -447,7 +455,7 @@ impl TypeBlock {
         Ok(local_bpos)
     }
 
-    pub fn write_block(
+    pub(crate) fn write_block(
         &self,
         writer: &mut FileWriter,
         local_bpos: &Vec<usize>,
@@ -469,7 +477,7 @@ impl TypeBlock {
             "~~Write Type Meta Data",
         );
         for p in self.pools.iter() {
-            p.borrow().write_type_meta(writer, &local_bpos)?;
+            p.borrow().pool().write_type_meta(writer, &local_bpos)?;
         }
 
         info!(
@@ -478,9 +486,11 @@ impl TypeBlock {
         );
         let mut offset = 0;
         for p in self.pools.iter() {
-            offset =
-                p.borrow()
-                    .write_field_meta(writer, dynamic_data::Iter::new(p.clone())?, offset)?;
+            offset = p.borrow().pool().write_field_meta(
+                writer,
+                dynamic_data::Iter::new(p.clone())?,
+                offset,
+            )?;
         }
 
         info!(
@@ -491,6 +501,7 @@ impl TypeBlock {
         let mut writer = writer.jump(offset)?;
         for p in self.pools.iter() {
             p.borrow()
+                .pool()
                 .write_field_data(&mut writer, dynamic_data::Iter::new(p.clone())?)?;
         }
 
@@ -501,9 +512,9 @@ impl TypeBlock {
         Ok(())
     }
 
-    pub fn set_invariant(&self, invariant: bool) {
+    pub(crate) fn set_invariant(&self, invariant: bool) {
         for p in self.pools.iter() {
-            p.borrow_mut().set_invariant(invariant);
+            p.borrow_mut().pool_mut().set_invariant(invariant);
         }
     }
 }
