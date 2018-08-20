@@ -317,7 +317,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        let local_bpos = self.type_pool.compress()?;
        §
        §        let mut writer = FileWriter::new(self.file.clone());
-       §        self.string_pool.string_block().borrow().write_block(&mut writer)?;
+       §        self.string_pool.string_block().borrow_mut().write_block(&mut writer)?;
        §        self.type_pool.write_block(&mut writer, &local_bpos)?;
        §
        §        self.type_pool.set_invariant(false);

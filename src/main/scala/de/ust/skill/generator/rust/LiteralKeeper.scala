@@ -78,11 +78,15 @@ trait LiteralKeeper extends GeneralOutputMaker {
   def genLiteralKeeperImpl(): String = {
     e"""impl LiteralKeeper {
        §    pub(crate) fn get(&mut self, lit: &Rc<SkillString>) -> Option<Rc<SkillString>> {
-       §        self.set.take(lit)
+       §        if let Some(s) = self.set.get(lit) {
+       §            Some(s.clone())
+       §        } else {
+       §            None
+       §        }
        §    }
        §
-       §    pub(crate) fn get_rest(&mut self) -> Vec<Rc<SkillString>> {
-       §        self.set.drain().collect()
+       §    pub(crate) fn get_set(&self) -> &HashSet<Rc<SkillString>> {
+       §        &self.set
        §    }
        §}
        §""".stripMargin('§')
