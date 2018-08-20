@@ -523,6 +523,10 @@ impl io::FieldDeclaration for FieldDeclaration {
         type_pools: &Vec<Rc<RefCell<PoolProxy>>>,
         instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillFail> {
+        if self.foreign_vec_index != std::usize::MAX {
+            return Ok(());
+        }
+
         info!(
             target: "SkillWriting",
             "~~~Deserialize field {}",
