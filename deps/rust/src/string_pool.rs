@@ -20,7 +20,7 @@ impl StringPool {
     pub fn add(&mut self, s: &str) -> Rc<SkillString> {
         self.string_block.borrow_mut().add(s)
     }
-    pub fn get(&self, i: usize) -> Result<Rc<SkillString>, SkillFail> {
+    pub fn get(&self, i: usize) -> Result<Option<Rc<SkillString>>, SkillFail> {
         self.string_block.borrow().get(i)
     }
     pub fn extend(&mut self, size: usize) {

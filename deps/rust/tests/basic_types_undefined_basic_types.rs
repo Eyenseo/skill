@@ -208,7 +208,7 @@ mod tests {
                     all_aBool_obj.borrow_mut().set_basic_bool(true);
                     all_aString_obj
                         .borrow_mut()
-                        .set_basic_string(sf.strings_mut().add("Hello World!"));
+                        .set_basic_string(Some(sf.strings_mut().add("Hello World!")));
                     // assert fields
                     assert_eq!(all.borrow_mut().get_a_user_type().is_some(), true);
                     assert_eq!(
@@ -424,7 +424,7 @@ mod tests {
                     assert_eq!(all_aBool_obj.borrow_mut().get_basic_bool(), true);
                     assert_eq!(
                         *all_aString_obj.borrow_mut().get_basic_string(),
-                        sf.strings_mut().add("Hello World!")
+                        Some(sf.strings_mut().add("Hello World!"))
                     );
                     // serialize
                     sf.close()?;
@@ -785,7 +785,7 @@ mod tests {
                             assert_eq!(all_aBool_obj.borrow_mut().get_basic_bool(), true);
                             assert_eq!(
                                 *all_aString_obj.borrow_mut().get_basic_string(),
-                                sf.strings_mut().add("Hello World!")
+                                Some(sf.strings_mut().add("Hello World!"))
                             );
                         }
                         Err(e) => if let Some(bt) = e.backtrace() {

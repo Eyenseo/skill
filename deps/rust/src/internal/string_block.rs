@@ -65,11 +65,11 @@ impl StringBlock {
         self.set.insert(v.clone());
         v
     }
-    pub(crate) fn get(&self, i: usize) -> Result<Rc<SkillString>, SkillFail> {
+    pub(crate) fn get(&self, i: usize) -> Result<Option<Rc<SkillString>>, SkillFail> {
         if i == 0 {
-            return Err(SkillFail::user(UserFail::ReservedID { id: 0 }));
+            return Ok(None);
         }
-        Ok(self.pool[i - 1].clone())
+        Ok(Some(self.pool[i - 1].clone()))
     }
 
     pub(crate) fn read_string_pool(&mut self, reader: &mut FileReader) -> Result<(), SkillFail> {

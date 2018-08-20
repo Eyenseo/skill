@@ -363,7 +363,7 @@ class APITests extends common.GenericAPITests {
         case "f64"         ⇒ v.toString + " as f64"
 
         case "string" if null != v ⇒
-          s"""sf.strings_mut().add("${v.toString}")
+          s"""Some(sf.strings_mut().add("${v.toString}"))
              §""".stripMargin('§').trim
 
         case _ ⇒

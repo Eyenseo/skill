@@ -228,7 +228,11 @@ impl FieldDeclaration {
                 BuildInType::Tstring => for data in iter {
                     match data {
                         foreign::FieldData::String(val) => {
-                            offset += bytes_v64(val.get_skill_id() as i64)
+                            if let Some(val) = val {
+                                offset += bytes_v64(val.get_skill_id() as i64)
+                            } else {
+                                offset += 1
+                            }
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -414,7 +418,11 @@ impl FieldDeclaration {
                 BuildInType::Tstring => for data in iter {
                     match data {
                         foreign::FieldData::String(val) => {
-                            writer.write_v64(val.get_skill_id() as i64)?
+                            if let Some(val) = val {
+                                writer.write_v64(val.get_skill_id() as i64)?
+                            } else {
+                                writer.write_i8(0)?
+                            }
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -706,7 +714,11 @@ impl io::FieldDeclaration for FieldDeclaration {
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::String(val) => {
-                            offset += bytes_v64(val.get_skill_id() as i64)
+                            if let Some(val) = val {
+                                offset += bytes_v64(val.get_skill_id() as i64)
+                            } else {
+                                offset += 1
+                            }
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -976,7 +988,11 @@ impl io::FieldDeclaration for FieldDeclaration {
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::String(val) => {
-                            writer.write_v64(val.get_skill_id() as i64)?
+                            if let Some(val) = val {
+                                writer.write_v64(val.get_skill_id() as i64)?
+                            } else {
+                                writer.write_i8(0)?
+                            }
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }

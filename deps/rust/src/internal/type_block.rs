@@ -42,8 +42,14 @@ impl TypeBlock {
         info!(target: "SkillParsing", "~TypeData~");
         for _ in 0..type_amount {
             let type_name_index = reader.read_v64()? as u64;
-            let type_name = string_pool.borrow().get(type_name_index as usize)?;
-            info!(target: "SkillParsing", "~~TypeName: {}", type_name);
+            let type_name =
+                if let Some(type_name) = string_pool.borrow().get(type_name_index as usize)? {
+                    type_name
+                } else {
+                    return Err(SkillFail::internal(InternalFail::TypeOrFieldNameNull));
+                };
+
+            info!(target: "SkillParsing", "~~TypeName: {:?}", type_name);
 
             if seen_types.contains(&type_name_index) {
                 return Err(SkillFail::internal(InternalFail::RedefinitionOfType {
@@ -221,7 +227,13 @@ impl TypeBlock {
                     info!(target: "SkillParsing", "~~~Field id: {:?}", field_id);
                     info!(target: "SkillParsing", "~~~Field name id: {:?}", field_name_id);
 
-                    let field_name = string_pool.borrow().get(field_name_id)?;
+                    let field_name =
+                        if let Some(field_name) = string_pool.borrow().get(field_name_id)? {
+                            field_name
+                        } else {
+                            return Err(SkillFail::internal(InternalFail::TypeOrFieldNameNull));
+                        };
+
                     info!(target: "SkillParsing", "~~~Field name: {}", field_name);
 
                     //TODO add from for the enum and use that to match and throw an error?

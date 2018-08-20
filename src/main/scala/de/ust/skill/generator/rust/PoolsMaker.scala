@@ -1122,7 +1122,11 @@ trait PoolsMaker extends GeneralOutputMaker {
                §for i in iter {
                §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
                §    let tmp = tmp.borrow(); // borrowing madness
-               §    offset += bytes_v64(tmp.get_${field(f)}().get_skill_id() as i64);
+               §    if let Some(tmp) = tmp.get_${field(f)}() {
+               §        offset += bytes_v64(tmp.get_skill_id() as i64);
+               §    } else {
+               §        offset += 1;
+               §    }
                §}
                §Ok(offset)
                §""".stripMargin('§')
@@ -1267,7 +1271,11 @@ trait PoolsMaker extends GeneralOutputMaker {
             e"""bytes_v64(*val as i64)
                §""".stripMargin('§')
           case "string"      ⇒
-            e"""bytes_v64(val.get_skill_id()  as i64)
+            e"""if let Some(val) = val {
+               §    bytes_v64(val.get_skill_id() as i64)
+               §} else {
+               §    1
+               §}
                §""".stripMargin('§')
           case "annotation"  ⇒
             e"""match val {
@@ -1414,7 +1422,11 @@ trait PoolsMaker extends GeneralOutputMaker {
             e"""writer.write_v64(val as i64)?;
                §""".stripMargin('§')
           case "string"     ⇒
-            e"""writer.write_v64(val.get_skill_id() as i64)?;
+            e"""if let Some(val) = val {
+               §    writer.write_v64(val.get_skill_id() as i64)?;
+               §} else {
+               §   writer.write_i8(0)?;
+               §}
                §""".stripMargin('§')
           case "annotation" ⇒
             e"""match val {
@@ -1539,7 +1551,11 @@ trait PoolsMaker extends GeneralOutputMaker {
             e"""writer.write_v64(*val as i64)?;
                §""".stripMargin('§')
           case "string"     ⇒
-            e"""writer.write_v64(val.get_skill_id() as i64)?;
+            e"""if let Some(val) = val {
+               §    writer.write_v64(val.get_skill_id() as i64)?;
+               §} else {
+               §    writer.write_i8(0)?;
+               §}
                §""".stripMargin('§')
           case "annotation" ⇒
             e"""match val {

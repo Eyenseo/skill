@@ -14,7 +14,7 @@ pub(crate) enum FieldData {
     I64(i64),
     F32(f32),
     F64(f64),
-    String(Rc<SkillString>),
+    String(Option<Rc<SkillString>>),
     Set(HashSet<FieldData>),
     Map(HashMap<FieldData, FieldData>),
     Array(Vec<FieldData>),

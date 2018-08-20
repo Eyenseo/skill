@@ -138,7 +138,7 @@ pub enum InternalFail {
     ViewOnBuffer,
 
     #[fail(
-        display = "Inconsistent foreign field indexes found. old:{}, new{}",
+        display = "Inconsistent foreign field indexes found. old:{}, new:{}",
         old,
         new
     )]
@@ -174,6 +174,8 @@ pub enum InternalFail {
         type_name
     )]
     UnknownConstantField { field: String, type_name: String },
+    #[fail(display = "Type and field names cant be null.",)]
+    TypeOrFieldNameNull,
 }
 
 #[derive(Fail, Debug)]

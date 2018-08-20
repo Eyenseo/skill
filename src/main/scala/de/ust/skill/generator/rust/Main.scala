@@ -60,7 +60,7 @@ final class Main extends FakeMain
       case "f32" ⇒ "f32"
       case "f64" ⇒ "f64"
 
-      case "string"     ⇒ "Rc<SkillString>"
+      case "string"     ⇒ "Option<Rc<SkillString>>"
       case "annotation" ⇒ "Option<WeakPtr<SkillObject>>"
 
       case _ ⇒ throw new GeneratorException(s"Unhandled type $t")
@@ -126,7 +126,7 @@ final class Main extends FakeMain
         case "i8" | "i16" | "i32" | "i64" | "v64" ⇒ "0"
         case "f32" | "f64"                        ⇒ "0.0"
         case "bool"                               ⇒ "false"
-        case "string"                             ⇒ "Rc::default()"
+        case "string"                             ⇒ "None"
         case "annotation"                         ⇒ "None"
         case _                                    ⇒ throw new GeneratorException(s"Unhandled type $t")
       }
@@ -149,7 +149,7 @@ final class Main extends FakeMain
         case "i8" | "i16" | "i32" | "i64" | "v64" ⇒ "0"
         case "f32" | "f64"                        ⇒ "0.0"
         case "bool"                               ⇒ "false"
-        case "string"                             ⇒ "Rc::default()"
+        case "string"                             ⇒ "None"
         case "annotation"                         ⇒ "None"
         case _                                    ⇒ throw new GeneratorException(s"Unhandled type $t")
       }
@@ -229,9 +229,10 @@ object EscapeFunction {
       | "use" | "virtual" | "where" | "while" | "yield"  ⇒ s"Z_$target"
     case t if t.forall(c ⇒ Character.isLetterOrDigit(c)) ⇒ t
     case _                                               ⇒ target.map {
-      case 'Z'           ⇒ "ZZ"
-      case c if '_' == c ⇒ "Z" + c
-      case c             ⇒ f"Z$c%04X"
+      case 'Z'                               ⇒ "ZZ"
+      case c if '_' == c                     ⇒ "Z" + c
+      case c if Character.isLetterOrDigit(c) ⇒ c
+      case c                                 ⇒ f"Z$c%04X"
     }.mkString
   }
 }
