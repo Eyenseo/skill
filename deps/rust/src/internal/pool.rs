@@ -89,7 +89,7 @@ impl Pool {
 
     fn has_field(&self, name_id: usize) -> bool {
         for f in self.fields.iter() {
-            if f.borrow().name().get_skill_id() == name_id {
+            if f.borrow().name().get_id() == name_id {
                 return true;
             }
         }
@@ -459,7 +459,7 @@ impl Pool {
             self.get_local_dynamic_count(),
         );
 
-        writer.write_v64(self.name().get_skill_id() as i64)?;
+        writer.write_v64(self.name().get_id() as i64)?;
         writer.write_v64(self.get_local_dynamic_count() as i64)?;
         // FIXME restrictions
         writer.write_v64(0)?;

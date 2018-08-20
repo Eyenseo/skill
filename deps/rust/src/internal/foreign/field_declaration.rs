@@ -229,7 +229,7 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::String(val) => {
                             if let Some(val) = val {
-                                offset += bytes_v64(val.get_skill_id() as i64)
+                                offset += bytes_v64(val.get_id() as i64)
                             } else {
                                 offset += 1
                             }
@@ -419,7 +419,7 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::String(val) => {
                             if let Some(val) = val {
-                                writer.write_v64(val.get_skill_id() as i64)?
+                                writer.write_v64(val.get_id() as i64)?
                             } else {
                                 writer.write_i8(0)?
                             }
@@ -719,7 +719,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::String(val) => {
                             if let Some(val) = val {
-                                offset += bytes_v64(val.get_skill_id() as i64)
+                                offset += bytes_v64(val.get_id() as i64)
                             } else {
                                 offset += 1
                             }
@@ -817,7 +817,7 @@ impl io::FieldDeclaration for FieldDeclaration {
         offset: usize,
     ) -> Result<usize, SkillFail> {
         writer.write_v64(self.field_id as i64)?;
-        writer.write_v64(self.name.get_skill_id() as i64)?;
+        writer.write_v64(self.name.get_id() as i64)?;
         writer.write_field_type(&self.field_type)?;
         writer.write_i8(0)?; // TODO write restrictions
         let end_offset = offset + self.offset(iter)?;
@@ -993,7 +993,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::String(val) => {
                             if let Some(val) = val {
-                                writer.write_v64(val.get_skill_id() as i64)?
+                                writer.write_v64(val.get_id() as i64)?
                             } else {
                                 writer.write_i8(0)?
                             }

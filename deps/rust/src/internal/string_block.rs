@@ -40,7 +40,7 @@ impl StringBlock {
     fn add_raw(&mut self, s: &str) -> Result<(), SkillFail> {
         let ss = Rc::new(SkillString::new(self.pool.len() + 1, s));
         let ss = if let Some(v) = self.literal_keeper.get(&ss) {
-            v.set_skill_id(self.pool.len() + 1)?;
+            v.set_id(self.pool.len() + 1);
             Ok(v)
         } else {
             if let Some(_) = self.set.get(&ss) {
@@ -98,15 +98,14 @@ impl StringBlock {
         Ok(())
     }
 
-    pub(crate) fn finalize(&mut self) -> Result<(), SkillFail> {
+    pub(crate) fn finalize(&mut self) {
         for s in self.literal_keeper.get_set().iter() {
             if Rc::strong_count(s) < 2 {
-                s.set_skill_id(self.pool.len() + 1)?;
+                s.set_id(self.pool.len() + 1);
                 self.pool.push(s.clone());
                 self.set.insert(s.clone());
             }
         }
-        Ok(())
     }
 
     pub(crate) fn lit(&self) -> &LiteralKeeper {
@@ -149,7 +148,7 @@ impl StringBlock {
                     offset += s.string().len() as i32;
                     writer.write_raw_string(s.as_str())?;
                     lengths.write_i32(offset)?;
-                    s.set_skill_id(i)?;
+                    s.set_id(i);
                     new_pool.push(s.clone());
                 } else {
                     // TODO check whether this searching and delete is faster than a bulk add

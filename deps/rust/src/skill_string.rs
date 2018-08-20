@@ -15,12 +15,18 @@ pub struct SkillString {
     hash: u64,
 }
 
+fn gen_hash(string: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    string.hash(&mut hasher);
+    hasher.finish()
+}
+
 impl SkillString {
     pub(crate) fn new(id: usize, string: &str) -> SkillString {
         SkillString {
             id: Cell::new(id),
             string: String::from(string),
-            hash: SkillString::gen_hash(string),
+            hash: gen_hash(string),
         }
     }
 
@@ -31,40 +37,11 @@ impl SkillString {
         self.string.as_str()
     }
 
-    pub fn hash(&self) -> u64 {
-        self.hash
-    }
-
-    pub fn gen_hash(string: &str) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        string.hash(&mut hasher);
-        hasher.finish()
-    }
-}
-
-impl SkillObject for SkillString {
-    fn skill_type_id(&self) -> usize {
-        0
-    }
-
-    fn get_skill_id(&self) -> usize {
+    pub(crate) fn get_id(&self) -> usize {
         self.id.get()
     }
-    fn set_skill_id(&self, id: usize) -> Result<(), SkillFail> {
-        if id == skill_object::DELETE {
-            return Err(SkillFail::user(UserFail::ReservedID { id }));
-        }
+    pub(crate) fn set_id(&self, id: usize) {
         self.id.set(id);
-        Ok(())
-    }
-}
-
-impl Deletable for SkillString {
-    fn mark_for_deletion(&mut self) {
-        self.id.set(skill_object::DELETE);
-    }
-    fn to_delete(&self) -> bool {
-        self.id.get() == skill_object::DELETE
     }
 }
 
@@ -72,7 +49,7 @@ impl From<std::borrow::Cow<'static, str>> for SkillString {
     fn from(string: std::borrow::Cow<'static, str>) -> Self {
         SkillString {
             id: Cell::new(0), // TODO is 0 ok or is it reserved for something else?
-            hash: SkillString::gen_hash(string.as_ref()),
+            hash: gen_hash(string.as_ref()),
             string: String::from(string),
         }
     }

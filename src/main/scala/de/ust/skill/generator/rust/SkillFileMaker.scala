@@ -395,7 +395,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §    }
        §
        §    fn allocate(&mut self, type_pool: &mut TypeBlock) -> Result<(), SkillFail> {
-       §        self.string_pool.borrow_mut().finalize()?;
+       §        self.string_pool.borrow_mut().finalize();
        §        ${
       (for (base ← IR) yield {
         e"""if self.${field(base)}.is_none() {
@@ -553,14 +553,14 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        ${
       (for (base ← IR) yield {
         e"""if self.${field(base)}.is_some()
-           §    && type_name_index == self.${field(base)}.as_ref().unwrap().borrow().pool().name().get_skill_id()
+           §    && type_name_index == self.${field(base)}.as_ref().unwrap().borrow().pool().name().get_id()
            §{
            §    return Some(self.${field(base)}.as_ref().unwrap().clone());
            §} else """.stripMargin('§')
       }).mkString
     }{
        §            for pool in self.foreign_pools.iter() {
-       §                if pool.borrow().pool().name().get_skill_id() == type_name_index {
+       §                if pool.borrow().pool().name().get_id() == type_name_index {
        §                    return Some(pool.clone());
        §                }
        §            }

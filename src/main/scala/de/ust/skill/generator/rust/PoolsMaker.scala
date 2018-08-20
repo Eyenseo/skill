@@ -1120,7 +1120,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            self.name.as_ref(),
        §        );
        §        writer.write_v64(self.field_id as i64)?;
-       §        writer.write_v64(self.name.get_skill_id() as i64)?;
+       §        writer.write_v64(self.name.get_id() as i64)?;
        §        writer.write_field_type(&self.field_type)?;
        §        writer.write_i8(0)?; // TODO write restrictions
        §        let end_offset = offset + self.offset(iter.clone())?;
@@ -1199,7 +1199,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
                §    let tmp = tmp.borrow(); // borrowing madness
                §    if let Some(tmp) = tmp.get_${field(f)}() {
-               §        offset += bytes_v64(tmp.get_skill_id() as i64);
+               §        offset += bytes_v64(tmp.get_id() as i64);
                §    } else {
                §        offset += 1;
                §    }
@@ -1348,7 +1348,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                §""".stripMargin('§')
           case "string"      ⇒
             e"""if let Some(val) = val {
-               §    bytes_v64(val.get_skill_id() as i64)
+               §    bytes_v64(val.get_id() as i64)
                §} else {
                §    1
                §}
@@ -1499,7 +1499,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                §""".stripMargin('§')
           case "string"     ⇒
             e"""if let Some(val) = val {
-               §    writer.write_v64(val.get_skill_id() as i64)?;
+               §    writer.write_v64(val.get_id() as i64)?;
                §} else {
                §   writer.write_i8(0)?;
                §}
@@ -1628,7 +1628,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                §""".stripMargin('§')
           case "string"     ⇒
             e"""if let Some(val) = val {
-               §    writer.write_v64(val.get_skill_id() as i64)?;
+               §    writer.write_v64(val.get_id() as i64)?;
                §} else {
                §    writer.write_i8(0)?;
                §}
