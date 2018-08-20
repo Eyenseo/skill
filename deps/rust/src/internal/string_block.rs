@@ -76,23 +76,16 @@ impl StringBlock {
         debug!(target: "SkillParsing", "~Block Start~");
         let string_amount = reader.read_v64()? as usize; // amount
         debug!(target: "SkillParsing", "~Amount: {}", string_amount);
-        let mut lengths = Vec::new();
-        lengths.reserve(string_amount);
         self.extend(string_amount);
 
         let mut pre_offset = 0;
-        debug!(target: "SkillParsing", "~Length block");
+        let mut offset_reader = reader.jump(4 * string_amount);
         for _ in 0..string_amount {
-            // TODO use mmap
-            let offset = reader.read_i32()? as u32;
-            lengths.push(offset - pre_offset);
-            pre_offset = offset;
-        }
-        debug!(target: "SkillParsing", "~Strings");
-        for length in lengths {
-            let s = reader.read_raw_string(length)?;
+            let offset = offset_reader.read_i32()? as u32;
+            let s = reader.read_raw_string(offset - pre_offset)?;
             debug!(target: "SkillParsing", "~~String: {}", &s);
             self.add_raw(&s)?;
+            pre_offset = offset;
         }
         debug!(target: "SkillParsing", "~Block End~");
         Ok(())
