@@ -284,67 +284,67 @@ impl<'v> FileWriter<'v> {
     pub(crate) fn write_field_type(&mut self, field_type: &FieldType) -> Result<(), SkillFail> {
         match field_type {
             FieldType::BuildIn(BuildInType::ConstTi8) => {
-                info!(target: "SkillWriting", "~~~~FieldType = const i8");
+                trace!(target: "SkillWriting", "~~~~FieldType = const i8");
                 self.write_i8(0x0)?;
             }
             FieldType::BuildIn(BuildInType::ConstTi16) => {
-                info!(target: "SkillWriting", "~~~~FieldType = const i16");
+                trace!(target: "SkillWriting", "~~~~FieldType = const i16");
                 self.write_i8(0x1)?;
             }
             FieldType::BuildIn(BuildInType::ConstTi32) => {
-                info!(target: "SkillWriting", "~~~~FieldType = const i32");
+                trace!(target: "SkillWriting", "~~~~FieldType = const i32");
                 self.write_i8(0x2)?;
             }
             FieldType::BuildIn(BuildInType::ConstTi64) => {
-                info!(target: "SkillWriting", "~~~~FieldType = const i64");
+                trace!(target: "SkillWriting", "~~~~FieldType = const i64");
                 self.write_i8(0x3)?;
             }
             FieldType::BuildIn(BuildInType::ConstTv64) => {
-                info!(target: "SkillWriting", "~~~~FieldType = const v64");
+                trace!(target: "SkillWriting", "~~~~FieldType = const v64");
                 self.write_i8(0x4)?;
             }
             FieldType::BuildIn(BuildInType::Tannotation) => {
-                info!(target: "SkillWriting", "~~~~FieldType = annotation");
+                trace!(target: "SkillWriting", "~~~~FieldType = annotation");
                 self.write_i8(0x5)?;
             }
             FieldType::BuildIn(BuildInType::Tbool) => {
-                info!(target: "SkillWriting", "~~~~FieldType = bool");
+                trace!(target: "SkillWriting", "~~~~FieldType = bool");
                 self.write_i8(0x6)?;
             }
             FieldType::BuildIn(BuildInType::Ti8) => {
-                info!(target: "SkillWriting", "~~~~FieldType = i8");
+                trace!(target: "SkillWriting", "~~~~FieldType = i8");
                 self.write_i8(0x7)?;
             }
             FieldType::BuildIn(BuildInType::Ti16) => {
-                info!(target: "SkillWriting", "~~~~FieldType = i16");
+                trace!(target: "SkillWriting", "~~~~FieldType = i16");
                 self.write_i8(0x8)?;
             }
             FieldType::BuildIn(BuildInType::Ti32) => {
-                info!(target: "SkillWriting", "~~~~FieldType = i32");
+                trace!(target: "SkillWriting", "~~~~FieldType = i32");
                 self.write_i8(0x9)?;
             }
             FieldType::BuildIn(BuildInType::Ti64) => {
-                info!(target: "SkillWriting", "~~~~FieldType = i64");
+                trace!(target: "SkillWriting", "~~~~FieldType = i64");
                 self.write_i8(0xA)?;
             }
             FieldType::BuildIn(BuildInType::Tv64) => {
-                info!(target: "SkillWriting", "~~~~FieldType = v64");
+                trace!(target: "SkillWriting", "~~~~FieldType = v64");
                 self.write_i8(0xB)?;
             }
             FieldType::BuildIn(BuildInType::Tf32) => {
-                info!(target: "SkillWriting", "~~~~FieldType = f32");
+                trace!(target: "SkillWriting", "~~~~FieldType = f32");
                 self.write_i8(0xC)?;
             }
             FieldType::BuildIn(BuildInType::Tf64) => {
-                info!(target: "SkillWriting", "~~~~FieldType = f64");
+                trace!(target: "SkillWriting", "~~~~FieldType = f64");
                 self.write_i8(0xD)?;
             }
             FieldType::BuildIn(BuildInType::Tstring) => {
-                info!(target: "SkillWriting", "~~~~FieldType = string");
+                trace!(target: "SkillWriting", "~~~~FieldType = string");
                 self.write_i8(0xE)?;
             }
             FieldType::BuildIn(BuildInType::ConstTarray(length, ref boxed)) => {
-                info!(
+                trace!(
                     target: "SkillWriting",
                     "~~~~FieldType = const array length: {:?}",
                     length
@@ -354,28 +354,28 @@ impl<'v> FileWriter<'v> {
                 self.write_field_type(boxed)?;
             }
             FieldType::BuildIn(BuildInType::Tarray(ref boxed)) => {
-                info!(target: "SkillWriting", "~~~~FieldType = varray");
+                trace!(target: "SkillWriting", "~~~~FieldType = varray");
                 self.write_i8(0x11)?;
                 self.write_field_type(boxed)?;
             }
             FieldType::BuildIn(BuildInType::Tlist(ref boxed)) => {
-                info!(target: "SkillWriting", "~~~~FieldType = list");
+                trace!(target: "SkillWriting", "~~~~FieldType = list");
                 self.write_i8(0x12)?;
                 self.write_field_type(boxed)?;
             }
             FieldType::BuildIn(BuildInType::Tset(ref boxed)) => {
-                info!(target: "SkillWriting", "~~~~FieldType = set");
+                trace!(target: "SkillWriting", "~~~~FieldType = set");
                 self.write_i8(0x13)?;
                 self.write_field_type(boxed)?;
             }
             FieldType::BuildIn(BuildInType::Tmap(ref key_boxed, ref val_boxed)) => {
-                info!(target: "SkillWriting", "~~~~FieldType = map");
+                trace!(target: "SkillWriting", "~~~~FieldType = map");
                 self.write_i8(0x14)?;
                 self.write_field_type(key_boxed)?;
                 self.write_field_type(val_boxed)?;
             }
             FieldType::User(ref user) => {
-                info!(
+                trace!(
                     target: "SkillWriting",
                     "~~~~FieldType = User{} ID:{}",
                     user.borrow().pool().name().as_str(),

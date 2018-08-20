@@ -149,7 +149,7 @@ impl Pool {
     }
 
     pub(crate) fn deserialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail> {
-        info!(
+        debug!(
             target: "SkillWriting",
             "~~~Deserialize undefind Data for {}", self.name.as_str(),
         );
@@ -176,16 +176,11 @@ impl Pool {
         if self.is_base() {
             // TODO add garbage type
             let tmp = Ptr::new(foreign::ObjectProper::new(0, 0));
-            info!(
-                target: "SkillParsing",
-                "Allocate space for:{} amount:{}",
-                self.name.as_str(),
-                self.get_global_cached_count(),
-            );
             trace!(
                 target: "SkillParsing",
-                "Allocate space for:{} with:{:?}",
+                "Allocate space for:{} amount:{} with:{:?}",
                 self.name.as_str(),
+                self.get_global_cached_count(),
                 tmp,
             );
             vec.reserve(self.get_global_cached_count());
@@ -195,7 +190,7 @@ impl Pool {
             }
         }
 
-        info!(
+        debug!(
             target: "SkillParsing",
             "Initialize:{} id:{}",
             self.name.as_str(),
@@ -273,7 +268,7 @@ impl Pool {
         if index == 0 {
             return Err(SkillFail::internal(InternalFail::ReservedID { id: 0 }));
         }
-        info!(
+        debug!(
             target: "SkillParsing",
             "read user instance:{} from:{}",
             index,
@@ -456,7 +451,7 @@ impl Pool {
         writer: &mut FileWriter,
         local_bpos: &Vec<usize>,
     ) -> Result<(), SkillFail> {
-        info!(
+        debug!(
             target: "SkillWriting",
             "~~~Write Meta Data for:{} Instances; Static:{} Dynamic:{}",
             self.name.as_str(),
@@ -486,7 +481,7 @@ impl Pool {
         iter: dynamic_data::Iter,
         mut offset: usize,
     ) -> Result<usize, SkillFail> {
-        info!(
+        debug!(
             target: "SkillWriting",
             "~~~Write Field Meta Data for:{} Fields:{}",
             self.name.as_str(),
@@ -502,7 +497,7 @@ impl Pool {
         writer: &mut FileWriter,
         iter: dynamic_data::Iter,
     ) -> Result<(), SkillFail> {
-        info!(
+        debug!(
             target: "SkillWriting",
             "~~~Write Field Data for:{} Fields:{}",
             self.name.as_str(),

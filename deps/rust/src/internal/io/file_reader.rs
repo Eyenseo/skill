@@ -110,97 +110,97 @@ impl FileReader {
         match field_type {
             0x0 => {
                 self.read_i8()?;
-                info!(target: "SkillParsing", "~~~~FieldType = const i8");
+                trace!(target: "SkillParsing", "~~~~FieldType = const i8");
                 Ok(FieldType::BuildIn(BuildInType::ConstTi8))
             }
             0x1 => {
                 self.read_i16()?;
-                info!(target: "SkillParsing", "~~~~FieldType = const i16");
+                trace!(target: "SkillParsing", "~~~~FieldType = const i16");
                 Ok(FieldType::BuildIn(BuildInType::ConstTi16))
             }
             0x2 => {
                 self.read_i32()?;
-                info!(target: "SkillParsing", "~~~~FieldType = const i32");
+                trace!(target: "SkillParsing", "~~~~FieldType = const i32");
                 Ok(FieldType::BuildIn(BuildInType::ConstTi32))
             }
             0x3 => {
                 self.read_i64()?;
-                info!(target: "SkillParsing", "~~~~FieldType = const i64");
+                trace!(target: "SkillParsing", "~~~~FieldType = const i64");
                 Ok(FieldType::BuildIn(BuildInType::ConstTi64))
             }
             0x4 => {
                 self.read_v64()?;
-                info!(target: "SkillParsing", "~~~~FieldType = const v64");
+                trace!(target: "SkillParsing", "~~~~FieldType = const v64");
                 Ok(FieldType::BuildIn(BuildInType::ConstTv64))
             }
             0x5 => {
-                info!(target: "SkillParsing", "~~~~FieldType = annotation");
+                trace!(target: "SkillParsing", "~~~~FieldType = annotation");
                 Ok(FieldType::BuildIn(BuildInType::Tannotation))
             }
             0x6 => {
-                info!(target: "SkillParsing", "~~~~FieldType = bool");
+                trace!(target: "SkillParsing", "~~~~FieldType = bool");
                 Ok(FieldType::BuildIn(BuildInType::Tbool))
             }
             0x7 => {
-                info!(target: "SkillParsing", "~~~~FieldType = i8");
+                trace!(target: "SkillParsing", "~~~~FieldType = i8");
                 Ok(FieldType::BuildIn(BuildInType::Ti8))
             }
             0x8 => {
-                info!(target: "SkillParsing", "~~~~FieldType = i16");
+                trace!(target: "SkillParsing", "~~~~FieldType = i16");
                 Ok(FieldType::BuildIn(BuildInType::Ti16))
             }
             0x9 => {
-                info!(target: "SkillParsing", "~~~~FieldType = i32");
+                trace!(target: "SkillParsing", "~~~~FieldType = i32");
                 Ok(FieldType::BuildIn(BuildInType::Ti32))
             }
             0xA => {
-                info!(target: "SkillParsing", "~~~~FieldType = i64");
+                trace!(target: "SkillParsing", "~~~~FieldType = i64");
                 Ok(FieldType::BuildIn(BuildInType::Ti64))
             }
             0xB => {
-                info!(target: "SkillParsing", "~~~~FieldType = v64");
+                trace!(target: "SkillParsing", "~~~~FieldType = v64");
                 Ok(FieldType::BuildIn(BuildInType::Tv64))
             }
             0xC => {
-                info!(target: "SkillParsing", "~~~~FieldType = f32");
+                trace!(target: "SkillParsing", "~~~~FieldType = f32");
                 Ok(FieldType::BuildIn(BuildInType::Tf32))
             }
             0xD => {
-                info!(target: "SkillParsing", "~~~~FieldType = f64");
+                trace!(target: "SkillParsing", "~~~~FieldType = f64");
                 Ok(FieldType::BuildIn(BuildInType::Tf64))
             }
             0xE => {
-                info!(target: "SkillParsing", "~~~~FieldType = string");
+                trace!(target: "SkillParsing", "~~~~FieldType = string");
                 Ok(FieldType::BuildIn(BuildInType::Tstring))
             }
             0xF => {
                 let length = self.read_v64()? as u64;
-                info!(target: "SkillParsing", "~~~~FieldType = const array length: {:?}", length);
+                trace!(target: "SkillParsing", "~~~~FieldType = const array length: {:?}", length);
                 Ok(FieldType::BuildIn(BuildInType::ConstTarray(
                     length,
                     Box::new(self.read_field_type(pools)?),
                 )))
             }
             0x11 => {
-                info!(target: "SkillParsing", "~~~~FieldType = varray");
+                trace!(target: "SkillParsing", "~~~~FieldType = varray");
                 Ok(FieldType::BuildIn(BuildInType::Tarray(Box::new(
                     self.read_field_type(pools)?,
                 ))))
             }
             0x12 => {
-                info!(target: "SkillParsing", "~~~~FieldType = list");
+                trace!(target: "SkillParsing", "~~~~FieldType = list");
                 Ok(FieldType::BuildIn(BuildInType::Tlist(Box::new(
                     self.read_field_type(pools)?,
                 ))))
             }
             0x13 => {
-                info!(target: "SkillParsing", "~~~~FieldType = set");
+                trace!(target: "SkillParsing", "~~~~FieldType = set");
                 Ok(FieldType::BuildIn(BuildInType::Tset(Box::new(
                     self.read_field_type(pools)?,
                 ))))
             }
             0x14 => {
-                info!(target: "SkillParsing", "~~~~FieldType = map");
+                trace!(target: "SkillParsing", "~~~~FieldType = map");
                 Ok(FieldType::BuildIn(BuildInType::Tmap(
                     Box::new(self.read_field_type(pools)?),
                     Box::new(self.read_field_type(pools)?),
@@ -212,7 +212,7 @@ impl FileReader {
                         id: user as usize,
                     }));
                 }
-                info!(target: "SkillParsing", "~~~~FieldType = User ID {:?}", user);
+                trace!(target: "SkillParsing", "~~~~FieldType = User ID {:?}", user);
                 Ok(FieldType::User(pools[user as usize - 32].clone()))
             }
         }

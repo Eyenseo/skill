@@ -527,7 +527,7 @@ impl io::FieldDeclaration for FieldDeclaration {
             return Ok(());
         }
 
-        info!(
+        debug!(
             target: "SkillWriting",
             "~~~Deserialize field {}",
             self.name.as_str(),
@@ -549,7 +549,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                             let mut o = 0;
 
                             for obj in instances.iter().skip(block.bpo).take(block.dynamic_count) {
-                                info!(
+                                trace!(
                                     target: "SkillParsing",
                                     "Block:{:?} ObjectProper:{}",
                                     block,
@@ -597,7 +597,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     if chunk.count > 0 {
                         let mut o = 0;
                         for obj in instances.iter().skip(chunk.bpo).take(chunk.count) {
-                            info!(
+                            trace!(
                                 target: "SkillParsing",
                                 "Block:{:?} ObjectProper:{}",
                                 block,

@@ -34,12 +34,12 @@ impl TypeBlock {
         let mut previous_type_id = 0;
         let mut seen_types = Vec::new();
 
-        info!(target: "SkillParsing", "~Block Start~");
+        debug!(target: "SkillParsing", "~Block Start~");
         let type_amount = reader.read_v64()? as usize;
-        info!(target: "SkillParsing", "~Types: {:?}", type_amount);
+        debug!(target: "SkillParsing", "~Types: {:?}", type_amount);
         self.pools.reserve(type_amount);
 
-        info!(target: "SkillParsing", "~TypeData~");
+        debug!(target: "SkillParsing", "~TypeData~");
         for _ in 0..type_amount {
             let type_name_index = reader.read_v64()? as u64;
             let type_name =
@@ -49,7 +49,7 @@ impl TypeBlock {
                     return Err(SkillFail::internal(InternalFail::TypeOrFieldNameNull));
                 };
 
-            info!(target: "SkillParsing", "~~TypeName: {:?}", type_name);
+            debug!(target: "SkillParsing", "~~TypeName: {:?}", type_name);
 
             if seen_types.contains(&type_name_index) {
                 return Err(SkillFail::internal(InternalFail::RedefinitionOfType {
@@ -59,14 +59,14 @@ impl TypeBlock {
             seen_types.push(type_name_index);
 
             let instances = reader.read_v64()? as usize; // amount of instances
-            info!(target: "SkillParsing", "~~TypeInstances: {:?}", instances);
+            debug!(target: "SkillParsing", "~~TypeInstances: {:?}", instances);
 
             let mut type_pool = if let Some(pool) = pool_maker.get_pool(type_name_index as usize) {
                 pool
             } else {
                 let type_id = self.pools.len() + 32;
 
-                info!(target: "SkillParsing", "~~New Type:{:?}", type_id);
+                debug!(target: "SkillParsing", "~~New Type:{:?}", type_id);
                 let type_restrictions = reader.read_v64()?; // restrictions ?
                 for _ in 0..type_restrictions {
                     let restriction = reader.read_v64()?;
@@ -92,7 +92,7 @@ impl TypeBlock {
                         id: super_type as usize,
                     }));
                 } else if super_type != 0 {
-                    info!(
+                    debug!(
                         target: "SkillParsing",
                         "~~Add Super Type:{:?} for:{:?}",
                         self.pools[(super_type - 1) as usize].borrow().pool().get_type_id(),
@@ -168,7 +168,7 @@ impl TypeBlock {
         }
 
         // TODO resize stuff ...
-        info!(target: "SkillParsing", "~Resize Pools~");
+        debug!(target: "SkillParsing", "~Resize Pools~");
         for (ref pool, ref _field_count) in block_local_pools.iter() {
             let mut pool = pool.borrow_mut();
             let mut pool = pool.pool_mut();
@@ -184,7 +184,7 @@ impl TypeBlock {
                     let delta = super_pool.get_local_static_count() as i64
                         - (pool.get_local_bpo() as i64 - super_pool.get_local_bpo() as i64);
 
-                    info!(target: "SkillParsing", "~~Resize delta:{}", delta);
+                    debug!(target: "SkillParsing", "~~Resize delta:{}", delta);
                     if delta > 0 {
                         let tmp = super_pool.get_global_static_count() - delta as usize;
                         super_pool.set_global_static_count(tmp);
@@ -195,13 +195,13 @@ impl TypeBlock {
             }
         }
 
-        info!(target: "SkillParsing", "~TypeFieldMetaData~");
+        debug!(target: "SkillParsing", "~TypeFieldMetaData~");
         let mut data_start = 0;
 
         for (pool, field_count) in block_local_pools {
             let mut field_id_limit = 1 + pool.borrow().pool().fields().len();
 
-            info!(
+            debug!(
                 target: "SkillParsing",
                 "~~FieldMetaData for type: {} ID:{:?} Fields:{:?} Limit:{:?}",
                 pool.borrow().pool().name().as_str(),
@@ -224,8 +224,8 @@ impl TypeBlock {
                     field_id_limit += 1;
                     let field_name_id = reader.read_v64()? as usize; // field name id
 
-                    info!(target: "SkillParsing", "~~~Field id: {:?}", field_id);
-                    info!(target: "SkillParsing", "~~~Field name id: {:?}", field_name_id);
+                    debug!(target: "SkillParsing", "~~~Field id: {:?}", field_id);
+                    debug!(target: "SkillParsing", "~~~Field name id: {:?}", field_name_id);
 
                     let field_name =
                         if let Some(field_name) = string_pool.borrow().get(field_name_id)? {
@@ -234,13 +234,13 @@ impl TypeBlock {
                             return Err(SkillFail::internal(InternalFail::TypeOrFieldNameNull));
                         };
 
-                    info!(target: "SkillParsing", "~~~Field name: {}", field_name);
+                    debug!(target: "SkillParsing", "~~~Field name: {}", field_name);
 
                     //TODO add from for the enum and use that to match and throw an error?
                     let field_type = reader.read_field_type(&self.pools)?;
 
                     let field_restrictions = reader.read_v64()?; // restrictions
-                    info!(target: "SkillParsing", "~~~FieldRestrictions: {:?}", field_restrictions);
+                    debug!(target: "SkillParsing", "~~~FieldRestrictions: {:?}", field_restrictions);
                     match field_type {
                         FieldType::User(_) => (), // NOTE this might be wrong
                         _ => {
@@ -248,7 +248,7 @@ impl TypeBlock {
                                 // TODO call real function / match
                                 let restriction_type = reader.read_v64()?; // restriction type
 
-                                info!(
+                                debug!(
                                     target: "SkillParsing",
                                     "~~~~FieldRestriction: #{:?} as {:?}",
                                     restriction,
@@ -336,7 +336,7 @@ impl TypeBlock {
                     }
                     let data_end = reader.read_v64()? as usize;
 
-                    info!(
+                    debug!(
                         target: "SkillParsing", "~~~Add Field:{} start:{:?} end:{:?}",
                         field_name.clone(),
                         data_start,
@@ -365,7 +365,7 @@ impl TypeBlock {
                 } else {
                     let data_end = reader.read_v64()? as usize;
 
-                    info!(
+                    debug!(
                         target: "SkillParsing", "~~~Add Field Chunk:{} start:{:?} end:{:?}",
                         field_id,
                         data_start,
@@ -391,7 +391,7 @@ impl TypeBlock {
             }
         }
         field_data.push(reader.jump(data_start));
-        info!(target: "SkillParsing", "~Block End~");
+        debug!(target: "SkillParsing", "~Block End~");
         Ok(())
     }
 
@@ -409,7 +409,7 @@ impl TypeBlock {
         reader: &Vec<FileReader>,
     ) -> Result<(), SkillFail> {
         for pool in self.pools.iter() {
-            info!(
+            debug!(
                 target: "SkillParsing",
                 "Initializing Pool {}",
                 pool.borrow().pool().name().as_str(),
@@ -473,18 +473,18 @@ impl TypeBlock {
         local_bpos: &Vec<usize>,
     ) -> Result<(), SkillFail> {
         // How many types
-        info!(
+        debug!(
             target: "SkillWriting",
             "~Type Block Start~"
         );
-        info!(
+        debug!(
             target: "SkillWriting",
             "~Write {} types",
             self.pools.len(),
         );
         writer.write_v64(self.pools.len() as i64)?;
 
-        info!(
+        debug!(
             target: "SkillWriting",
             "~~Write Type Meta Data",
         );
@@ -492,7 +492,7 @@ impl TypeBlock {
             p.borrow().pool().write_type_meta(writer, &local_bpos)?;
         }
 
-        info!(
+        debug!(
             target: "SkillWriting",
             "~~Write Type Field Meta Data",
         );
@@ -505,7 +505,7 @@ impl TypeBlock {
             )?;
         }
 
-        info!(
+        debug!(
             target: "SkillWriting",
             "~~Write Type Field Data for #{} pools",
             self.pools.len()
@@ -517,7 +517,7 @@ impl TypeBlock {
                 .write_field_data(&mut writer, dynamic_data::Iter::new(p.clone())?)?;
         }
 
-        info!(
+        debug!(
             target: "SkillWriting",
             "~Type Block End~"
         );

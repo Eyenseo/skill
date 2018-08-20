@@ -73,28 +73,28 @@ impl StringBlock {
     }
 
     pub(crate) fn read_string_pool(&mut self, reader: &mut FileReader) -> Result<(), SkillFail> {
-        info!(target: "SkillParsing", "~Block Start~");
+        debug!(target: "SkillParsing", "~Block Start~");
         let string_amount = reader.read_v64()? as usize; // amount
-        info!(target: "SkillParsing", "~Amount: {}", string_amount);
+        debug!(target: "SkillParsing", "~Amount: {}", string_amount);
         let mut lengths = Vec::new();
         lengths.reserve(string_amount);
         self.extend(string_amount);
 
         let mut pre_offset = 0;
-        info!(target: "SkillParsing", "~Length block");
+        debug!(target: "SkillParsing", "~Length block");
         for _ in 0..string_amount {
             // TODO use mmap
             let offset = reader.read_i32()? as u32;
             lengths.push(offset - pre_offset);
             pre_offset = offset;
         }
-        info!(target: "SkillParsing", "~Strings");
+        debug!(target: "SkillParsing", "~Strings");
         for length in lengths {
             let s = reader.read_raw_string(length)?;
-            info!(target: "SkillParsing", "~~String: {}", &s);
+            debug!(target: "SkillParsing", "~~String: {}", &s);
             self.add_raw(&s)?;
         }
-        info!(target: "SkillParsing", "~Block End~");
+        debug!(target: "SkillParsing", "~Block End~");
         Ok(())
     }
 
@@ -114,13 +114,13 @@ impl StringBlock {
 
     pub(crate) fn write_block(&self, writer: &mut FileWriter) -> Result<(), SkillFail> {
         // TODO strings should be pruned/compressed when strong_count is 1
-        info!(
+        debug!(
             target: "SkillWriting",
             "~String Block Start~"
         );
 
         let amount = self.pool.len();
-        info!(
+        debug!(
             target: "SkillWriting",
             "~~Write {} Strings",
             amount

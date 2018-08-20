@@ -160,7 +160,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §    }
        §
        §    pub fn open(file: &str) -> Result<Self, SkillFail> {
-       §        info!(
+       §        debug!(
        §            target: "SkillWriting",
        §            "Start opening"
        §        );
@@ -201,7 +201,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §                let mut reader = FileReader::from(rmmap.clone());
        §
        §                loop {
-       §                    info!(
+       §                    debug!(
        §                          target: "SkillParsing", "Block: {:?} Reader:{:?}",
        §                          block_index,
        §                          reader
@@ -242,7 +242,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
     }
        §            foreign_pools: file_builder.foreign_pools,
        §        };
-       §        info!(
+       §        debug!(
        §            target:"SkillWriting",
        §            "Done opening"
        §        );
@@ -250,7 +250,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §    }
        §
        §    pub fn create(file: &str) -> Result<Self, SkillFail> {
-       §        info!(
+       §        debug!(
        §            target: "SkillWriting",
        §            "Start creating"
        §        );
@@ -290,7 +290,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
     }
        §            foreign_pools: file_builder.foreign_pools,
        §        };
-       §        info!(
+       §        debug!(
        §            target: "SkillWriting",
        §            "Done creating"
        §        );
@@ -298,7 +298,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §    }
        §
        §    pub fn write(&mut self) -> Result<(), SkillFail> {
-       §        info!(
+       §        debug!(
        §            target: "SkillWriting",
        §            "Start writing"
        §        );
@@ -321,7 +321,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        self.type_pool.write_block(&mut writer, &local_bpos)?;
        §
        §        self.type_pool.set_invariant(false);
-       §        info!(
+       §        debug!(
        §            target:"SkillWriting",
        §            "Done writing"
        §        );
@@ -331,12 +331,12 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §    pub fn close(mut self) -> Result<(), SkillFail> {${
       "" // TODO check if more has to be done?
     }
-       §        info!(
+       §        debug!(
        §            target: "SkillWriting",
        §            "Start closing"
        §        );
        §        self.write()?;
-       §        info!(
+       §        debug!(
        §            target:"SkillWriting",
        §            "Done closing"
        §        );

@@ -897,7 +897,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                                .skip(block.bpo)
        §                                .take(block.dynamic_count)
        §                            {
-       §                                info!(
+       §                                trace!(
        §                                    target:"SkillParsing",
        §                                    "Block:{:?} ObjectProper:{}",
        §                                    block,
@@ -954,7 +954,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                            .skip(chunk.bpo)
        §                            .take(chunk.count)
        §                        {
-       §                            info!(
+       §                            trace!(
        §                                target:"SkillParsing",
        §                                "Block:{:?} ObjectProper:{}",
        §                                block,
@@ -1038,7 +1038,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        ${genFieldDeclarationImplFieldDeclarationOffset(base, f)}
        §    }
        §    fn write_meta(&mut self, writer: &mut FileWriter, iter: dynamic_data::Iter, offset: usize) -> Result<usize, SkillFail> {
-       §        info!(
+       §        debug!(
        §            target:"SkillWriting",
        §            "~~~~Write Field Meta Data for Field:{}",
        §            self.name.as_ref(),
@@ -1048,7 +1048,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        writer.write_field_type(&self.field_type)?;
        §        writer.write_i8(0)?; // TODO write restrictions
        §        let end_offset = offset + self.offset(iter.clone())?;
-       §        info!(
+       §        debug!(
        §            target:"SkillWriting",
        §            "~~~~Field:{} end offset:{}",
        §            self.name.as_ref(),
@@ -1072,7 +1072,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        writer: &mut FileWriter,
        §        iter: dynamic_data::Iter
        §    ) -> Result<(), SkillFail> {
-       §       info!(
+       §       debug!(
        §            target:"SkillWriting",
        §            "~~~~Write Field Data for Field:{}",
        §            self.name.as_ref(),
