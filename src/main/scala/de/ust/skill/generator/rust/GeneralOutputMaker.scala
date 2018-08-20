@@ -12,6 +12,7 @@ import de.ust.skill.ir.restriction.CodingRestriction
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 object GeneralOutputMaker {
   /**
@@ -79,7 +80,9 @@ trait GeneralOutputMaker extends Generator {
                            .flatMap(_.getRestrictions.asScala)
                            .collect { case f: CodingRestriction ⇒ f }
                            .map(_.getValue)
-                           .toSet --
+                           .toSet ++
+      IR.flatMap(gatherCustoms(_))
+      .map(_.getSkillName).toSet --
       types
 
     (types, fields)
@@ -117,7 +120,7 @@ trait GeneralOutputMaker extends Generator {
   // remove special stuff
   final def setTC(tc: TypeContext) {
     this.types = tc
-    val flat = tc.removeTypedefs.removeEnums
+    val flat = tc.removeTypedefs().removeEnums()
     this.IR = flat.getUsertypes.asScala.to
     this.IRInterfaces = flat.getInterfaces.asScala.to
     // set large specification mode; leave some spare parameters
@@ -126,6 +129,37 @@ trait GeneralOutputMaker extends Generator {
     // filter implemented interfaces from original IR
     if (interfaceChecks) {
       filterInterfacesFromIR()
+    }
+
+    validateCustomOptions()
+  }
+
+  def validateCustomOptions(): Unit = {
+    for (c ← (IR ::: IRInterfaces).toArray.flatMap(gatherCustoms)) {
+      val ops = collection.mutable.Map() ++= c.getOptions.asScala.toMap
+
+      ops.get("init") match {
+        case Some(lst) ⇒ if (lst.size() != 1) {
+          throw new GeneratorException(
+                                        s"There has to be exactly one initialisation for each custom field but ${
+                                          c
+                                          .getName
+                                        } had ${lst.size()}"
+                                      )
+        }
+        case _         ⇒ throw new GeneratorException(
+                                                       s"There has to be one initialisation (init) for each custom field!"
+                                                     )
+      }
+      ops.remove("use")
+      ops.remove("init")
+      if (ops.nonEmpty) {
+        throw new GeneratorException(
+                                      s"""The Rust generator only supports two custom field options; 'init' and 'use'. Additionally given were "${
+                                        ops.keys.mkString(", ")
+                                      }"""")
+      }
+      c.getOptions
     }
   }
 
@@ -167,7 +201,7 @@ trait GeneralOutputMaker extends Generator {
 
   final def field(t: Type): String = t match {
     case t: InterfaceType ⇒ field(t.getBaseType.getName.camel())
-    case _             ⇒ field(t.getName.camel())
+    case _                ⇒ field(t.getName.camel())
   }
 
   final def traitName(t: Type): String = escaped(t.getName.capital)
@@ -191,7 +225,9 @@ trait GeneralOutputMaker extends Generator {
     * @return A list of all super types a given type t has
     */
   protected final def getAllSuperTypes(t: UserType): List[Type] = {
-    if (t.getSuperType != null) {
+    if (t == null) {
+      List[UserType]()
+    } else if (t.getSuperType != null) {
       getAllSuperTypes(t.getSuperType) ::: List[UserType](t)
     } else {
       List[UserType](t)
@@ -221,5 +257,26 @@ trait GeneralOutputMaker extends Generator {
       ret = ret ::: allSuperInterfaces(i)
     }
     ret.distinct
+  }
+
+
+  protected final def gatherCustoms(base: WithFields): Seq[LanguageCustomization] = {
+    if (base != null && base.getCustomizations != null) {
+      val x = base.getCustomizations.asScala.filter(c ⇒ c.language.equals("rust")).flatMap {
+        case null ⇒ ArrayBuffer[LanguageCustomization]()
+        case c    ⇒ ArrayBuffer[LanguageCustomization](c)
+      }
+      base match {
+        case base: UserType ⇒
+          x ++
+          getAllSuperTypes(base.getSuperType)
+          .filter(_.isInstanceOf[WithFields])
+          .map(_.asInstanceOf[WithFields])
+          .flatMap(gatherCustoms)
+        case _              ⇒ x
+      }
+    } else {
+      ArrayBuffer[LanguageCustomization]()
+    }
   }
 }

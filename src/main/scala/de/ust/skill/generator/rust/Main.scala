@@ -106,8 +106,8 @@ final class Main extends FakeMain
 
   override def customFieldManual: String =
     """
-      §!include string+    Argument strings are added to the head of the generated file and included using
-      §                    <> around the strings content.""".stripMargin('§')
+      §!use string+    Argument strings are added to the head of the generated file.
+      §!init string    Will be used to initialize the field.""".stripMargin('§')
 
   override def escaped(target: String): String = escapeCache.getOrElse(target, {
     val result = EscapeFunction(target)

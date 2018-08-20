@@ -33,4 +33,9 @@ Custom {
 
   custom cpp
   "uint8_t*" any2;
+
+  custom rust
+  !use "std::any::Any"
+  !init "None"
+  "Option<Box<Any>>" any;
 }

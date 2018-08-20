@@ -65,6 +65,12 @@ class APITests extends common.GenericAPITests {
                                                 "subtypes",
                                               )
                                        ),
+                          new ExtraTest(
+                                         new File("deps/rust/tests/custom.rs"),
+                                         Array(
+                                                "custom",
+                                              )
+                                       ),
                         )
 
   var skipTestCases  = Array(
@@ -84,7 +90,7 @@ class APITests extends common.GenericAPITests {
                               // "basicTypes",
                               // "constants",
                               // "container",
-                              // "custom", // TODO -  is this really successful?
+                              // "custom",
                               // "empty",
                               // "escaping",
                               // "fancy",

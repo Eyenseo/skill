@@ -9,6 +9,7 @@ import de.ust.skill.generator.common.IndenterLaw._
 import de.ust.skill.ir._
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ArrayBuffer
 
 trait PoolsMaker extends GeneralOutputMaker {
   abstract override def make {
@@ -61,30 +62,50 @@ trait PoolsMaker extends GeneralOutputMaker {
        §use common::skill_object;
        §use common::*;
        §
-       §use skill_file::SkillFileBuilder;
-       §
-       §${getUsageStd()}
-       §
-       §${getUsageUser(base)}
+       §use skill_file::SkillFileBuilder;${
+      getUsageUser(base) +
+      getCustomUser() +
+      getUsageStd()
+    }
        §""".stripMargin('§')
   }.trim
 
   private final def getUsageUser(base: Type): String = {
-    IR
-    .filterNot(t ⇒ t.equals(base))
-    .toArray
-    .map(t ⇒ s"use ${snakeCase(storagePool(t))}::*;\n")
-    .sorted
-    .mkString + IRInterfaces
-                .filterNot(t ⇒ t.equals(base))
-                .toArray
-                .map(t ⇒ s"use ${snakeCase(interface(t))}::*;\n")
-                .sorted
-                .mkString
-  }.trim
+    val ret = (IR
+               .filterNot(t ⇒ t.equals(base))
+               .toArray
+               .map(t ⇒ s"use ${snakeCase(storagePool(t))}::*;\n")
+               .sorted
+               .mkString + IRInterfaces
+                           .filterNot(t ⇒ t.equals(base))
+                           .toArray
+                           .map(t ⇒ s"use ${snakeCase(interface(t))}::*;\n")
+                           .sorted
+                           .mkString).trim
+    if (ret != "") {
+      "\n\n" + ret
+    } else {
+      ret
+    }
+  }
+
+  def getCustomUser(): String = {
+    val ret = (IR ::: IRInterfaces).flatMap(gatherCustomUses)
+                                   .sorted
+                                   .distinct
+                                   .map(t ⇒ s"use $t;\n")
+                                   .mkString.trim
+    if (ret != "") {
+      "\n\n" + ret
+    } else {
+      ret
+    }
+  }
 
   private final def getUsageStd(): String = {
-    e"""use std::cell::Cell;
+    e"""
+       §
+       §use std::cell::Cell;
        §use std::cell::RefCell;
        §use std::collections::HashMap;
        §use std::collections::HashSet;
@@ -131,7 +152,7 @@ trait PoolsMaker extends GeneralOutputMaker {
 
 
   private final def genTypeStruct(base: UserType, foreign: Boolean): String = {
-    e"""#[derive(Default, Debug,  PartialEq)]
+    e"""#[derive(Default, Debug)]
        §pub struct ${if (foreign) foreignName(base) else name(base)} {
        §    skill_id: Cell<usize>,
        §    skill_type_id: usize,${
@@ -150,6 +171,10 @@ trait PoolsMaker extends GeneralOutputMaker {
                                                                      .find(_.getName == f.getName).get
 
         e"""${internalName(f)}: ${mapType(orig.getType)},
+           §""".stripMargin('§')
+      }).mkString.trim +
+      (for (c ← gatherCustoms(base)) yield {
+        e"""${c.getName}: ${c.`type`},
            §""".stripMargin('§')
       }).mkString.trim
     }
@@ -180,10 +205,10 @@ trait PoolsMaker extends GeneralOutputMaker {
         "SkillObject"
       }
     } {${
-      if (base.getFields.asScala.nonEmpty) {
+      if (base.getFields.asScala.nonEmpty || gatherCustoms(base).nonEmpty) {
         e"""
            §    ${
-          (for (f ← base.getFields.asScala) yield {
+          ((for (f ← base.getFields.asScala) yield {
             var com = comment(f)
             if (!com.isEmpty) {
               com += "\n"
@@ -198,7 +223,7 @@ trait PoolsMaker extends GeneralOutputMaker {
             };${
               if (!f.isConstant && (f.getType.isInstanceOf[ReferenceType] || f.getType.isInstanceOf[ContainerType])) {
                 e"""
-                   §fn get_${name(f)}_mut(&mut self) -> &mut ${mapType(f.getType)};""".stripMargin('§')
+                   §${com}fn get_${name(f)}_mut(&mut self) -> &mut ${mapType(f.getType)};""".stripMargin('§')
               } else {
                 ""
               }
@@ -212,7 +237,21 @@ trait PoolsMaker extends GeneralOutputMaker {
             }
                §
                §""".stripMargin('§')
-          }).mkString.trim
+          }).mkString +
+           (for (c ← gatherCustoms(base)) yield {
+             var com = c.getComment
+                       // NOTE 4 spaces indent
+                       .format("", "/// ", lineLength - 4, "")
+                       .trim
+             if (com != "") {
+               com += "\n"
+             }
+             e"""${com}fn get_${c.getName}(&self) -> &${c.`type`};
+                §${com}fn get_${c.getName}_mut(&mut self) -> &mut ${c.`type`};
+                §${com}fn set_${c.getName}(&mut self, ${c.getName}: ${c.`type`});
+                §
+                §""".stripMargin('§')
+           }).mkString).trim
         }
            §""".stripMargin('§')
       } else {
@@ -282,24 +321,41 @@ trait PoolsMaker extends GeneralOutputMaker {
       }
     }
        §            ${
-      (for (f ← base.getAllFields.asScala.filterNot(_.isConstant)) yield {
+      ((for (f ← base.getAllFields.asScala.filterNot(_.isConstant)) yield {
         e"""${internalName(f)}: ${defaultValue(f)},
            §""".stripMargin('§')
-      }).mkString.trim
+      }).mkString +
+       (for (c ← gatherCustoms(base)) yield {
+         e"""${c.getName}: ${c.getOptions.get("init").asScala.head},
+            §""".stripMargin('§')
+       }).mkString).trim
     }
        §        }
        §    }
        §}
        §
        §${
-      if (base.getFields.asScala.nonEmpty) {
+      if (base.getFields.asScala.nonEmpty || gatherCustoms(base).nonEmpty) {
         e"""impl ${traitName(base)} for ${if (foreign) foreignName(base) else name(base)} {
            §    ${ // Impl base
-          (for (f ← base.getFields.asScala) yield {
+          ((for (f ← base.getFields.asScala) yield {
             e"""${genGetSetImpl(f)}
                §
-           §""".stripMargin('§')
-          }).mkString.trim
+               §""".stripMargin('§')
+          }).mkString +
+           (for (c ← gatherCustoms(base)) yield {
+             e"""fn get_${c.getName}(&self) -> &${c.`type`} {
+                §    &self.${c.getName}
+                §}
+                §fn get_${c.getName}_mut(&mut self) -> &mut ${c.`type`} {
+                §   &mut self.${c.getName}
+                §}
+                §fn set_${c.getName}(&mut self, ${c.getName}: ${c.`type`}) {
+                §   self.${c.getName} = ${c.getName}
+                §}
+                §
+                §""".stripMargin('§')
+           }).mkString).trim
         }
            §}""".stripMargin('§')
       } else {
@@ -397,14 +453,27 @@ trait PoolsMaker extends GeneralOutputMaker {
   private final def genTypeImplSuper[Base <: Declaration with WithFields](base: Base,
                                                                           parent: Base,
                                                                           foreign: Boolean): String = {
-    if (parent.getFields.asScala.nonEmpty) {
+    if (parent.getFields.asScala.nonEmpty || gatherCustoms(parent).nonEmpty) {
       e"""impl ${traitName(parent)} for ${if (foreign) foreignName(base) else name(base)} {
          §    ${
-        (for (f ← parent.getFields.asScala) yield {
+        ((for (f ← parent.getFields.asScala) yield {
           e"""${genGetSetImpl(f)}
              §
-           §""".stripMargin('§')
-        }).mkString.trim
+             §""".stripMargin('§')
+        }).mkString.trim +
+         (for (c ← gatherCustoms(parent)) yield {
+           e"""fn get_${c.getName}(&self) -> &${c.`type`} {
+              §    &self.${c.getName}
+              §}
+              §fn get_${c.getName}_mut(&mut self) -> &mut ${c.`type`} {
+              §   &mut self.${c.getName}
+              §}
+              §fn set_${c.getName}(&mut self, ${c.getName}: ${c.`type`}) {
+              §   self.${c.getName} = ${c.getName}
+              §}
+              §
+              §""".stripMargin('§')
+         }).mkString).trim
       }
          §}""".stripMargin('§')
     } else {
@@ -441,8 +510,8 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        string_pool: &StringBlock,
        §    ) -> Result<(bool, Box<RefCell<FieldDeclaration>>), SkillFail> {
        §        ${
-      (for (f ← base.getFields.asScala.toList :::
-                allSuperInterfaces(base).flatMap(t ⇒ t.getFields.asScala)) yield {
+      ((for (f ← base.getFields.asScala.toList :::
+                 allSuperInterfaces(base).flatMap(t ⇒ t.getFields.asScala)) yield {
         if (f.isAuto) {
           e"""if string_pool.lit().${field(f)} == field_name.as_str() {
              §    Err(SkillFail::internal(InternalFail::AutoNotAuto {
@@ -494,7 +563,14 @@ trait PoolsMaker extends GeneralOutputMaker {
           }
              §} else """.stripMargin('§')
         }
-      }).mkString.trim
+      }).mkString +
+       (for (c ← gatherCustoms(base)) yield {
+         e"""if string_pool.lit().${c.getName} == field_name.as_str() {
+            §    Err(SkillFail::internal(InternalFail::AutoNotAuto {
+            §        field: field_name.string().clone(),
+            §    }))
+            §} else """.stripMargin('§')
+       }).mkString).trim
     } {
        §            match &field_type {
        §                FieldType::BuildIn(field_type) =>{
@@ -1971,4 +2047,15 @@ trait PoolsMaker extends GeneralOutputMaker {
 
   protected def defaultValue(t: Type): String
 
+  private final def gatherCustomUses(base: WithFields): Seq[String] = {
+    gatherCustoms(base).flatMap {
+      case null ⇒ ArrayBuffer[String]()
+      case c    ⇒ val inc = c.getOptions.get("use")
+        if (null != inc) {
+          inc.asScala
+        } else {
+          ArrayBuffer[String]()
+        }
+    }
+  }
 }
