@@ -105,6 +105,40 @@ impl StringBlock {
         &self.literal_keeper
     }
 
+    pub(crate) fn compress(&mut self) -> Result<(), SkillFail> {
+        let amount: usize = {
+            let mut amout = 0;
+            for s in self.pool.iter() {
+                // NOTE weak ptr are not used by the generator so they can be ignored
+                // NOTE Literals are kept by the literal keeper so their count is also greater than 2
+                // 1 for the vec 1 for the set = 2
+                if Rc::strong_count(s) > 2 {
+                    amout += 1;
+                }
+            }
+            amout
+        };
+        if amount > 0 {
+            let mut i = 0;
+            let mut new_pool = Vec::with_capacity(amount);
+            for s in self.pool.iter() {
+                if Rc::strong_count(s) > 2 {
+                    i += 1;
+                    s.set_id(i);
+                    new_pool.push(s.clone());
+                } else {
+                    // TODO check whether this searching and delete is faster than a bulk add
+                    self.set.remove(s);
+                }
+            }
+            self.pool = new_pool;
+        } else {
+            self.pool = Vec::new();
+            self.set = HashSet::new();
+        }
+        Ok(())
+    }
+
     pub(crate) fn write_block(&mut self, writer: &mut FileWriter) -> Result<(), SkillFail> {
         debug!(
             target: "SkillWriting",

@@ -209,6 +209,8 @@ pub enum UserFail {
         id
     )]
     DeleteInUse { id: usize },
+    #[fail(display = "The file was in read only mode but it was tried to write to it.")]
+    ReadOnly,
 }
 
 #[derive(Fail, Debug)]

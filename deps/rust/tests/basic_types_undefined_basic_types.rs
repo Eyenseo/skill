@@ -53,6 +53,7 @@ mod tests {
 
             match SkillFile::create(
                 "/tmp/api_basic_types_foreign_basic_types_28ab2b82-9815-4ef7-8806-7a0d23ccccad.sf",
+                FileMode::RW,
             ) {
                 Ok(mut sf) => match || -> Result<(), SkillFail> {
                     sf.check()?;
@@ -471,6 +472,7 @@ mod tests {
 
             match SkillFile::open(
                 "/tmp/api_basic_types_foreign_basic_types_28ab2b82-9815-4ef7-8806-7a0d23ccccad.sf",
+                FileMode::RW,
             ) {
                 Ok(sf) => match || -> Result<(), SkillFail> {
                     sf.check()?;
@@ -499,6 +501,7 @@ mod tests {
 
             match SkillFile::open(
                 "/tmp/api_basic_types_foreign_basic_types_28ab2b82-9815-4ef7-8806-7a0d23ccccad.sf",
+                FileMode::R,
             ) {
                 Ok(mut sf) => {
                     match sf.check() {

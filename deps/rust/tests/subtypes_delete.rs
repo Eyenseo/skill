@@ -47,6 +47,7 @@ mod tests {
 
         match SkillFile::create(
             "/tmp/api_subtypes_accept_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            FileMode::RW,
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -193,6 +194,7 @@ mod tests {
 
         match SkillFile::open(
             "/tmp/api_subtypes_accept_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            FileMode::R,
         ) {
             Ok(mut sf) => match sf.check() {
                 Ok(_) => {
@@ -317,23 +319,13 @@ mod tests {
         };
     }
 
-    struct CleanupApiSubtypesRejectUseAfterDelete;
-
-    impl Drop for CleanupApiSubtypesRejectUseAfterDelete {
-        fn drop(&mut self) {
-            let _ignore = ::std::fs::remove_file(
-                "/tmp/api_subtypes_reject_use_after_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
-            );
-        }
-    }
-
     #[test]
     fn api_subtypes_reject_use_after_delete() {
         let _logger = env_logger::try_init();
-        let _cleanup = CleanupApiSubtypesRejectUseAfterDelete;
 
         match SkillFile::create(
             "/tmp/api_subtypes_reject_use_after_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            FileMode::R,
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -380,23 +372,13 @@ mod tests {
         };
     }
 
-    struct CleanupApiSubtypesRejectUseAfterDeleteAfterWrite;
-
-    impl Drop for CleanupApiSubtypesRejectUseAfterDeleteAfterWrite {
-        fn drop(&mut self) {
-            let _ignore = ::std::fs::remove_file(
-                "/tmp/api_subtypes_reject_use_after_delete_after_write_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
-            );
-        }
-    }
-
     #[test]
     fn api_subtypes_reject_use_after_delete_after_write() {
         let _logger = env_logger::try_init();
-        let _cleanup = CleanupApiSubtypesRejectUseAfterDeleteAfterWrite;
 
         match SkillFile::create(
             "/tmp/api_subtypes_reject_use_after_delete_after_write_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            FileMode::R,
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -415,7 +397,7 @@ mod tests {
                     a.clone().nucast::<SkillObject>(),
                 );
                 // serialize
-                sf.write()?;
+                sf.compress()?;
                 // DELETE
                 // NOTE this should panic as a has a reference to itself serialize
                 // This tests the static instance count after writing a new instance
@@ -461,7 +443,7 @@ mod tests {
 
         match SkillFile::create(
             "/tmp/api_subtypes_reject_use_after_delete_after_read_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
-        ) {
+            FileMode::RW) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
                 // create objects
@@ -500,7 +482,7 @@ mod tests {
 
         match SkillFile::open(
             "/tmp/api_subtypes_reject_use_after_delete_after_read_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
-        ) {
+            FileMode::R) {
             Ok(mut sf) => match sf.check() {
                 Ok(_) => {
                     // get objects
@@ -562,6 +544,7 @@ mod tests {
 
         match SkillFile::create(
             "/tmp/api_subtypes_accept_force_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            FileMode::RW,
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -705,6 +688,7 @@ mod tests {
 
         match SkillFile::open(
             "/tmp/api_subtypes_accept_force_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            FileMode::R,
         ) {
             Ok(mut sf) => match sf.check() {
                 Ok(_) => {
@@ -801,6 +785,7 @@ mod tests {
 
         match SkillFile::create(
             "/tmp/api_subtypes_accept_memory_freed_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            FileMode::RW,
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;

@@ -276,7 +276,7 @@ class APITests extends common.GenericAPITests {
                   §
                   §        ${objectIDs(root)}
                   §
-                  §        match SkillFile::create("/tmp/${funName}_$uuid.sf") {
+                  §        match SkillFile::create("/tmp/${funName}_$uuid.sf", FileMode::RW) {
                   §            Ok(mut sf) => match || -> Result<(), SkillFail> {
                   §                sf.check()?;
                   §                // create objects
@@ -305,7 +305,7 @@ class APITests extends common.GenericAPITests {
                   §            },
                   §        };
                   §
-                  §        match SkillFile::open("/tmp/${funName}_$uuid.sf") {
+                  §        match SkillFile::open("/tmp/${funName}_$uuid.sf", FileMode::R) {
                   §            Ok(mut sf) => match sf.check() {
                   §                Ok(_) => {
                   §                    // get objects

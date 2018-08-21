@@ -20,6 +20,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
     out.write(
                e"""${genUsage()}
                   §
+                  §${genFileModes()}
+                  §
                   §${genSkillFile()}
                   §
                   §${genSkillFileBuilder()}
@@ -64,6 +66,18 @@ trait SkillFileMaker extends GeneralOutputMaker {
   }
 
   //----------------------------------------
+  // FileModes
+  //----------------------------------------
+  private final def genFileModes(): String = {
+    e"""#[derive(PartialEq)]
+       §pub enum FileMode{
+       §    R,
+       §    RW,
+       §}
+       §""".stripMargin('§')
+  }.trim
+
+  //----------------------------------------
   // SkillFile
   //----------------------------------------
   private final def genSkillFile(): String = {
@@ -77,9 +91,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
   }
 
   private final def genSkillFileStruct(): String = {
-    // FIXME pub(crate) fields
     e"""pub struct SkillFile {
        §    file: Rc<RefCell<std::fs::File>>,
+       §    mode: FileMode,
        §    block_reader: Rc<RefCell<Vec<FileReader>>>,
        §    type_pool: TypeBlock,
        §    string_pool: StringPool,${
@@ -94,7 +108,6 @@ trait SkillFileMaker extends GeneralOutputMaker {
 
   private final def genSkillFileImpl(): String = {
     e"""impl SkillFile {
-       §
        §    pub(crate) fn block_reader(&self) -> std::cell::Ref<Vec<FileReader>> {
        §        self.block_reader.borrow()
        §    }
@@ -159,14 +172,14 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        }
        §    }
        §
-       §    pub fn open(file: &str) -> Result<Self, SkillFail> {
+       §    pub fn open(file: &str, mode: FileMode) -> Result<Self, SkillFail> {
        §        debug!(
-       §            target: "SkillWriting",
+       §            target: "SkillParsing",
        §            "Start opening"
        §        );
        §        let f = match ::std::fs::OpenOptions::new()
        §            .read(true)
-       §            .write(true)
+       §            .write(mode == FileMode::RW)
        §            .open(&file)
        §        {
        §            Ok(f) => Ok(f),
@@ -232,6 +245,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        file_builder.complete();
        §        let mut sf = SkillFile {
        §            file: Rc::new(RefCell::new(f)),
+       §            mode,
        §            block_reader: Rc::new(RefCell::new(data_chunk_reader)),
        §            type_pool,
        §            string_pool: StringPool::new(string_pool),${
@@ -249,15 +263,15 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        Ok(sf)
        §    }
        §
-       §    pub fn create(file: &str) -> Result<Self, SkillFail> {
+       §    pub fn create(file: &str, mode: FileMode) -> Result<Self, SkillFail> {
        §        debug!(
        §            target: "SkillWriting",
        §            "Start creating"
        §        );
        §        let f = match ::std::fs::OpenOptions::new()
-       §            .write(true)
        §            .read(true)
-       §            .create(true)
+       §            .write(mode == FileMode::RW)
+       §            .create(mode == FileMode::RW)
        §            .open(&file)
        §        {
        §            Ok(f) => Ok(f),
@@ -280,6 +294,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        file_builder.complete();
        §        let mut sf = SkillFile {
        §            file: Rc::new(RefCell::new(f)),
+       §            mode,
        §            block_reader: Rc::new(RefCell::new(data_chunk_reader)),
        §            type_pool,
        §            string_pool: StringPool::new(string_pool),${
@@ -297,11 +312,34 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        Ok(sf)
        §    }
        §
+       §    pub fn compress(&mut self) -> Result<(), SkillFail> {
+       §        debug!(
+       §            target: "SkillWriting",
+       §            "Start compressing"
+       §        );
+       §        // invariant -> size queries are constant time
+       §        self.type_pool.set_invariant(true);
+       §
+       §        // reorder
+       §        self.type_pool.compress()?;
+       §        self.string_pool.compress()?;
+       §
+       §        self.type_pool.set_invariant(false);
+       §        debug!(
+       §            target:"SkillWriting",
+       §            "Done compressing"
+       §        );
+       §        Ok(())
+       §    }
+       §
        §    pub fn write(&mut self) -> Result<(), SkillFail> {
        §        debug!(
        §            target: "SkillWriting",
        §            "Start writing"
        §        );
+       §        if self.mode == FileMode::R {
+       §            return Err(SkillFail::user(UserFail::ReadOnly))
+       §        }
        §        // invariant -> size queries are constant time
        §        self.type_pool.set_invariant(true);
        §
@@ -335,7 +373,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §            target: "SkillWriting",
        §            "Start closing"
        §        );
-       §        self.write()?;
+       §        if self.mode == FileMode::RW {
+       §          self.write()?;
+       §        }
        §        debug!(
        §            target:"SkillWriting",
        §            "Done closing"

@@ -50,6 +50,7 @@ mod tests {
 
         match SkillFile::open(
             "/tmp/api_unknown_accept_read_write_read_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
+            FileMode::RW,
         ) {
             Ok(sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -107,6 +108,7 @@ mod tests {
 
         match SkillFile::open(
             "/tmp/api_unknown_accept_read_write_read_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
+            FileMode::R,
         ) {
             Ok(sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;

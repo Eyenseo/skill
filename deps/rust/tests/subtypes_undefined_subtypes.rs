@@ -44,7 +44,7 @@ mod tests {
 
             match SkillFile::create(
                 "/tmp/api_unknown_accept_subtypes_unknown_subtypes_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
-            ) {
+                FileMode::RW ) {
                 Ok(sf) => match || -> Result<(), SkillFail> {
                     sf.check()?;
                     // create objects
@@ -99,7 +99,7 @@ mod tests {
 
             match SkillFile::open(
                 "/tmp/api_unknown_accept_subtypes_unknown_subtypes_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
-            ) {
+                FileMode::RW) {
                 Ok(sf) => match || -> Result<(), SkillFail> {
                     sf.check()?;
                     // get objects
@@ -138,7 +138,7 @@ mod tests {
 
             match SkillFile::open(
                 "/tmp/api_unknown_accept_subtypes_unknown_subtypes_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
-            ) {
+                FileMode::R   ) {
                 Ok(sf) => match sf.check() {
                     Ok(_) => {
                         // get objects

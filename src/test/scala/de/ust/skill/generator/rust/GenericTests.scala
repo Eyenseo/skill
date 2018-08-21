@@ -156,7 +156,7 @@ class GenericTests extends common.GenericTests {
                    §    extern crate failure;
                    §
                    §    use $pkgEsc::common::error::*;
-                   §    use $pkgEsc::SkillFile;
+                   §    use $pkgEsc::*;
                    §
                    §    use self::failure::Fail;""".stripMargin('§')
               )
@@ -188,7 +188,7 @@ class GenericTests extends common.GenericTests {
     }() {
        §        let _logger = env_logger::try_init();
        §
-       §        match SkillFile::open("../../../$escFilePath") {
+       §        match SkillFile::open("../../../$escFilePath", FileMode::R) {
        §            Ok(sf) => match || -> Result<(), SkillFail> {
        §                sf.check()?;
        §                Ok(())

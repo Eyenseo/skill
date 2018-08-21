@@ -23,6 +23,9 @@ impl StringPool {
     pub fn get(&self, i: usize) -> Result<Option<Rc<SkillString>>, SkillFail> {
         self.string_block.borrow().get(i)
     }
+    pub(crate) fn compress(&mut self) -> Result<(), SkillFail> {
+        self.string_block.borrow_mut().compress()
+    }
     pub fn extend(&mut self, size: usize) {
         self.string_block.borrow_mut().extend(size);
     }
