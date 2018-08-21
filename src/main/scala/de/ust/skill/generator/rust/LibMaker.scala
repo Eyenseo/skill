@@ -29,6 +29,8 @@ trait LibMaker extends GeneralOutputMaker {
                   §#![allow(unused_mut)]
                   §#![allow(dead_code)]
                   §
+                  §#![recursion_limit="128"]
+                  §
                   §#![feature(nll)]
                   §#![feature(coerce_unsized)]
                   §#![feature(unsize)]
