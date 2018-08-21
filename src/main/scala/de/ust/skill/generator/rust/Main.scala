@@ -229,10 +229,9 @@ object EscapeFunction {
       | "use" | "virtual" | "where" | "while" | "yield"  ⇒ s"Z_$target"
     case t if t.forall(c ⇒ Character.isLetterOrDigit(c)) ⇒ t
     case _                                               ⇒ target.map {
-      case 'Z'                               ⇒ "ZZ"
-      case c if '_' == c                     ⇒ "Z" + c
-      case c if Character.isLetterOrDigit(c) ⇒ c
-      case c                                 ⇒ f"Z$c%04X"
+      case 'Z'                                           ⇒ "ZZ"
+      case c if Character.isLetterOrDigit(c) || c == '_' ⇒ c
+      case c                                             ⇒ f"Z$c%04X"
     }.mkString
   }
 }
