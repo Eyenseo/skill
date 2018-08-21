@@ -105,13 +105,10 @@ trait PoolsMaker extends GeneralOutputMaker {
   private final def getUsageStd(): String = {
     e"""
        §
-       §use std::cell::Cell;
-       §use std::cell::RefCell;
-       §use std::collections::HashMap;
-       §use std::collections::HashSet;
-       §use std::collections::LinkedList;
+       §use std::cell::{Cell, RefCell};
+       §use std::collections::{HashMap, HashSet, LinkedList};
        §use std::ops::DerefMut;
-       §use std::rc::Rc;
+       §use std::rc::{Rc, Weak};
        §""".stripMargin('§')
   }
 
@@ -540,7 +537,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                  §))
                  §""".stripMargin('§')
             } else {
-              e"""let mut object_readers: Vec<Rc<RefCell<PoolProxy>>> = Vec::new();
+              e"""let mut object_readers: Vec<Weak<RefCell<PoolProxy>>> = Vec::new();
                  §object_readers.reserve(${userType.size});
                  §match field_type {
                  §    ${genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(f.getType)},
@@ -836,7 +833,11 @@ trait PoolsMaker extends GeneralOutputMaker {
                    §vec!{
                    §    ${
                   (for (ut ← userTypes) yield {
-                    e"""file.${field(ut)}.as_ref().unwrap().clone(),
+                    e"""{
+                       §    // This is madness ...
+                       §    let tmp = Rc::downgrade(file.${field(ut)}.as_ref().unwrap());
+                       §    tmp
+                       §},
                        §""".stripMargin('§')
                   }).mkString.trim
                 }
@@ -899,7 +900,7 @@ trait PoolsMaker extends GeneralOutputMaker {
         ""
       } else {
         e"""
-           §object_reader: Vec<Rc<RefCell<PoolProxy>>>,""".stripMargin('§')
+           §object_reader: Vec<Weak<RefCell<PoolProxy>>>,""".stripMargin('§')
       }
     }
        §}""".stripMargin('§')
@@ -929,7 +930,7 @@ trait PoolsMaker extends GeneralOutputMaker {
          §        name: Rc<SkillString>,
          §        field_id: usize,
          §        field_type: FieldType,
-         §        object_reader: Vec<Rc<RefCell<PoolProxy>>>
+         §        object_reader: Vec<Weak<RefCell<PoolProxy>>>
          §    ) -> ${fieldDeclaration(base, field)} {
          §        ${fieldDeclaration(base, field)} {
          §            name,
@@ -1833,6 +1834,8 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    let object = reader.read_v64()? as usize;
            §    if object != 0 {
            §        if let Some(object) = self.object_reader[${user.next()}]
+           §            .upgrade()
+           §            .unwrap()
            §            .borrow()
            §            .pool()
            §            .read_object(object)?
@@ -1853,6 +1856,8 @@ trait PoolsMaker extends GeneralOutputMaker {
                                 §    let object = reader.read_v64()? as usize;
                                 §    if object != 0 {
                                 §        if let Some(object) = self.object_reader[${user.next()}]
+                                §            .upgrade()
+                                §            .unwrap()
                                 §            .borrow()
                                 §            .pool()
                                 §            .read_object(object)?
@@ -1964,10 +1969,19 @@ trait PoolsMaker extends GeneralOutputMaker {
          §    ),
          §))""".stripMargin('§')
     case t: UserType                ⇒
-      e"FieldType::User(file.${field(t)}.as_ref().unwrap().clone())"
+      e"""// This is madness ...
+         §FieldType::User({
+         §    let tmp = Rc::downgrade(file.${field(t)}.as_ref().unwrap());
+         §    tmp
+         §})""".stripMargin('§')
     case t: InterfaceType           ⇒
       t.getBaseType match {
-        case _: UserType ⇒ e"FieldType::User(file.${field(t)}.as_ref().unwrap().clone())"
+        case _: UserType ⇒
+          e"""// This is madness ...
+             §FieldType::User({
+             §    let tmp = Rc::downgrade(file.${field(t)}.as_ref().unwrap());
+             §    tmp
+             §})""".stripMargin('§')
         case _           ⇒ e"FieldType::BuildIn(BuildInType::Tannotation)"
       }
     case _                          ⇒

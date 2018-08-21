@@ -9,12 +9,9 @@ use memmap::MmapOptions;
 
 use std::cell::RefCell;
 use std::error::Error;
-use std::io::Seek;
-use std::io::SeekFrom;
-use std::io::Write;
-use std::ops::Deref;
-use std::ops::DerefMut;
-use std::rc::Rc;
+use std::io::{Seek, SeekFrom, Write};
+use std::ops::{Deref, DerefMut};
+use std::rc::{Rc, Weak};
 
 const BUFFER_SIZE: usize = 4096;
 
@@ -375,6 +372,7 @@ impl<'v> FileWriter<'v> {
                 self.write_field_type(val_boxed)?;
             }
             FieldType::User(ref user) => {
+                let user = user.upgrade().unwrap();
                 trace!(
                     target: "SkillWriting",
                     "~~~~FieldType = User{} ID:{}",

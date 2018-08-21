@@ -82,7 +82,13 @@ impl FieldDeclaration {
                     let pool = reader.read_v64()? as usize;
                     let object = reader.read_v64()? as usize;
                     if pool != 0 && object != 0 {
-                        Some(type_pools[pool - 1].borrow().pool().read_object(object)?)
+                        Some(
+                            type_pools[pool - 1]
+                                .borrow()
+                                .pool()
+                                .read_object(object)?
+                                .downgrade(),
+                        )
                     } else {
                         None
                     }
@@ -168,7 +174,14 @@ impl FieldDeclaration {
             FieldType::User(ref pool) => foreign::FieldData::User({
                 let object = reader.read_v64()? as usize;
                 if object != 0 {
-                    Some(pool.borrow().pool().read_object(object)?)
+                    Some(
+                        pool.upgrade()
+                            .unwrap()
+                            .borrow()
+                            .pool()
+                            .read_object(object)?
+                            .downgrade(),
+                    )
                 } else {
                     None
                 }
@@ -197,13 +210,18 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::User(obj) => {
                             if let Some(obj) = obj {
-                                let obj = obj.nucast::<foreign::Object>().unwrap();
-                                let obj = obj.borrow(); // borrowing madness
-                                if obj.to_delete() {
-                                    offset += 2;
+                                // Utter madness
+                                if let Some(obj) = obj.upgrade() {
+                                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                                    let obj = obj.borrow();
+                                    if obj.to_delete() {
+                                        offset += 2;
+                                    } else {
+                                        offset += bytes_v64(obj.skill_type_id() as i64)
+                                            + bytes_v64(obj.get_skill_id() as i64);
+                                    }
                                 } else {
-                                    offset += bytes_v64(obj.skill_type_id() as i64)
-                                        + bytes_v64(obj.get_skill_id() as i64);
+                                    offset += 2;
                                 }
                             } else {
                                 offset += 2;
@@ -287,12 +305,17 @@ impl FieldDeclaration {
                 match data {
                     foreign::FieldData::User(obj) => {
                         if let Some(obj) = obj {
-                            let obj = obj.nucast::<foreign::Object>().unwrap();
-                            let obj = obj.borrow(); // borrowing madness
-                            if obj.to_delete() {
-                                offset += 1;
+                            // Utter mandness
+                            if let Some(obj) = obj.upgrade() {
+                                let obj = obj.nucast::<foreign::Object>().unwrap();
+                                let obj = obj.borrow();
+                                if obj.to_delete() {
+                                    offset += 1;
+                                } else {
+                                    offset += bytes_v64(obj.get_skill_id() as i64);
+                                }
                             } else {
-                                offset += bytes_v64(obj.get_skill_id() as i64);
+                                offset += 1;
                             }
                         } else {
                             offset += 1;
@@ -348,15 +371,21 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::User(obj) => {
                             if let Some(obj) = obj {
-                                let obj = obj.nucast::<foreign::Object>().unwrap();
-                                let obj = obj.borrow(); // borrowing madness
+                                // Utter mandness
+                                if let Some(obj) = obj.upgrade() {
+                                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                                    let obj = obj.borrow();
 
-                                if obj.to_delete() {
-                                    writer.write_i8(0)?;
-                                    writer.write_i8(0)?;
+                                    if obj.to_delete() {
+                                        writer.write_i8(0)?;
+                                        writer.write_i8(0)?;
+                                    } else {
+                                        writer.write_v64((obj.skill_type_id() - 31) as i64)?;
+                                        writer.write_v64(obj.get_skill_id() as i64)?;
+                                    }
                                 } else {
-                                    writer.write_v64((obj.skill_type_id() - 31) as i64)?;
-                                    writer.write_v64(obj.get_skill_id() as i64)?;
+                                    writer.write_i8(0)?;
+                                    writer.write_i8(0)?;
                                 }
                             } else {
                                 writer.write_i8(0)?;
@@ -483,13 +512,18 @@ impl FieldDeclaration {
                 match data {
                     foreign::FieldData::User(obj) => {
                         if let Some(obj) = obj {
-                            let obj = obj.nucast::<foreign::Object>().unwrap();
-                            let obj = obj.borrow(); // borrowing madness
+                            // Utter madness
+                            if let Some(obj) = obj.upgrade() {
+                                let obj = obj.nucast::<foreign::Object>().unwrap();
+                                let obj = obj.borrow();
 
-                            if obj.to_delete() {
-                                writer.write_i8(0)?;
+                                if obj.to_delete() {
+                                    writer.write_i8(0)?;
+                                } else {
+                                    writer.write_v64(obj.get_skill_id() as i64)?;
+                                }
                             } else {
-                                writer.write_v64(obj.get_skill_id() as i64)?;
+                                writer.write_i8(0)?;
                             }
                         } else {
                             writer.write_i8(0)?;
@@ -683,11 +717,15 @@ impl io::FieldDeclaration for FieldDeclaration {
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::User(obj) => {
                             if let Some(obj) = obj {
-                                if obj.borrow().to_delete() {
-                                    offset += 2;
+                                if let Some(obj) = obj.upgrade() {
+                                    if obj.borrow().to_delete() {
+                                        offset += 2;
+                                    } else {
+                                        offset += bytes_v64(obj.borrow().skill_type_id() as i64)
+                                            + bytes_v64(obj.borrow().get_skill_id() as i64);
+                                    }
                                 } else {
-                                    offset += bytes_v64(obj.borrow().skill_type_id() as i64)
-                                        + bytes_v64(obj.borrow().get_skill_id() as i64);
+                                    offset += 2
                                 }
                             } else {
                                 offset += 2
@@ -795,10 +833,14 @@ impl io::FieldDeclaration for FieldDeclaration {
                 match &obj.foreign_fields()[self.foreign_vec_index] {
                     foreign::FieldData::User(obj) => {
                         if let Some(obj) = obj {
-                            if obj.borrow().to_delete() {
-                                offset += 1;
+                            if let Some(obj) = obj.upgrade() {
+                                if obj.borrow().to_delete() {
+                                    offset += 1;
+                                } else {
+                                    offset += bytes_v64(obj.borrow().get_skill_id() as i64);
+                                }
                             } else {
-                                offset += bytes_v64(obj.borrow().get_skill_id() as i64);
+                                offset += 1;
                             }
                         } else {
                             offset += 1;
@@ -897,14 +939,19 @@ impl io::FieldDeclaration for FieldDeclaration {
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::User(obj) => {
                             if let Some(obj) = obj {
-                                let obj = obj.nucast::<foreign::Object>().unwrap();
-                                let obj = obj.borrow(); // borrowing madness
-                                if obj.to_delete() {
-                                    writer.write_i8(0)?;
-                                    writer.write_i8(0)?;
+                                if let Some(obj) = obj.upgrade() {
+                                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                                    let obj = obj.borrow(); // borrowing madness
+                                    if obj.to_delete() {
+                                        writer.write_i8(0)?;
+                                        writer.write_i8(0)?;
+                                    } else {
+                                        writer.write_v64((obj.skill_type_id() - 31) as i64)?;
+                                        writer.write_v64(obj.get_skill_id() as i64)?;
+                                    }
                                 } else {
-                                    writer.write_v64((obj.skill_type_id() - 31) as i64)?;
-                                    writer.write_v64(obj.get_skill_id() as i64)?;
+                                    writer.write_i8(0)?;
+                                    writer.write_i8(0)?;
                                 }
                             } else {
                                 writer.write_i8(0)?;
@@ -1079,13 +1126,17 @@ impl io::FieldDeclaration for FieldDeclaration {
                 match &obj.foreign_fields()[self.foreign_vec_index] {
                     foreign::FieldData::User(obj) => {
                         if let Some(obj) = obj {
-                            let obj = obj.nucast::<foreign::Object>().unwrap();
-                            let obj = obj.borrow(); // borrowing madness
+                            if let Some(obj) = obj.upgrade() {
+                                let obj = obj.nucast::<foreign::Object>().unwrap();
+                                let obj = obj.borrow(); // borrowing madness
 
-                            if obj.to_delete() {
-                                writer.write_i8(0)?;
+                                if obj.to_delete() {
+                                    writer.write_i8(0)?;
+                                } else {
+                                    writer.write_v64(obj.get_skill_id() as i64)?;
+                                }
                             } else {
-                                writer.write_v64(obj.get_skill_id() as i64)?;
+                                writer.write_i8(0)?;
                             }
                         } else {
                             writer.write_i8(0)?;

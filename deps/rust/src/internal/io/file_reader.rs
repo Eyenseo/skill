@@ -213,7 +213,7 @@ impl FileReader {
                     }));
                 }
                 trace!(target: "SkillParsing", "~~~~FieldType = User ID {:?}", user);
-                Ok(FieldType::User(pools[user as usize - 32].clone()))
+                Ok(FieldType::User(Rc::downgrade(&pools[user as usize - 32])))
             }
         }
     }

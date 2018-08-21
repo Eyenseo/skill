@@ -2,7 +2,7 @@ use common::internal::PoolProxy;
 
 use std::cell::RefCell;
 use std::fmt;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 pub(crate) enum BuildInType {
     ConstTi8,
@@ -58,7 +58,7 @@ impl fmt::Display for BuildInType {
 
 pub(crate) enum FieldType {
     BuildIn(BuildInType),
-    User(Rc<RefCell<PoolProxy>>),
+    User(Weak<RefCell<PoolProxy>>),
 }
 
 pub(crate) fn bytes_v64(what: i64) -> usize {
@@ -87,7 +87,7 @@ impl fmt::Display for FieldType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             FieldType::BuildIn(build_in) => write!(f, "{}", build_in),
-            FieldType::User(pool) => match pool.try_borrow() {
+            FieldType::User(pool) => match pool.upgrade().unwrap().try_borrow() {
                 Ok(pool) => write!(f, "User{}", pool.pool().name().as_str()),
                 Err(_) => {
                     write!(
@@ -95,9 +95,9 @@ impl fmt::Display for FieldType {
                         "Some UserType - the pool is borrowed \
                          mutable so there is no more information \
                          available than its pointer: {:?} Good Luck!",
-                        pool as *const Rc<RefCell<PoolProxy>>,
+                        pool as *const Weak<RefCell<PoolProxy>>,
                         // NOTE use with care! It destroyes all guarantees
-                        // unsafe { (*pool.as_ptr()).pool().name().as_str() }
+                        // unsafe { (*pool.upgrade().unwrap().as_ptr()).pool().name().as_str() }
                     )
                 }
             },

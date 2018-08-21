@@ -32,8 +32,15 @@ impl Iterator for Iter {
             let next = current.borrow().pool().get_next_pool();
 
             if let Some(next) = next {
-                if next.borrow().pool().type_hierarchy_height() > self.type_hierarchy_height {
-                    self.current = Some(next);
+                if next
+                    .upgrade()
+                    .unwrap()
+                    .borrow()
+                    .pool()
+                    .type_hierarchy_height()
+                    > self.type_hierarchy_height
+                {
+                    self.current = Some(next.upgrade().unwrap());
                 } else {
                     self.current = None;
                 }

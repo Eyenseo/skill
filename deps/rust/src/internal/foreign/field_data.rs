@@ -18,7 +18,7 @@ pub(crate) enum FieldData {
     Set(HashSet<FieldData>),
     Map(HashMap<FieldData, FieldData>),
     Array(Vec<FieldData>),
-    User(Option<Ptr<SkillObject>>),
+    User(Option<WeakPtr<SkillObject>>),
 }
 
 impl PartialEq for FieldData {

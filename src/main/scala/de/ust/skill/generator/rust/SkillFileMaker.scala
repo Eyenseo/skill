@@ -450,8 +450,14 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §    ));${
           if (base.getSuperType != null) {
             e"""
-               §self.${field(base.getSuperType)}.as_ref().unwrap().borrow_mut().pool_mut().add_sub(pool.clone());
-               §pool.borrow_mut().pool_mut().set_super(self.${field(base.getSuperType)}.as_ref().unwrap().clone());"""
+               §self.${field(base.getSuperType)}.as_ref().unwrap().borrow_mut().pool_mut().add_sub(&{
+               §    // Utter madness...
+               §    pool.clone() as Rc<RefCell<PoolProxy>>
+               §});
+               §pool.borrow_mut().pool_mut().set_super(&{
+               §    // Utter madness...
+               §    self.${field(base.getSuperType)}.as_ref().unwrap().clone() as Rc<RefCell<PoolProxy>>
+               §});"""
               .stripMargin('§')
           } else {
             ""
@@ -546,8 +552,14 @@ trait SkillFileMaker extends GeneralOutputMaker {
                §        found: super_name,
                §    }));
                §} else {
-               §    super_pool.borrow_mut().pool_mut().add_sub(self.${field(base)}.as_ref().unwrap().clone());
-               §    self.${field(base)}.as_ref().unwrap().borrow_mut().pool_mut().set_super(super_pool);
+               §    super_pool.borrow_mut().pool_mut().add_sub(&{
+               §        // Utter madness...
+               §        self.${field(base)}.as_ref().unwrap().clone() as Rc<RefCell<PoolProxy>>
+               §    });
+               §    self.${field(base)}.as_ref().unwrap().borrow_mut().pool_mut().set_super(&{
+               §        // Utter madness...
+               §        super_pool as Rc<RefCell<PoolProxy>>
+               §    });
                §}
                §""".stripMargin('§').trim
           }
@@ -581,8 +593,14 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §                super_pool.clone(),
        §            )));
        §            if let Some(super_pool) = super_pool {
-       §                super_pool.borrow_mut().pool_mut().add_sub(pool.clone());
-       §                pool.borrow_mut().pool_mut().set_super(super_pool);
+       §                super_pool.borrow_mut().pool_mut().add_sub(&{
+       §                    // Utter madness...
+       §                    pool.clone() as Rc<RefCell<PoolProxy>>
+       §                });
+       §                pool.borrow_mut().pool_mut().set_super(&{
+       §                    // Utter madness...
+       §                    super_pool.clone() as Rc<RefCell<PoolProxy>>
+       §                });
        §            }
        §            self.foreign_pools.push(pool.clone());
        §            Ok(pool)

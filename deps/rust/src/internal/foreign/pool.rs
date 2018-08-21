@@ -6,15 +6,21 @@ use SkillFile;
 use SkillFileBuilder;
 
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 struct Maker {
-    super_pool: Option<Rc<RefCell<PoolProxy>>>,
+    super_pool: Option<Weak<RefCell<PoolProxy>>>,
 }
 
 impl Maker {
     pub(crate) fn new(super_pool: Option<Rc<RefCell<PoolProxy>>>) -> Maker {
-        Maker { super_pool }
+        Maker {
+            super_pool: if let Some(pool) = super_pool {
+                Some(Rc::downgrade(&pool))
+            } else {
+                None
+            },
+        }
     }
 }
 
@@ -36,7 +42,12 @@ impl PoolPartsMaker for Maker {
 
     fn make_instance(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
         if let Some(pool) = self.super_pool.as_ref() {
-            return pool.borrow().pool().make_foreign(skill_id, skill_type_id);
+            return pool
+                .upgrade()
+                .unwrap()
+                .borrow()
+                .pool()
+                .make_foreign(skill_id, skill_type_id);
         }
         trace!(
             target: "SkillParsing",
@@ -47,7 +58,12 @@ impl PoolPartsMaker for Maker {
 
     fn make_foreign(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
         if let Some(pool) = self.super_pool.as_ref() {
-            return pool.borrow().pool().make_foreign(skill_id, skill_type_id);
+            return pool
+                .upgrade()
+                .unwrap()
+                .borrow()
+                .pool()
+                .make_foreign(skill_id, skill_type_id);
         }
         trace!(
             target: "SkillParsing",

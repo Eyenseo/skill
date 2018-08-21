@@ -125,7 +125,12 @@ impl TypeBlock {
             }
             {
                 let mut local_bpo = if let Some(base_pool) = type_pool.borrow().pool().get_base() {
-                    base_pool.borrow().pool().get_global_cached_count()
+                    base_pool
+                        .upgrade()
+                        .unwrap()
+                        .borrow()
+                        .pool()
+                        .get_global_cached_count()
                 } else {
                     type_pool.borrow().pool().get_global_cached_count()
                 };
@@ -134,6 +139,7 @@ impl TypeBlock {
                 let mut type_pool = type_pool.pool_mut();
 
                 if let Some(super_pool) = type_pool.get_super() {
+                    let super_pool = super_pool.upgrade().unwrap();
                     let super_pool = super_pool.borrow();
 
                     if instances != 0 {
@@ -178,6 +184,7 @@ impl TypeBlock {
                 pool.set_global_cached_count(tmp);
 
                 if let Some(super_pool) = pool.get_super() {
+                    let mut super_pool = super_pool.upgrade().unwrap();
                     let mut super_pool = super_pool.borrow_mut();
                     let mut super_pool = super_pool.pool_mut();
 

@@ -7,7 +7,7 @@ use SkillFile;
 use SkillFileBuilder;
 
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 pub(crate) trait PoolMaker {
     fn make_pool(
@@ -46,10 +46,10 @@ pub(crate) struct Pool {
     name: Rc<SkillString>,
     type_id: usize,
     blocks: Vec<Block>,
-    super_pool: Option<Rc<RefCell<PoolProxy>>>,
-    sub_pools: Vec<Rc<RefCell<PoolProxy>>>,
-    base_pool: Option<Rc<RefCell<PoolProxy>>>,
-    next_pool: Option<Rc<RefCell<PoolProxy>>>,
+    super_pool: Option<Weak<RefCell<PoolProxy>>>,
+    sub_pools: Vec<Weak<RefCell<PoolProxy>>>,
+    base_pool: Option<Weak<RefCell<PoolProxy>>>,
+    next_pool: Option<Weak<RefCell<PoolProxy>>>,
     static_count: usize,
     dynamic_count: usize,
     cached_count: usize,
@@ -284,13 +284,13 @@ impl Pool {
         &self.blocks
     }
 
-    pub(crate) fn add_sub(&mut self, pool: Rc<RefCell<PoolProxy>>) {
-        self.sub_pools.push(pool);
+    pub(crate) fn add_sub(&mut self, pool: &Rc<RefCell<PoolProxy>>) {
+        self.sub_pools.push(Rc::downgrade(pool));
     }
 
-    pub(crate) fn set_super(&mut self, pool: Rc<RefCell<PoolProxy>>) {
+    pub(crate) fn set_super(&mut self, pool: &Rc<RefCell<PoolProxy>>) {
         if pool.borrow().pool().is_base() {
-            self.base_pool = Some(pool.clone());
+            self.base_pool = Some(Rc::downgrade(pool));
         } else {
             self.base_pool = pool.borrow().pool().get_base(); // TODO check?
         }
@@ -298,17 +298,19 @@ impl Pool {
             .base_pool
             .as_ref()
             .unwrap()
+            .upgrade()
+            .unwrap()
             .borrow()
             .pool()
             .get_base_vec();
         self.type_hierarchy_height = pool.borrow().pool().type_hierarchy_height() + 1;
-        self.super_pool = Some(pool);
+        self.super_pool = Some(Rc::downgrade(pool));
     }
-    pub(crate) fn get_super(&self) -> Option<Rc<RefCell<PoolProxy>>> {
+    pub(crate) fn get_super(&self) -> Option<Weak<RefCell<PoolProxy>>> {
         self.super_pool.clone()
     }
 
-    pub(crate) fn get_base(&self) -> Option<Rc<RefCell<PoolProxy>>> {
+    pub(crate) fn get_base(&self) -> Option<Weak<RefCell<PoolProxy>>> {
         self.base_pool.clone()
     }
     pub(crate) fn is_base(&self) -> bool {
@@ -336,6 +338,7 @@ impl Pool {
             if invariant {
                 self.cached_count = self.static_size() - self.deleted_count;
                 for s in self.sub_pools.iter() {
+                    let mut s = s.upgrade().unwrap();
                     let mut s = s.borrow_mut();
                     let mut s = s.pool_mut();
                     s.set_invariant(true);
@@ -344,6 +347,8 @@ impl Pool {
             } else if self.super_pool.is_some() {
                 self.super_pool
                     .as_ref()
+                    .unwrap()
+                    .upgrade()
                     .unwrap()
                     .borrow_mut()
                     .pool_mut()
@@ -419,21 +424,29 @@ impl Pool {
             self.next_pool = Some(self.sub_pools.first().unwrap().clone());
             for i in 0..self.sub_pools.len() - 1 {
                 self.sub_pools[i]
+                    .upgrade()
+                    .unwrap()
                     .borrow_mut()
                     .pool_mut()
-                    .set_next_pool(Some(self.sub_pools[i + 1].clone()));
+                    .set_next_pool(Some(self.sub_pools[i + 1].upgrade().unwrap()));
             }
             self.sub_pools
                 .last()
+                .unwrap()
+                .upgrade()
                 .unwrap()
                 .borrow_mut()
                 .pool_mut()
                 .set_next_pool(pool);
         } else {
-            self.next_pool = pool;
+            if let Some(pool) = pool {
+                self.next_pool = Some(Rc::downgrade(&pool));
+            } else {
+                self.next_pool = None;
+            }
         }
     }
-    pub(crate) fn get_next_pool(&self) -> Option<Rc<RefCell<PoolProxy>>> {
+    pub(crate) fn get_next_pool(&self) -> Option<Weak<RefCell<PoolProxy>>> {
         self.next_pool.clone()
     }
     pub(crate) fn type_hierarchy_height(&self) -> usize {
@@ -464,7 +477,7 @@ impl Pool {
         // FIXME restrictions
         writer.write_v64(0)?;
         if let Some(s) = self.get_super() {
-            writer.write_v64((s.borrow().pool().get_type_id() - 31) as i64)?;
+            writer.write_v64((s.upgrade().unwrap().borrow().pool().get_type_id() - 31) as i64)?;
             if self.get_local_dynamic_count() != 0 {
                 writer.write_v64(local_bpos[self.get_type_id() - 32] as i64)?;
             }
