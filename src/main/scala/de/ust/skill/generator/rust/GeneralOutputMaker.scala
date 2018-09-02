@@ -278,4 +278,17 @@ trait GeneralOutputMaker extends Generator {
       ArrayBuffer[LanguageCustomization]()
     }
   }
+
+  protected final def genTypeId(base: Declaration): Int = {
+    val id = IR.indexOf(base)
+    if (id == -1) {
+      val id = IRInterfaces.indexOf(base)
+      if (id == -1) {
+        throw new GeneratorException("Couldn't find " + base.getName)
+      }
+      IR.size + 1 + id
+    } else {
+      id
+    }
+  }
 }

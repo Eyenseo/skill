@@ -38,7 +38,7 @@ class APITests extends common.GenericAPITests {
   }
 
   // NOTE cyclic dependencies are not allowed
-  var extraTests = Array(
+  var extraTests = Array[ExtraTest](
                           new ExtraTest(
                                          new File("deps/rust/tests/undefined_read_write_read.rs"),
                                          Array(

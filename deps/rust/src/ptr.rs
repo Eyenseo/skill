@@ -271,7 +271,7 @@ const WRITING: BorrowFlag = !0;
 
 #[derive(Debug)]
 struct MetaData {
-    type_id: TypeId,
+    cast_id: usize,
     strong: Cell<usize>,
     weak: Cell<usize>,
     borrow: Cell<BorrowFlag>,
@@ -285,11 +285,14 @@ where
     value: NonNull<T>,
 }
 
-impl<T: 'static> Ptr<T> {
-    pub fn new(value: T) -> Ptr<T> {
+impl<T> Ptr<T>
+where
+    T: 'static + CastAble,
+{
+    pub(crate) fn new(value: T) -> Ptr<T> {
         let p = Ptr {
             meta: Box::into_raw_non_null(Box::new(MetaData {
-                type_id: TypeId::of::<T>(),
+                cast_id: T::cast_id(),
                 strong: Cell::new(1),
                 weak: Cell::new(1),
                 borrow: Cell::new(UNUSED),
@@ -354,34 +357,35 @@ mod diggsey {
 
 pub(crate) use self::diggsey::*;
 
+pub trait CastAble {
+    fn cast_id() -> usize;
+}
+
 impl<T> Ptr<T>
 where
     T: ?Sized,
 {
     pub fn cast<U>(&self) -> Option<Ptr<U>>
     where
-        U: ?Sized + 'static,
+        U: ?Sized + 'static + CastAble,
     {
-        if let Some(map) = VALID_CASTS.get(&unsafe { self.meta.as_ref() }.type_id) {
-            if let Some(vtable) = map.get(&::std::any::TypeId::of::<U>()) {
-                unsafe {
-                    let mut t = TraitObject {
-                        data: self.value.as_ptr() as *const (),
-                        vtable: *vtable,
-                    };
-                    let value = NonNull::new_unchecked(
-                        // NOTE mut-ref-ptr-to T to mut-ref-ptr-to U
-                        *::std::mem::transmute::<_, &mut *mut U>(&mut t),
-                    );
-                    let meta = self.meta.as_ref();
-                    meta.strong.set(meta.strong.get() + 1);
-                    Some(Ptr {
-                        meta: self.meta,
-                        value,
-                    })
-                }
-            } else {
-                None
+        let own_id = unsafe { self.meta.as_ref() }.cast_id;
+        if let Some(vtable) = VALID_CASTS[own_id][U::cast_id()] {
+            unsafe {
+                let mut t = TraitObject {
+                    data: self.value.as_ptr() as *const (),
+                    vtable,
+                };
+                let value = NonNull::new_unchecked(
+                    // NOTE mut-ref-ptr-to T to mut-ref-ptr-to U
+                    *::std::mem::transmute::<_, &mut *mut U>(&mut t),
+                );
+                let meta = self.meta.as_ref();
+                meta.strong.set(meta.strong.get() + 1);
+                Some(Ptr {
+                    meta: self.meta,
+                    value,
+                })
             }
         } else {
             None
@@ -527,13 +531,19 @@ impl<T: ?Sized> Clone for Ptr<T> {
 
 impl<T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<Ptr<U>> for Ptr<T> {}
 
-impl<T: 'static> From<T> for Ptr<T> {
+impl<T> From<T> for Ptr<T>
+where
+    T: 'static + CastAble,
+{
     fn from(t: T) -> Self {
         Ptr::new(t)
     }
 }
 
-impl<T: Default + 'static> Default for Ptr<T> {
+impl<T> Default for Ptr<T>
+where
+    T: Default + 'static + CastAble,
+{
     /// Creates a new `Rc<T>`, with the `Default` value for `T`.
     ///
     /// # Examples
@@ -855,12 +865,30 @@ impl<T: ?Sized> Hash for WeakPtr<T> {
 mod tests {
     use super::*;
 
+    impl<T> Ptr<T>
+    where
+        T: 'static,
+    {
+        fn new_t(value: T) -> Ptr<T> {
+            let p = Ptr {
+                meta: Box::into_raw_non_null(Box::new(MetaData {
+                    cast_id: 0,
+                    strong: Cell::new(1),
+                    weak: Cell::new(1),
+                    borrow: Cell::new(UNUSED),
+                })),
+                value: Box::into_raw_non_null(Box::new(value)), // NOTE this is bad for cache - would be nice if the box could be removed
+            };
+            p
+        }
+    }
+
     mod ptr {
         use super::*;
 
         #[test]
         fn strong_weak_strong() {
-            let strong = Ptr::new(42);
+            let strong = Ptr::new_t(42);
             let weak = strong.clone().downgrade();
             let weak_strong = weak.upgrade();
 
@@ -876,7 +904,7 @@ mod tests {
 
         #[test]
         fn double_borrow() {
-            let ptr = Ptr::new(42);
+            let ptr = Ptr::new_t(42);
             let b1 = ptr.borrow();
             let b2 = ptr.borrow();
 
@@ -886,7 +914,7 @@ mod tests {
 
         #[test]
         fn single_borrow_mut() {
-            let ptr = Ptr::new(42);
+            let ptr = Ptr::new_t(42);
 
             let b1 = ptr.borrow_mut();
 
@@ -896,7 +924,7 @@ mod tests {
         #[test]
         #[should_panic]
         fn double_borrow_mut() {
-            let ptr = Ptr::new(42);
+            let ptr = Ptr::new_t(42);
 
             let b1 = ptr.borrow_mut();
             let b2 = ptr.borrow_mut(); // should panic
@@ -912,7 +940,7 @@ mod tests {
 
         #[test]
         fn test_clone() {
-            let x = Ptr::new(5);
+            let x = Ptr::new_t(5);
             let y = x.clone();
             *x.borrow_mut() = 20;
             assert_eq!(*y.borrow(), 20);
@@ -920,13 +948,13 @@ mod tests {
 
         #[test]
         fn test_simple() {
-            let x = Ptr::new(5);
+            let x = Ptr::new_t(5);
             assert_eq!(*x.borrow(), 5);
         }
 
         #[test]
         fn test_simple_clone() {
-            let x = Ptr::new(5);
+            let x = Ptr::new_t(5);
             let y = x.clone();
             assert_eq!(*x.borrow(), 5);
             assert_eq!(*y.borrow(), 5);
@@ -934,20 +962,20 @@ mod tests {
 
         #[test]
         fn test_destructor() {
-            let x: Ptr<Box<_>> = Ptr::new(Box::new(5));
+            let x: Ptr<Box<_>> = Ptr::new_t(Box::new(5));
             assert_eq!(**x.borrow(), 5);
         }
 
         #[test]
         fn test_live() {
-            let x = Ptr::new(5);
+            let x = Ptr::new_t(5);
             let y = x.clone().downgrade();
             assert!(y.upgrade().is_some());
         }
 
         #[test]
         fn test_dead() {
-            let x = Ptr::new(5);
+            let x = Ptr::new_t(5);
             let y = x.clone().downgrade();
             drop(x);
             assert!(y.upgrade().is_none());
@@ -959,7 +987,7 @@ mod tests {
                 x: RefCell<Option<WeakPtr<Cycle>>>,
             }
 
-            let a = Ptr::new(Cycle {
+            let a = Ptr::new_t(Cycle {
                 x: RefCell::new(None),
             });
             let b = a.clone().downgrade();
@@ -972,7 +1000,7 @@ mod tests {
 
         #[test]
         fn is_unique() {
-            let x = Ptr::new(3);
+            let x = Ptr::new_t(3);
             assert!(Ptr::is_unique(&x));
             let y = x.clone();
             assert!(!Ptr::is_unique(&x));
@@ -986,7 +1014,7 @@ mod tests {
 
         #[test]
         fn test_strong_count() {
-            let a = Ptr::new(0);
+            let a = Ptr::new_t(0);
             assert!(Ptr::strong_count(&a) == 1);
             let w = Ptr::downgrade(&a);
             assert!(Ptr::strong_count(&a) == 1);
@@ -1003,7 +1031,7 @@ mod tests {
 
         #[test]
         fn test_weak_count() {
-            let a = Ptr::new(0);
+            let a = Ptr::new_t(0);
             assert!(Ptr::strong_count(&a) == 1);
             assert!(Ptr::weak_count(&a) == 0);
             let w = Ptr::downgrade(&a);
@@ -1063,36 +1091,37 @@ mod tests {
         //  TODO do we want this?
         //  #[test]
         //  fn test_show() {
-        //      let foo = Ptr::new(75);
+        //      let foo = Ptr::new_t(75);
         //      assert_eq!(format!("{:?}", foo), "75");
         //  }
 
         //  TODO we want this
         //  #[test]
         //  fn test_unsized() {
-        //      let foo: Ptr<[i32]> = Ptr::new([1, 2, 3]);
+        //      let foo: Ptr<[i32]> = Ptr::new_t([1, 2, 3]);
         //      assert_eq!(foo, foo.clone());
         //  }
 
-        #[test]
-        fn test_from_owned() {
-            let foo = 123;
-            let foo_rc = Ptr::from(foo);
-            assert!(123 == *foo_rc.borrow());
-        }
+        // NOTE this dosn't work as form has the CastAble bound
+        //  #[test]
+        //  fn test_from_owned() {
+        //      let foo = 123;
+        //      let foo_rc = Ptr::from(foo);
+        //      assert!(123 == *foo_rc.borrow());
+        //  }
 
         //  TODO do we need this? (for inits?)
         //  #[test]
         //  fn test_new_weak() {
-        //      let foo: WeakPtr<usize> = WeakPtr::new();
+        //      let foo: WeakPtr<usize> = WeakPtr::new_t();
         //      assert!(foo.upgrade().is_none());
         //  }
 
         #[test]
         fn test_ptr_eq() {
-            let five = Ptr::new(5);
+            let five = Ptr::new_t(5);
             let same_five = five.clone();
-            let other_five = Ptr::new(5);
+            let other_five = Ptr::new_t(5);
 
             assert!(Ptr::ptr_eq(&five, &same_five));
             assert!(!Ptr::ptr_eq(&five, &other_five));

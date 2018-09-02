@@ -21,6 +21,7 @@ trait PtrMaker extends GeneralOutputMaker {
                e"""${genUsage()}
                   §
                   §${genLookUpMap()}
+                  §${genCastAbles()}
                   §""".stripMargin('§')
              )
     out.close()
@@ -37,8 +38,11 @@ trait PtrMaker extends GeneralOutputMaker {
                    §use common::internal::foreign;
                    §use common::ptr::VTable;
                    §use common::ptr::TraitObject;
+                   §use common::ptr::CastAble;
                    §
-                   §use std::collections::HashMap;
+                   §use std::any::TypeId;
+                   §use std::mem::transmute;
+                   §use std::ptr::null;
                    §
                    §""".stripMargin('§')
               )
@@ -72,7 +76,7 @@ trait PtrMaker extends GeneralOutputMaker {
     var map = ArrayBuffer[(Declaration with WithInheritance, List[Declaration with WithInheritance])]()
 
     for (t ← IR) {
-      map += (t → makeInheritanceMap(t))
+      map.append(t → makeInheritanceMap(t))
     }
     map.toMap
   }
@@ -93,83 +97,106 @@ trait PtrMaker extends GeneralOutputMaker {
     map.toList.distinct
   }
 
+  private final def makeLookupArray(base: Declaration, valids: List[Declaration]): String = {
+    val arr = ArrayBuffer.fill(IR.size + IRInterfaces.size + 2)(
+                                                                 e"""None,
+                                                                    §""".stripMargin('§'))
+
+    arr.update(IR.size,
+                e"""Some(unsafe {transmute::<_, TraitObject>(
+                   §    null::<foreign::Foreign>() as *const foreign::ForeignObject
+                   §).vtable }),
+                   §""".stripMargin('§'))
+    arr.update(IR.size + IRInterfaces.size + 1,
+                e"""Some(unsafe {transmute::<_, TraitObject>(
+                   §    null::<foreign::Foreign>() as *const SkillObject
+                   §).vtable }),
+                   §""".stripMargin('§'))
+
+    for (t ← valids) yield {
+      if (t.isInstanceOf[InterfaceType]) {
+        arr.update(genTypeId(t),
+                    e"""Some(unsafe {transmute::<_, TraitObject>(
+                       §    null::<${name(base)}>() as *const ${traitName(t)}
+                       §).vtable }),
+                       §""".stripMargin('§'))
+      } else {
+        arr.update(genTypeId(t),
+                    e"""Some(unsafe { transmute::<_, TraitObject>(
+                       §    null::<${name(t)}>() as *const ${traitName(t)}
+                       §).vtable }),
+                       §""".stripMargin('§'))
+      }
+    }
+    arr.mkString.trim
+  }
+
   private final def genLookUpMap(): String = {
     val maps = makeInheritanceMap()
 
     e"""lazy_static! {
-       §    pub(crate) static ref VALID_CASTS: HashMap<::std::any::TypeId, HashMap<std::any::TypeId, VTable>> = {
-       §        use std::any::TypeId;
-       §        use std::mem::transmute;
-       §        use std::ptr::null;
-       §
-       §        let mut map = HashMap::with_capacity(${IR.size + 1});
-       §        map.insert(
-       §            TypeId::of::<foreign::Foreign>(),
-       §            unsafe {
-       §                let mut map = HashMap::with_capacity(2);
-       §                map.insert(
-       §                    TypeId::of::<foreign::Foreign>(),
-       §                    VTable::none(),
-       §                );
-       §                map.insert(
-       §                    TypeId::of::<SkillObject>(),
-       §                    transmute::<_, TraitObject>(
-       §                        null::<foreign::Foreign>() as *const SkillObject
-       §                    ).vtable,
-       §                );
-       §                map
-       §            }
-       §        );
+       §    pub(crate) static ref VALID_CASTS: [[Option<VTable>; ${
+      IR.size + IRInterfaces.size + 2
+    }]; ${
+      IR.size + 1
+    }] = [
        §        ${
-      (for ((base, map) ← maps) yield {
-        e"""map.insert(
-           §    TypeId::of::<${name(base)}>(),
-           §    unsafe {
-           §        let mut map = HashMap::with_capacity(${map.size * 2 + 2});
-           §        map.insert(
-           §            TypeId::of::<foreign::Foreign>(),
-           §            VTable::none(),
-           §        );
-           §        map.insert(
-           §            TypeId::of::<SkillObject>(),
-           §            transmute::<_, TraitObject>(
-           §                null::<${name(base)}>() as *const SkillObject
-           §            ).vtable,
-           §        );
-           §        ${
-          (for (t ← map) yield {
-            if (t.isInstanceOf[InterfaceType]) {
-              e"""map.insert(
-                 §    TypeId::of::<${traitName(t)}>(),
-                 §    transmute::<_, TraitObject>(
-                 §        null::<${name(base)}>() as *const ${traitName(t)}
-                 §    ).vtable,
-                 §);
-                 §""".stripMargin('§')
-            } else {
-              e"""map.insert(
-                 §    TypeId::of::<${name(t)}>(),
-                 §    VTable::none(),
-                 §);
-                 §map.insert(
-                 §    TypeId::of::<${traitName(t)}>(),
-                 §    transmute::<_, TraitObject>(
-                 §        null::<${name(t)}>() as *const ${traitName(t)}
-                 §    ).vtable,
-                 §);
-                 §""".stripMargin('§')
-            }
-          }).mkString.trim
-        }
-           §        map
-           §    }
-           §);
+      (for (base ← IR) yield {
+        val map = maps(base)
+        e"""[
+           §    // ${name(base)}
+           §    ${makeLookupArray(base, map)}
+           §],
            §""".stripMargin('§')
       }).mkString.trim
     }
-       §        map
-       §    };
+       §        [
+       §            // Foreign
+       §            ${makeLookupArray(null, List())}
+       §        ],
+       §    ];
        §}
        §""".stripMargin('§')
   }
+
+  //----------------------------------------
+  // CastAbles
+  //----------------------------------------
+  private final def genCastAbles(): String = {
+    e"""impl CastAble for foreign::Foreign {
+       §    fn cast_id() -> usize {
+       §        ${IR.size}
+       §    }
+       §}
+       § §impl CastAble for SkillObject {
+       §    fn cast_id() -> usize {
+       §        ${IR.size + IRInterfaces.size + 1}
+       §    }
+       §}
+       §
+       §""".stripMargin('§') +
+    (for (base ← IR) yield {
+      e"""impl CastAble for ${name(base)} {
+         §    fn cast_id() -> usize {
+         §        ${genTypeId(base)}
+         §    }
+         §}
+         §impl CastAble for ${traitName(base)} {
+         §    fn cast_id() -> usize {
+         §        ${genTypeId(base)}
+         §    }
+         §}
+         §
+         §""".stripMargin('§')
+    }).mkString +
+    (for (base ← IRInterfaces) yield {
+      e"""impl CastAble for ${traitName(base)} {
+         §    fn cast_id() -> usize {
+         §        ${genTypeId(base)}
+         §    }
+         §}
+         §
+         §""".stripMargin('§')
+    }).mkString
+  }.trim
 }
