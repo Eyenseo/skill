@@ -72,8 +72,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    a.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    a.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(c.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -83,8 +83,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    c.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    c.clone().cast::<SkillObject>(),
                 );
                 sf.close()?;
                 Ok(())
@@ -130,8 +130,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    a.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    a.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(c.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -141,8 +141,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    c.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    c.clone().cast::<SkillObject>(),
                 );
                 sf.close()?;
                 Ok(())

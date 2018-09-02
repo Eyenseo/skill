@@ -13,6 +13,6 @@ pub trait SkillObject: Deletable {
 
     fn get_skill_id(&self) -> usize;
     // NOTE this should be mutable but is not because of String - have a look at SkillString
-    // NOTE this has to chekc that id != DELETE
+    // NOTE this has to check that id != DELETE
     fn set_skill_id(&self, id: usize) -> Result<(), SkillFail>;
 }

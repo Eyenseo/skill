@@ -53,7 +53,6 @@ mod tests {
 
             match SkillFile::create(
                 "/tmp/api_basic_types_foreign_basic_types_28ab2b82-9815-4ef7-8806-7a0d23ccccad.sf",
-                FileMode::RW,
             ) {
                 Ok(mut sf) => match || -> Result<(), SkillFail> {
                     sf.check()?;
@@ -74,14 +73,14 @@ mod tests {
                     all.borrow_mut().set_a_user_type(Some(
                         all_aUserType_obj
                             .clone()
-                            .nucast::<BasicIntegers>()
+                            .cast::<BasicIntegers>()
                             .unwrap()
                             .downgrade(),
                     ));
                     all.borrow_mut().set_a_string(Some(
                         all_aString_obj
                             .clone()
-                            .nucast::<BasicString>()
+                            .cast::<BasicString>()
                             .unwrap()
                             .downgrade(),
                     ));
@@ -103,7 +102,7 @@ mod tests {
                         vec.push(Some(
                             all_aUserType_obj
                                 .clone()
-                                .nucast::<BasicIntegers>()
+                                .cast::<BasicIntegers>()
                                 .unwrap()
                                 .downgrade(),
                         ));
@@ -112,14 +111,14 @@ mod tests {
                     all.borrow_mut().set_an_annotation(Some(
                         all_aBool_obj
                             .clone()
-                            .nucast::<SkillObject>()
+                            .cast::<SkillObject>()
                             .unwrap()
                             .downgrade(),
                     ));
                     all.borrow_mut().set_another_user_type(Some(
                         all_anotherUserType_obj
                             .clone()
-                            .nucast::<BasicFloats>()
+                            .cast::<BasicFloats>()
                             .unwrap()
                             .downgrade(),
                     ));
@@ -132,7 +131,7 @@ mod tests {
                     all.borrow_mut().set_a_bool(Some(
                         all_aBool_obj
                             .clone()
-                            .nucast::<BasicBool>()
+                            .cast::<BasicBool>()
                             .unwrap()
                             .downgrade(),
                     ));
@@ -142,49 +141,49 @@ mod tests {
                     all_anotherUserType_obj.borrow_mut().set_float32(Some(
                         all_anotherUserType_obj_float32_obj
                             .clone()
-                            .nucast::<BasicFloat32>()
+                            .cast::<BasicFloat32>()
                             .unwrap()
                             .downgrade(),
                     ));
                     all_anotherUserType_obj.borrow_mut().set_float64(Some(
                         all_anotherUserType_obj_float64_obj
                             .clone()
-                            .nucast::<BasicFloat64>()
+                            .cast::<BasicFloat64>()
                             .unwrap()
                             .downgrade(),
                     ));
                     all_aUserType_obj.borrow_mut().set_int32(Some(
                         all_aUserType_obj_int32_obj
                             .clone()
-                            .nucast::<BasicInt32>()
+                            .cast::<BasicInt32>()
                             .unwrap()
                             .downgrade(),
                     ));
                     all_aUserType_obj.borrow_mut().set_int8(Some(
                         all_aUserType_obj_int8_obj
                             .clone()
-                            .nucast::<BasicInt8>()
+                            .cast::<BasicInt8>()
                             .unwrap()
                             .downgrade(),
                     ));
                     all_aUserType_obj.borrow_mut().set_int64v(Some(
                         all_aUserType_obj_int64V_obj
                             .clone()
-                            .nucast::<BasicInt64V>()
+                            .cast::<BasicInt64V>()
                             .unwrap()
                             .downgrade(),
                     ));
                     all_aUserType_obj.borrow_mut().set_int64i(Some(
                         all_aUserType_obj_int64I_obj
                             .clone()
-                            .nucast::<BasicInt64I>()
+                            .cast::<BasicInt64I>()
                             .unwrap()
                             .downgrade(),
                     ));
                     all_aUserType_obj.borrow_mut().set_int16(Some(
                         all_aUserType_obj_int16_obj
                             .clone()
-                            .nucast::<BasicInt16>()
+                            .cast::<BasicInt16>()
                             .unwrap()
                             .downgrade(),
                     ));
@@ -219,8 +218,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        all_aUserType_obj.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        all_aUserType_obj.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(all.borrow_mut().get_a_string().is_some(), true);
                     assert_eq!(
@@ -230,8 +229,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        all_aString_obj.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        all_aString_obj.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(*all.borrow_mut().get_a_list(), {
                         let mut list: LinkedList<f32> = LinkedList::default();
@@ -251,7 +250,7 @@ mod tests {
                         vec.push(Some(
                             all_aUserType_obj
                                 .clone()
-                                .nucast::<BasicIntegers>()
+                                .cast::<BasicIntegers>()
                                 .unwrap()
                                 .downgrade(),
                         ));
@@ -265,8 +264,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        all_aBool_obj.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        all_aBool_obj.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(all.borrow_mut().get_another_user_type().is_some(), true);
                     assert_eq!(
@@ -276,8 +275,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        all_anotherUserType_obj.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        all_anotherUserType_obj.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(*all.borrow_mut().get_a_set(), {
                         let mut set: HashSet<i8> = HashSet::default();
@@ -293,8 +292,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        all_aBool_obj.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        all_aBool_obj.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(
                         all_aUserType_obj_int64I_obj.borrow_mut().get_basic_int(),
@@ -312,10 +311,10 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
                         all_anotherUserType_obj_float32_obj
                             .clone()
-                            .nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
                     );
                     assert_eq!(
                         all_anotherUserType_obj.borrow_mut().get_float64().is_some(),
@@ -329,10 +328,10 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
                         all_anotherUserType_obj_float64_obj
                             .clone()
-                            .nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
                     );
                     assert_eq!(all_aUserType_obj.borrow_mut().get_int32().is_some(), true);
                     assert_eq!(
@@ -343,8 +342,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        all_aUserType_obj_int32_obj.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        all_aUserType_obj_int32_obj.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(all_aUserType_obj.borrow_mut().get_int8().is_some(), true);
                     assert_eq!(
@@ -355,8 +354,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        all_aUserType_obj_int8_obj.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        all_aUserType_obj_int8_obj.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(all_aUserType_obj.borrow_mut().get_int64v().is_some(), true);
                     assert_eq!(
@@ -367,8 +366,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        all_aUserType_obj_int64V_obj.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        all_aUserType_obj_int64V_obj.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(all_aUserType_obj.borrow_mut().get_int64i().is_some(), true);
                     assert_eq!(
@@ -379,8 +378,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        all_aUserType_obj_int64I_obj.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        all_aUserType_obj_int64I_obj.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(all_aUserType_obj.borrow_mut().get_int16().is_some(), true);
                     assert_eq!(
@@ -391,8 +390,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        all_aUserType_obj_int16_obj.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        all_aUserType_obj_int16_obj.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(
                         all_aUserType_obj_int32_obj.borrow_mut().get_basic_int(),
@@ -580,8 +579,8 @@ mod tests {
                                     .unwrap()
                                     .upgrade()
                                     .unwrap()
-                                    .nucast::<SkillObject>(),
-                                all_aUserType_obj.clone().nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
+                                all_aUserType_obj.clone().cast::<SkillObject>(),
                             );
                             assert_eq!(all.borrow_mut().get_a_string().is_some(), true);
                             assert_eq!(
@@ -591,8 +590,8 @@ mod tests {
                                     .unwrap()
                                     .upgrade()
                                     .unwrap()
-                                    .nucast::<SkillObject>(),
-                                all_aString_obj.clone().nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
+                                all_aString_obj.clone().cast::<SkillObject>(),
                             );
                             assert_eq!(*all.borrow_mut().get_a_list(), {
                                 let mut list: LinkedList<f32> = LinkedList::default();
@@ -614,7 +613,7 @@ mod tests {
                                 vec.push(Some(
                                     all_aUserType_obj
                                         .clone()
-                                        .nucast::<BasicIntegers>()
+                                        .cast::<BasicIntegers>()
                                         .unwrap()
                                         .downgrade(),
                                 ));
@@ -628,8 +627,8 @@ mod tests {
                                     .unwrap()
                                     .upgrade()
                                     .unwrap()
-                                    .nucast::<SkillObject>(),
-                                all_aBool_obj.clone().nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
+                                all_aBool_obj.clone().cast::<SkillObject>(),
                             );
                             assert_eq!(all.borrow_mut().get_another_user_type().is_some(), true);
                             assert_eq!(
@@ -639,8 +638,8 @@ mod tests {
                                     .unwrap()
                                     .upgrade()
                                     .unwrap()
-                                    .nucast::<SkillObject>(),
-                                all_anotherUserType_obj.clone().nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
+                                all_anotherUserType_obj.clone().cast::<SkillObject>(),
                             );
                             assert_eq!(*all.borrow_mut().get_a_set(), {
                                 let mut set: HashSet<i8> = HashSet::default();
@@ -656,8 +655,8 @@ mod tests {
                                     .unwrap()
                                     .upgrade()
                                     .unwrap()
-                                    .nucast::<SkillObject>(),
-                                all_aBool_obj.clone().nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
+                                all_aBool_obj.clone().cast::<SkillObject>(),
                             );
                             assert_eq!(
                                 all_aUserType_obj_int64I_obj.borrow_mut().get_basic_int(),
@@ -675,10 +674,10 @@ mod tests {
                                     .unwrap()
                                     .upgrade()
                                     .unwrap()
-                                    .nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
                                 all_anotherUserType_obj_float32_obj
                                     .clone()
-                                    .nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
                             );
                             assert_eq!(
                                 all_anotherUserType_obj.borrow_mut().get_float64().is_some(),
@@ -692,10 +691,10 @@ mod tests {
                                     .unwrap()
                                     .upgrade()
                                     .unwrap()
-                                    .nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
                                 all_anotherUserType_obj_float64_obj
                                     .clone()
-                                    .nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
                             );
                             assert_eq!(all_aUserType_obj.borrow_mut().get_int32().is_some(), true);
                             assert_eq!(
@@ -706,8 +705,8 @@ mod tests {
                                     .unwrap()
                                     .upgrade()
                                     .unwrap()
-                                    .nucast::<SkillObject>(),
-                                all_aUserType_obj_int32_obj.clone().nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
+                                all_aUserType_obj_int32_obj.clone().cast::<SkillObject>(),
                             );
                             assert_eq!(all_aUserType_obj.borrow_mut().get_int8().is_some(), true);
                             assert_eq!(
@@ -718,8 +717,8 @@ mod tests {
                                     .unwrap()
                                     .upgrade()
                                     .unwrap()
-                                    .nucast::<SkillObject>(),
-                                all_aUserType_obj_int8_obj.clone().nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
+                                all_aUserType_obj_int8_obj.clone().cast::<SkillObject>(),
                             );
                             assert_eq!(all_aUserType_obj.borrow_mut().get_int64v().is_some(), true);
                             assert_eq!(
@@ -730,8 +729,8 @@ mod tests {
                                     .unwrap()
                                     .upgrade()
                                     .unwrap()
-                                    .nucast::<SkillObject>(),
-                                all_aUserType_obj_int64V_obj.clone().nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
+                                all_aUserType_obj_int64V_obj.clone().cast::<SkillObject>(),
                             );
                             assert_eq!(all_aUserType_obj.borrow_mut().get_int64i().is_some(), true);
                             assert_eq!(
@@ -742,8 +741,8 @@ mod tests {
                                     .unwrap()
                                     .upgrade()
                                     .unwrap()
-                                    .nucast::<SkillObject>(),
-                                all_aUserType_obj_int64I_obj.clone().nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
+                                all_aUserType_obj_int64I_obj.clone().cast::<SkillObject>(),
                             );
                             assert_eq!(all_aUserType_obj.borrow_mut().get_int16().is_some(), true);
                             assert_eq!(
@@ -754,8 +753,8 @@ mod tests {
                                     .unwrap()
                                     .upgrade()
                                     .unwrap()
-                                    .nucast::<SkillObject>(),
-                                all_aUserType_obj_int16_obj.clone().nucast::<SkillObject>(),
+                                    .cast::<SkillObject>(),
+                                all_aUserType_obj_int16_obj.clone().cast::<SkillObject>(),
                             );
                             assert_eq!(
                                 all_aUserType_obj_int32_obj.borrow_mut().get_basic_int(),

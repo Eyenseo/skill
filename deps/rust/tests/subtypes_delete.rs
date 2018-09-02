@@ -47,7 +47,6 @@ mod tests {
 
         match SkillFile::create(
             "/tmp/api_subtypes_accept_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
-            FileMode::RW,
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -59,21 +58,21 @@ mod tests {
                 let d = sf.d_mut().add();
                 // set fields
                 a_2.borrow_mut()
-                    .set_a(Some(d.clone().nucast::<A>().unwrap().downgrade()));
+                    .set_a(Some(d.clone().cast::<A>().unwrap().downgrade()));
                 b.borrow_mut()
-                    .set_a(Some(d.clone().nucast::<A>().unwrap().downgrade()));
+                    .set_a(Some(d.clone().cast::<A>().unwrap().downgrade()));
                 b.borrow_mut()
-                    .set_b(Some(d.clone().nucast::<B>().unwrap().downgrade()));
+                    .set_b(Some(d.clone().cast::<B>().unwrap().downgrade()));
                 c.borrow_mut()
-                    .set_a(Some(d.clone().nucast::<A>().unwrap().downgrade()));
+                    .set_a(Some(d.clone().cast::<A>().unwrap().downgrade()));
                 c.borrow_mut()
-                    .set_c(Some(c.clone().nucast::<C>().unwrap().downgrade()));
+                    .set_c(Some(c.clone().cast::<C>().unwrap().downgrade()));
                 d.borrow_mut()
-                    .set_a(Some(d.clone().nucast::<A>().unwrap().downgrade()));
+                    .set_a(Some(d.clone().cast::<A>().unwrap().downgrade()));
                 d.borrow_mut()
-                    .set_b(Some(d.clone().nucast::<B>().unwrap().downgrade()));
+                    .set_b(Some(d.clone().cast::<B>().unwrap().downgrade()));
                 d.borrow_mut()
-                    .set_d(Some(d.clone().nucast::<D>().unwrap().downgrade()));
+                    .set_d(Some(d.clone().cast::<D>().unwrap().downgrade()));
                 // assert fields
                 assert_eq!(a_1.borrow_mut().get_a().is_none(), true);
                 assert_eq!(a_2.borrow_mut().get_a().is_some(), true);
@@ -84,8 +83,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    d.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    d.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(b.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -95,8 +94,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    d.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    d.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(b.borrow_mut().get_b().is_some(), true);
                 assert_eq!(
@@ -106,8 +105,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    d.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    d.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(c.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -117,8 +116,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    d.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    d.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(c.borrow_mut().get_c().is_some(), true);
                 assert_eq!(
@@ -128,8 +127,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    c.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    c.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(d.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -139,8 +138,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    d.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    d.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(d.borrow_mut().get_b().is_some(), true);
                 assert_eq!(
@@ -150,8 +149,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    d.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    d.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(d.borrow_mut().get_d().is_some(), true);
                 assert_eq!(
@@ -161,8 +160,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    d.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    d.clone().cast::<SkillObject>(),
                 );
                 // DELETE
                 sf.delete_strong(a_1)?;
@@ -224,8 +223,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        d.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        d.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(b.borrow_mut().get_a().is_some(), true);
                     assert_eq!(
@@ -235,8 +234,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        d.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        d.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(b.borrow_mut().get_b().is_some(), true);
                     assert_eq!(
@@ -246,8 +245,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        d.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        d.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(c.borrow_mut().get_a().is_some(), true);
                     assert_eq!(
@@ -257,8 +256,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        d.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        d.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(c.borrow_mut().get_c().is_some(), true);
                     assert_eq!(
@@ -268,8 +267,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        c.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        c.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(d.borrow_mut().get_a().is_some(), true);
                     assert_eq!(
@@ -279,8 +278,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        d.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        d.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(d.borrow_mut().get_b().is_some(), true);
                     assert_eq!(
@@ -290,8 +289,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        d.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        d.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(d.borrow_mut().get_d().is_some(), true);
                     assert_eq!(
@@ -301,8 +300,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        d.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        d.clone().cast::<SkillObject>(),
                     );
                 }
                 Err(e) => if let Some(bt) = e.backtrace() {
@@ -319,13 +318,23 @@ mod tests {
         };
     }
 
+    struct CleanupApiSubtypesRejectUseAfterDelete;
+
+    impl Drop for CleanupApiSubtypesRejectUseAfterDelete {
+        fn drop(&mut self) {
+            let _ignore = ::std::fs::remove_file(
+                "/tmp/api_subtypes_reject_use_after_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            );
+        }
+    }
+
     #[test]
     fn api_subtypes_reject_use_after_delete() {
         let _logger = env_logger::try_init();
+        let _cleanup = CleanupApiSubtypesRejectUseAfterDelete;
 
         match SkillFile::create(
             "/tmp/api_subtypes_reject_use_after_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
-            FileMode::R,
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -333,7 +342,7 @@ mod tests {
                 let a = sf.a_mut().add();
                 // set fields
                 a.borrow_mut()
-                    .set_a(Some(a.clone().nucast::<A>().unwrap().downgrade()));
+                    .set_a(Some(a.clone().cast::<A>().unwrap().downgrade()));
                 // assert fields
                 assert_eq!(a.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -343,8 +352,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    a.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    a.clone().cast::<SkillObject>(),
                 );
                 // DELETE
                 // NOTE this should panic as a has a reference to itself serialize
@@ -372,20 +381,30 @@ mod tests {
         };
     }
 
+    struct CleanupApiSubtypesRejectUseAfterDeleteAfterWrite;
+
+    impl Drop for CleanupApiSubtypesRejectUseAfterDeleteAfterWrite {
+        fn drop(&mut self) {
+            let _ignore = ::std::fs::remove_file(
+                "/tmp/api_subtypes_reject_use_after_delete_after_write_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            );
+        }
+    }
+
     #[test]
     fn api_subtypes_reject_use_after_delete_after_write() {
         let _logger = env_logger::try_init();
+        let _cleanup = CleanupApiSubtypesRejectUseAfterDeleteAfterWrite;
 
         match SkillFile::create(
             "/tmp/api_subtypes_reject_use_after_delete_after_write_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
-            FileMode::R,
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
                 // create objects
                 let a = sf.a_mut().add();
                 // set fields
-                a.borrow_mut().set_a(Some(a.clone().nucast::<A>().unwrap().downgrade()));
+                a.borrow_mut().set_a(Some(a.clone().cast::<A>().unwrap().downgrade()));
                 // assert fields
                 assert_eq!(a.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -393,8 +412,8 @@ mod tests {
                         .get_a()
                         .as_ref()
                         .unwrap().upgrade().unwrap()
-                        .nucast::<SkillObject>(),
-                    a.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    a.clone().cast::<SkillObject>(),
                 );
                 // serialize
                 sf.compress()?;
@@ -443,13 +462,13 @@ mod tests {
 
         match SkillFile::create(
             "/tmp/api_subtypes_reject_use_after_delete_after_read_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
-            FileMode::RW) {
+        ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
                 // create objects
                 let a = sf.a_mut().add();
                 // set fields
-                a.borrow_mut().set_a(Some(a.clone().nucast::<A>().unwrap().downgrade()));
+                a.borrow_mut().set_a(Some(a.clone().cast::<A>().unwrap().downgrade()));
                 // assert fields
                 assert_eq!(a.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -457,8 +476,8 @@ mod tests {
                         .get_a()
                         .as_ref()
                         .unwrap().upgrade().unwrap()
-                        .nucast::<SkillObject>(),
-                    a.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    a.clone().cast::<SkillObject>(),
                 );
                 // serialize
                 sf.close()?;
@@ -497,13 +516,13 @@ mod tests {
                             .get_a()
                             .as_ref()
                             .unwrap().upgrade().unwrap()
-                            .nucast::<SkillObject>(),
-                        a.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        a.clone().cast::<SkillObject>(),
                     );
                     // DELETE
                     // NOTE this should panic as a has a reference to itself serialize
                     // This tests the static instance count after writing a new instance
-                    match sf.delete(a.nucast::<SkillObject>().unwrap().downgrade()) {
+                    match sf.delete(a.cast::<SkillObject>().unwrap().downgrade()) {
                         Ok(_) => panic!("This delete should be forbidden"),
                         Err(_) => {}
                     }
@@ -544,7 +563,6 @@ mod tests {
 
         match SkillFile::create(
             "/tmp/api_subtypes_accept_force_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
-            FileMode::RW,
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -555,21 +573,21 @@ mod tests {
                 let d = sf.d_mut().add();
                 // set fields
                 a.borrow_mut()
-                    .set_a(Some(a.clone().nucast::<A>().unwrap().downgrade()));
+                    .set_a(Some(a.clone().cast::<A>().unwrap().downgrade()));
                 b.borrow_mut()
-                    .set_a(Some(a.clone().nucast::<A>().unwrap().downgrade()));
+                    .set_a(Some(a.clone().cast::<A>().unwrap().downgrade()));
                 b.borrow_mut()
-                    .set_b(Some(b.clone().nucast::<B>().unwrap().downgrade()));
+                    .set_b(Some(b.clone().cast::<B>().unwrap().downgrade()));
                 c.borrow_mut()
-                    .set_a(Some(a.clone().nucast::<A>().unwrap().downgrade()));
+                    .set_a(Some(a.clone().cast::<A>().unwrap().downgrade()));
                 c.borrow_mut()
-                    .set_c(Some(c.clone().nucast::<C>().unwrap().downgrade()));
+                    .set_c(Some(c.clone().cast::<C>().unwrap().downgrade()));
                 d.borrow_mut()
-                    .set_a(Some(a.clone().nucast::<A>().unwrap().downgrade()));
+                    .set_a(Some(a.clone().cast::<A>().unwrap().downgrade()));
                 d.borrow_mut()
-                    .set_b(Some(b.clone().nucast::<B>().unwrap().downgrade()));
+                    .set_b(Some(b.clone().cast::<B>().unwrap().downgrade()));
                 d.borrow_mut()
-                    .set_d(Some(d.clone().nucast::<D>().unwrap().downgrade()));
+                    .set_d(Some(d.clone().cast::<D>().unwrap().downgrade()));
                 // assert fields
                 assert_eq!(a.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -579,8 +597,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    a.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    a.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(b.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -590,8 +608,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    a.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    a.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(b.borrow_mut().get_b().is_some(), true);
                 assert_eq!(
@@ -601,8 +619,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    b.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    b.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(c.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -612,8 +630,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    a.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    a.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(c.borrow_mut().get_c().is_some(), true);
                 assert_eq!(
@@ -623,8 +641,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    c.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    c.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(d.borrow_mut().get_a().is_some(), true);
                 assert_eq!(
@@ -634,8 +652,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    a.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    a.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(d.borrow_mut().get_b().is_some(), true);
                 assert_eq!(
@@ -645,8 +663,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    b.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    b.clone().cast::<SkillObject>(),
                 );
                 assert_eq!(d.borrow_mut().get_d().is_some(), true);
                 assert_eq!(
@@ -656,8 +674,8 @@ mod tests {
                         .unwrap()
                         .upgrade()
                         .unwrap()
-                        .nucast::<SkillObject>(),
-                    d.clone().nucast::<SkillObject>(),
+                        .cast::<SkillObject>(),
+                    d.clone().cast::<SkillObject>(),
                 );
                 // DELETE
                 sf.delete_force(a.clone().downgrade());
@@ -715,8 +733,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        b.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        b.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(c.borrow_mut().get_a().is_none(), true);
                     assert_eq!(c.borrow_mut().get_c().is_some(), true);
@@ -727,8 +745,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        c.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        c.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(d.borrow_mut().get_a().is_none(), true);
                     assert_eq!(d.borrow_mut().get_b().is_some(), true);
@@ -739,8 +757,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        b.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        b.clone().cast::<SkillObject>(),
                     );
                     assert_eq!(d.borrow_mut().get_d().is_some(), true);
                     assert_eq!(
@@ -750,8 +768,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        d.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        d.clone().cast::<SkillObject>(),
                     );
                 }
                 Err(e) => if let Some(bt) = e.backtrace() {
@@ -785,7 +803,6 @@ mod tests {
 
         match SkillFile::create(
             "/tmp/api_subtypes_accept_memory_freed_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
-            FileMode::RW,
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -794,7 +811,7 @@ mod tests {
                     let a = sf.a_mut().add();
                     // set fields
                     a.borrow_mut()
-                        .set_a(Some(a.clone().nucast::<A>().unwrap().downgrade()));
+                        .set_a(Some(a.clone().cast::<A>().unwrap().downgrade()));
                     // assert fields
                     assert_eq!(a.borrow_mut().get_a().is_some(), true);
                     assert_eq!(
@@ -804,8 +821,8 @@ mod tests {
                             .unwrap()
                             .upgrade()
                             .unwrap()
-                            .nucast::<SkillObject>(),
-                        a.clone().nucast::<SkillObject>(),
+                            .cast::<SkillObject>(),
+                        a.clone().cast::<SkillObject>(),
                     );
                     // DELETE
                     sf.delete_force(a.clone().downgrade());

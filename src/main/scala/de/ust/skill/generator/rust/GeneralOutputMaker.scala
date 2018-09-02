@@ -97,10 +97,6 @@ trait GeneralOutputMaker extends Generator {
   protected val interfaceCheckMethods = new mutable.HashMap[String, mutable.HashSet[String]]
 
   // options
-  /**
-    * If interfaceChecks then skillName -> Name of super-interfaces
-    */
-  protected val interfaceCheckImplementations = new mutable.HashMap[String, mutable.HashSet[String]]
   var types       : TypeContext         = _
   var IR          : List[UserType]      = _
   var IRInterfaces: List[InterfaceType] = _
@@ -108,14 +104,6 @@ trait GeneralOutputMaker extends Generator {
     * This flag is set iff the specification is too large to be passed as parameter list
     */
   var largeSpecificationMode            = false
-
-  /**
-    * If set to true, the generated API will contain is_interface methods.
-    * These methods return true iff the type implements that interface.
-    * These methods exist for direct super types of interfaces.
-    * For rootless interfaces, they exist in base types.
-    */
-  protected var interfaceChecks = false
 
   // remove special stuff
   final def setTC(tc: TypeContext) {
@@ -125,11 +113,6 @@ trait GeneralOutputMaker extends Generator {
     this.IRInterfaces = flat.getInterfaces.asScala.to
     // set large specification mode; leave some spare parameters
     largeSpecificationMode = IR.size > 200
-
-    // filter implemented interfaces from original IR
-    if (interfaceChecks) {
-      filterInterfacesFromIR()
-    }
 
     validateCustomOptions()
   }
@@ -164,8 +147,6 @@ trait GeneralOutputMaker extends Generator {
   }
 
   override def getLanguageName: String = "rust"
-
-  protected def filterInterfacesFromIR()
 
   /**
     * Assume the existence of a translation function for types.
@@ -204,15 +185,13 @@ trait GeneralOutputMaker extends Generator {
     case _                ⇒ field(t.getName.camel())
   }
 
-  final def traitName(t: Type): String = escaped(t.getName.capital)
+  final def traitName(t: Type): String = name(t) + "Object"
 
-  final def name(t: Type): String = traitName(t) + "Proper"
+  final def name(t: Type): String = escaped(t.getName.capital)
 
   final def name(f: Field): String = escaped(snakeCase(f.getName.camel)).toLowerCase
 
   final def name(f: LanguageCustomization): String = escaped(f.getName.camel)
-
-  final def foreignName(t: Type): String = traitName(t) + "Foreign"
 
   final def internalName(f: Field): String = "u_" + name(f)
 
@@ -224,15 +203,35 @@ trait GeneralOutputMaker extends Generator {
     * @param t Type to get the list of super types for
     * @return A list of all super types a given type t has
     */
-  protected final def getAllSuperTypes(t: UserType): List[Type] = {
+  protected final def getAllSuperTypes(t: Declaration with WithInheritance): List[Declaration with WithInheritance] = {
     if (t == null) {
-      List[UserType]()
-    } else if (t.getSuperType != null) {
-      getAllSuperTypes(t.getSuperType) ::: List[UserType](t)
+      List()
+    } else if (t.getSuperType != null && t.getSuperType.isInstanceOf[Declaration with WithInheritance]) {
+      getAllSuperTypes(t.getSuperType.asInstanceOf[Declaration with WithInheritance]) :::
+      List(t)
     } else {
-      List[UserType](t)
+      List(t)
     }
   }.distinct
+
+  protected final def getAllSupers(t: Declaration with WithInheritance): List[Declaration with WithInheritance] = {
+    if (t == null) {
+      return List()
+    }
+    var buff = ArrayBuffer[Declaration with WithInheritance]()
+
+    if (t.getSuperType != null && t.getSuperType.isInstanceOf[Declaration with WithInheritance]) {
+      buff = buff ++ getAllSupers(t.getSuperType.asInstanceOf[Declaration with WithInheritance])
+    }
+
+    for (i ← t.getSuperInterfaces.asScala) {
+      buff = buff ++ getAllSupers(i).toArray
+    }
+
+    buff.append(t)
+
+    buff.distinct.toList
+  }
 
   /**
     * @param t Type to get the list of super types for
@@ -251,7 +250,7 @@ trait GeneralOutputMaker extends Generator {
     */
   protected def packagePrefix(): String
 
-  protected def allSuperInterfaces[Base <: Declaration with WithInheritance](base: Base): List[InterfaceType] = {
+  protected final def allSuperInterfaces(base: Declaration with WithInheritance): List[InterfaceType] = {
     var ret: List[InterfaceType] = base.getSuperInterfaces.asScala.toList
     for (i ← base.getSuperInterfaces.asScala) {
       ret = ret ::: allSuperInterfaces(i)

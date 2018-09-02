@@ -15,10 +15,6 @@ trait PoolsMaker extends GeneralOutputMaker {
   abstract override def make {
     super.make
 
-    makeSource()
-  }
-
-  private final def makeSource() {
     // one file per base type
     for (base ← IR) {
       val out = files.open(s"src/${snakeCase(storagePool(base))}.rs")
@@ -132,47 +128,41 @@ trait PoolsMaker extends GeneralOutputMaker {
     e"""//----------------------------------------
        §// ${base.getName} aka ${name(base)}
        §//----------------------------------------
-       §${genTypeStruct(base, foreign = false)}
+       §${genTypeStruct(base)}
        §
        §${genTypeTrait(base)}
        §
-       §${genTypeImpl(base, foreign = false)}
-       §
-       §//----------------------------------------
-       §// Undefined sub type for ${base.getName} aka ${foreignName(base)}
-       §//----------------------------------------
-       §${genTypeStruct(base, foreign = true)}
-       §
-       §${genTypeImpl(base, foreign = true)}
+       §${genTypeImpl(base)}
        §""".stripMargin('§')
   }.trim
 
 
-  private final def genTypeStruct(base: UserType, foreign: Boolean): String = {
+  private final def genTypeStruct(base: UserType): String = {
+    // NOTE be sure to change foreign::ForeignObject too!
     e"""#[derive(Default, Debug)]
-       §pub struct ${if (foreign) foreignName(base) else name(base)} {
+       §#[repr(C)]
+       §pub struct ${name(base)} {
        §    skill_id: Cell<usize>,
-       §    skill_type_id: usize,${
-      if (foreign) {
-        e"""
-           §foreign_data: Vec<foreign::FieldData>,""".stripMargin('§')
-      } else {
-        ""
-      }
-    }
+       §    skill_type_id: usize,
+       §    foreign_data: Vec<foreign::FieldData>,
        §    ${
-      (for (f ← base.getAllFields.asScala.filterNot(_.isConstant)) yield {
-        // the field before interface projection
-        val orig = this.types.removeTypedefs().removeEnums()
-                       .get(base.getSkillName).asInstanceOf[UserType].getAllFields.asScala
-                                                                     .find(_.getName == f.getName).get
+      (for (t ← getAllSupers(base)) yield {
+        (for (f ← t.getFields.asScala.filterNot(_.isConstant)) yield {
+          // the field before interface projection
+          val orig = this.types.removeTypedefs().removeEnums()
+                         .get(base.getSkillName).asInstanceOf[UserType].getAllFields.asScala
+                                                                       .find(_.getName == f.getName).get
 
-        e"""${internalName(f)}: ${mapType(orig.getType)},
-           §""".stripMargin('§')
-      }).mkString.trim +
-      (for (c ← gatherCustoms(base)) yield {
-        e"""${c.getName}: ${c.`type`},
-           §""".stripMargin('§')
+          e"""${internalName(f)}: ${mapType(orig.getType)},
+             §""".stripMargin('§')
+        }).mkString +
+        (for (c ← t.getCustomizations.asScala.filter(c ⇒ c.language.equals("rust")).flatMap({
+          case null ⇒ ArrayBuffer[LanguageCustomization]()
+          case c    ⇒ ArrayBuffer[LanguageCustomization](c)
+        })) yield {
+          e"""${c.getName}: ${c.`type`},
+             §""".stripMargin('§')
+        }).mkString.trim
       }).mkString.trim
     }
        §}""".stripMargin('§')
@@ -302,21 +292,14 @@ trait PoolsMaker extends GeneralOutputMaker {
     }""".stripMargin('§')
   }
 
-  private final def genTypeImpl(base: UserType, foreign: Boolean): String = {
+  private final def genTypeImpl(base: UserType): String = {
     // gen New
-    e"""impl ${if (foreign) foreignName(base) else name(base)} {
-       §    pub fn new(skill_id: usize, skill_type_id: usize) -> ${
-      if (foreign) foreignName(base) else name(base)
-    } {
-       §        ${if (foreign) foreignName(base) else name(base)} {
+    e"""impl ${name(base)} {
+       §    pub fn new(skill_id: usize, skill_type_id: usize) -> ${name(base)} {
+       §        ${name(base)} {
        §            skill_id: Cell::new(skill_id),
-       §            skill_type_id,${
-      if (foreign) {
-        "\nforeign_data: Vec::default(),"
-      } else {
-        ""
-      }
-    }
+       §            skill_type_id,
+       §            foreign_data: Vec::default(),
        §            ${
       ((for (f ← base.getAllFields.asScala.filterNot(_.isConstant)) yield {
         e"""${internalName(f)}: ${defaultValue(f)},
@@ -333,7 +316,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §
        §${
       if (base.getFields.asScala.nonEmpty || gatherCustoms(base).nonEmpty) {
-        e"""impl ${traitName(base)} for ${if (foreign) foreignName(base) else name(base)} {
+        e"""impl ${traitName(base)} for ${name(base)} {
            §    ${ // Impl base
           ((for (f ← base.getFields.asScala) yield {
             e"""${genGetSetImpl(f)}
@@ -356,7 +339,7 @@ trait PoolsMaker extends GeneralOutputMaker {
         }
            §}""".stripMargin('§')
       } else {
-        e"impl ${traitName(base)} for ${if (foreign) foreignName(base) else name(base)} {}"
+        e"impl ${traitName(base)} for ${name(base)} {}"
       }
     }${
       // Impl super
@@ -373,9 +356,9 @@ trait PoolsMaker extends GeneralOutputMaker {
           toImplement.head match {
             case declaration: Declaration with WithFields ⇒
               ret.append(
-                          e"""${genTypeImplSuper(base, declaration, foreign)}
+                          e"""${genTypeImplSuper(base, declaration)}
                              §
-                           §""".stripMargin('§')
+                             §""".stripMargin('§')
                         )
             case _                                        ⇒
           }
@@ -404,22 +387,16 @@ trait PoolsMaker extends GeneralOutputMaker {
         ""
       }
     }
-       §${
-      if (foreign) {
-        e"""impl foreign::Object for ${foreignName(base)} {
-           §    fn foreign_fields(&self) -> &Vec<foreign::FieldData> {
-           §        &self.foreign_data
-           §    }
-           §    fn foreign_fields_mut(&mut self) -> &mut Vec<foreign::FieldData> {
-           §        &mut self.foreign_data
-           §    }
-           §}
-           §""".stripMargin('§')
-      } else {
-        ""
-      }
-    }
-       §impl SkillObject for ${if (foreign) foreignName(base) else name(base)} {
+       §impl foreign::ForeignObject for ${name(base)} {
+       §    fn foreign_fields(&self) -> &Vec<foreign::FieldData> {
+       §        &self.foreign_data
+       §    }
+       §    fn foreign_fields_mut(&mut self) -> &mut Vec<foreign::FieldData> {
+       §        &mut self.foreign_data
+       §    }
+       §}
+       §
+       §impl SkillObject for ${name(base)} {
        §    fn skill_type_id(&self) -> usize {
        §        self.skill_type_id
        §    }
@@ -436,7 +413,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    }
        §}
        §
-       §impl Deletable for ${if (foreign) foreignName(base) else name(base)} {
+       §impl Deletable for ${name(base)} {
        §    fn mark_for_deletion(&mut self) {
        §        self.skill_id.set(skill_object::DELETE);
        §    }
@@ -448,10 +425,9 @@ trait PoolsMaker extends GeneralOutputMaker {
   }
 
   private final def genTypeImplSuper[Base <: Declaration with WithFields](base: Base,
-                                                                          parent: Base,
-                                                                          foreign: Boolean): String = {
+                                                                          parent: Base): String = {
     if (parent.getFields.asScala.nonEmpty || gatherCustoms(parent).nonEmpty) {
-      e"""impl ${traitName(parent)} for ${if (foreign) foreignName(base) else name(base)} {
+      e"""impl ${traitName(parent)} for ${name(base)} {
          §    ${
         ((for (f ← parent.getFields.asScala) yield {
           e"""${genGetSetImpl(f)}
@@ -474,7 +450,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       }
          §}""".stripMargin('§')
     } else {
-      e"impl ${traitName(parent)} for ${if (foreign) foreignName(base) else name(base)} {}"
+      e"impl ${traitName(parent)} for ${name(base)} {}"
     }
   }
 
@@ -625,14 +601,6 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        );
        §        Ptr::new(${name(base)}::new(skill_id, skill_type_id))
        §    }
-       §
-       §    fn make_foreign(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
-       §        trace!(
-       §            target:"SkillParsing",
-       §            "Create new ${foreignName(base)}",
-       §        );
-       §        Ptr::new(${foreignName(base)}::new(skill_id, skill_type_id))
-       §    }
        §}
        §""".stripMargin('§')
   }.trim
@@ -762,13 +730,13 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        }
        §    }
        §
-       §    pub fn get(&self, index: usize) -> Result<Ptr<${traitName(base)}>, SkillFail> {
+       §    pub fn get(&self, index: usize) -> Result<Ptr<${name(base)}>, SkillFail> {
        §        match self.pool.read_object(index) {
        §            Ok(obj) => {
        §                if obj.borrow().get_skill_id() == skill_object::DELETE {
        §                    return Err(SkillFail::user(UserFail::AccessDeleted));
        §                }
-       §                match obj.nucast::<${traitName(base)}>() {
+       §                match obj.cast::<${name(base)}>() {
        §                    Some(obj) => Ok(obj.clone()),
        §                    None => Err(SkillFail::user(UserFail::BadCastID { id:index })),
        §                }
@@ -1006,7 +974,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    }));
            §}""".stripMargin('§')
       } else {
-        e"""match obj.nucast::<${traitName(base)}>() {
+        e"""match obj.cast::<${name(base)}>() {
            §    Some(obj) =>
            §        obj.borrow_mut().set_${name(f)}(${
           genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
@@ -1063,7 +1031,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    }));
            §}""".stripMargin('§')
       } else {
-        e"""match obj.nucast::<${traitName(base)}>() {
+        e"""match obj.cast::<${name(base)}>() {
            §    Some(obj) =>
            §        obj.borrow_mut().set_${name(f)}(${
           genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
@@ -1159,7 +1127,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            FieldChunk::Continuation(_) => Err(SkillFail::internal(InternalFail::OnlyOneChunk))?,
        §        };
        §        for i in iter {
-       §            let tmp = i.nucast::<${traitName(base)}>().unwrap();
+       §            let tmp = i.cast::<${name(base)}>().unwrap();
        §            let tmp = tmp.borrow(); // borrowing madness
        §            let val = tmp.get_${field(f)}();
        §            ${genFieldDeclarationImplFieldDeclarationWrite(f.getType)}
@@ -1188,7 +1156,7 @@ trait PoolsMaker extends GeneralOutputMaker {
           case "v64"         ⇒
             e"""let mut offset = 0;
                §for i in iter {
-               §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
+               §    let tmp = i.cast::<${name(base)}>().unwrap();
                §    let tmp = tmp.borrow(); // borrowing madness
                §    offset += bytes_v64(tmp.get_${field(f)}() as i64);
                §}
@@ -1197,7 +1165,7 @@ trait PoolsMaker extends GeneralOutputMaker {
           case "string"      ⇒
             e"""let mut offset = 0;
                §for i in iter {
-               §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
+               §    let tmp = i.cast::<${name(base)}>().unwrap();
                §    let tmp = tmp.borrow(); // borrowing madness
                §    if let Some(tmp) = tmp.get_${field(f)}() {
                §        offset += bytes_v64(tmp.get_id() as i64);
@@ -1210,7 +1178,7 @@ trait PoolsMaker extends GeneralOutputMaker {
           case "annotation"  ⇒
             e"""let mut offset = 0;
                §for i in iter {
-               §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
+               §    let tmp = i.cast::<${name(base)}>().unwrap();
                §    let tmp = tmp.borrow(); // borrowing madness
                §    offset += match tmp.get_${field(f)}() {
                §        Some(ref val) => match val.upgrade() {
@@ -1233,7 +1201,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       case ft: ConstantLengthArrayType ⇒
         e"""let mut offset = 0;
            §for i in iter {
-           §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
+           §    let tmp = i.cast::<${name(base)}>().unwrap();
            §    let tmp = tmp.borrow(); // borrowing madness
            §    for val in tmp.get_${field(f)}().iter() {
            §        offset += ${genFieldDeclarationImplFieldDeclarationOffsetInner(ft.getBaseType)};
@@ -1244,7 +1212,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       case ft: SingleBaseTypeContainer ⇒
         e"""let mut offset = 0;
            §for i in iter {
-           §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
+           §    let tmp = i.cast::<${name(base)}>().unwrap();
            §    let tmp = tmp.borrow(); // borrowing madness
            §    offset += bytes_v64(tmp.get_${field(f)}().len() as i64);
            §    for val in tmp.get_${field(f)}().iter() {
@@ -1256,7 +1224,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       case ft: MapType                 ⇒
         e"""let mut offset = 0;
            §for i in iter {
-           §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
+           §    let tmp = i.cast::<${name(base)}>().unwrap();
            §    let tmp = tmp.borrow(); // borrowing madness
            §    let val = tmp.get_${field(f)}();
            §    ${genFieldDeclarationImplFieldDeclarationOffsetMap(ft.getBaseTypes.asScala.toList)}
@@ -1266,7 +1234,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       case _: UserType                 ⇒
         e"""let mut offset = 0;
            §for i in iter {
-           §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
+           §    let tmp = i.cast::<${name(base)}>().unwrap();
            §    let tmp = tmp.borrow(); // borrowing madness
            §    offset += match tmp.get_${field(f)}() {
            §        Some(ref val) => match val.upgrade() {
@@ -1286,7 +1254,7 @@ trait PoolsMaker extends GeneralOutputMaker {
         t.getBaseType match {
           case _: UserType ⇒ e"""let mut offset = 0;
                                 §for i in iter {
-                                §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
+                                §    let tmp = i.cast::<${traitName(base)}>().unwrap();
                                 §    let tmp = tmp.borrow(); // borrowing madness
                                 §    offset += match tmp.get_${field(f)}() {
                                 §        Some(ref val) => match val.upgrade() {
@@ -1304,7 +1272,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                                 §""".stripMargin('§')
           case _           ⇒ e"""let mut offset = 0;
                                 §for i in iter {
-                                §    let tmp = i.nucast::<${traitName(base)}>().unwrap();
+                                §    let tmp = i.cast::<${traitName(base)}>().unwrap();
                                 §    let tmp = tmp.borrow(); // borrowing madness
                                 §    offset += match tmp.get_${field(f)}() {
                                 §        Some(ref val) =>  match val.upgrade() {
@@ -1767,16 +1735,10 @@ trait PoolsMaker extends GeneralOutputMaker {
            §    let pool = reader.read_v64()? as usize;
            §    let object = reader.read_v64()? as usize;
            §    if pool != 0 && object != 0 {
-           §        if let Some(object) = type_pools[pool - 1]
+           §        Ok(Some(type_pools[pool - 1]
            §            .borrow()
            §            .pool()
-           §            .read_object(object)?
-           §            .nucast::<SkillObject>()
-           §        {
-           §            Ok(Some(object.downgrade()))
-           §        } else {
-           §            Err(SkillFail::internal(InternalFail::BadCast))
-           §        }
+           §            .read_object(object)?.downgrade()))
            §    } else {
            §        Ok(None)
            §    }
@@ -1839,7 +1801,7 @@ trait PoolsMaker extends GeneralOutputMaker {
            §            .borrow()
            §            .pool()
            §            .read_object(object)?
-           §            .nucast::<${traitName(t)}>()
+           §            .cast::<${name(t)}>()
            §        {
            §            Ok(Some(object.downgrade()))
            §        } else {
@@ -1861,7 +1823,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                                 §            .borrow()
                                 §            .pool()
                                 §            .read_object(object)?
-                                §            .nucast::<${traitName(t)}>()
+                                §            .cast::<${traitName(t)}>()
                                 §        {
                                 §            Ok(Some(object.downgrade()))
                                 §        } else {
@@ -1876,16 +1838,10 @@ trait PoolsMaker extends GeneralOutputMaker {
                                 §    let pool = reader.read_v64()? as usize;
                                 §    let object = reader.read_v64()? as usize;
                                 §    if pool != 0 && object != 0 {
-                                §        if let Some(object) = type_pools[pool - 1]
+                                §        Ok(Some(type_pools[pool - 1]
                                 §            .borrow()
                                 §            .pool()
-                                §            .read_object(object)?
-                                §            .nucast::<SkillObject>()
-                                §        {
-                                §            Ok(Some(object.downgrade()))
-                                §        } else {
-                                §            Err(SkillFail::internal(InternalFail::BadCast))
-                                §        }
+                                §            .read_object(object)?.downgrade()))
                                 §    } else {
                                 §        Ok(None)
                                 §    }

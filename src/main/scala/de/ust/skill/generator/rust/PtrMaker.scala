@@ -8,6 +8,8 @@ package de.ust.skill.generator.rust
 import de.ust.skill.generator.common.IndenterLaw._
 import de.ust.skill.ir._
 
+import scala.collection.mutable.ArrayBuffer
+
 trait PtrMaker extends GeneralOutputMaker {
 
   abstract override def make: Unit = {
@@ -18,7 +20,7 @@ trait PtrMaker extends GeneralOutputMaker {
     out.write(
                e"""${genUsage()}
                   §
-                  §${genCasts()}
+                  §${genLookUpMap()}
                   §""".stripMargin('§')
              )
     out.close()
@@ -33,8 +35,10 @@ trait PtrMaker extends GeneralOutputMaker {
     ret.append(
                 e"""use common::*;
                    §use common::internal::foreign;
+                   §use common::ptr::VTable;
+                   §use common::ptr::TraitObject;
                    §
-                   §use std::any::TypeId;
+                   §use std::collections::HashMap;
                    §
                    §""".stripMargin('§')
               )
@@ -44,7 +48,6 @@ trait PtrMaker extends GeneralOutputMaker {
 
       ret.append(
                   e"""use $mod::${name(base)};
-                     §use $mod::${foreignName(base)};
                      §use $mod::${traitName(base)};
                      §""".stripMargin('§')
                 )
@@ -61,163 +64,112 @@ trait PtrMaker extends GeneralOutputMaker {
   }
 
   //----------------------------------------
-  // Casts
+  // LookUpMap
   //----------------------------------------
-  def genCasts(): String = {
-    e"""ptr_cast_able!(SkillObject =
-       §    ${
-      (for (t ← IR) yield {
-        e"""${genNucastTraitInner(t, foreign = false)}
-           §${genNucastTraitInner(t, foreign = true)}
-           §""".stripMargin('§')
-      }).mkString.trim
+  private final def makeInheritanceMap():
+  // Scala Generic suck ...
+  Map[Declaration with WithInheritance, List[Declaration with WithInheritance]] = {
+    var map = ArrayBuffer[(Declaration with WithInheritance, List[Declaration with WithInheritance])]()
+
+    for (t ← IR) {
+      map += (t → makeInheritanceMap(t))
     }
-       §    foreign::ObjectProper: {
-       §        SkillObject,
-       §        foreign::Object,
-       §    },
-       §);
-       §
-       §ptr_cast_able!(foreign::ObjectProper = {
-       §    SkillObject,
-       §    foreign::Object,
-       §});
-       §ptr_cast_able!(foreign::Object =
-       §    ${
-      (for (t ← IR) yield {
-        e"""${genNucastTraitInner(t, foreign = true)}
-           §""".stripMargin('§')
-      }).mkString.trim
-    }
-       §    foreign::ObjectProper: {
-       §        SkillObject,
-       §        foreign::Object,
-       §    },
-       §);
-       §
-       §${
-      (for (base ← IR) yield {
-        e"""${genNucast(base)}
-           §
-           §""".stripMargin('§')
-      }).mkString.trim
-    }
-       §${
-      (for (base ← IRInterfaces) yield {
-        e"""${genNucastInterface(base)}
-           §
-           §""".stripMargin('§')
-      }).mkString.trim
-    }
-       §""".stripMargin('§').trim
+    map.toMap
   }
 
-  def genNucast(base: UserType): String = {
-    e"""${genNucastStruct(base)}
-       §${genNucastTrait(base)}
+  private final def makeInheritanceMap(base: Declaration with WithInheritance):
+  // Scala Generic suck ...
+  List[Declaration with WithInheritance] = {
+    var map = ArrayBuffer[Declaration with WithInheritance]()
+
+    for (t ← getAllSuperTypes(base)) {
+      map += t
+    }
+    for (t ← allSuperInterfaces(base)) {
+      map += t
+    }
+    map += base
+
+    map.toList.distinct
+  }
+
+  private final def genLookUpMap(): String = {
+    val maps = makeInheritanceMap()
+
+    e"""lazy_static! {
+       §    pub(crate) static ref VALID_CASTS: HashMap<::std::any::TypeId, HashMap<std::any::TypeId, VTable>> = {
+       §        use std::any::TypeId;
+       §        use std::mem::transmute;
+       §        use std::ptr::null;
+       §
+       §        let mut map = HashMap::with_capacity(${IR.size + 1});
+       §        map.insert(
+       §            TypeId::of::<foreign::Foreign>(),
+       §            unsafe {
+       §                let mut map = HashMap::with_capacity(2);
+       §                map.insert(
+       §                    TypeId::of::<foreign::Foreign>(),
+       §                    VTable::none(),
+       §                );
+       §                map.insert(
+       §                    TypeId::of::<SkillObject>(),
+       §                    transmute::<_, TraitObject>(
+       §                        null::<foreign::Foreign>() as *const SkillObject
+       §                    ).vtable,
+       §                );
+       §                map
+       §            }
+       §        );
+       §        ${
+      (for ((base, map) ← maps) yield {
+        e"""map.insert(
+           §    TypeId::of::<${name(base)}>(),
+           §    unsafe {
+           §        let mut map = HashMap::with_capacity(${map.size * 2 + 2});
+           §        map.insert(
+           §            TypeId::of::<foreign::Foreign>(),
+           §            VTable::none(),
+           §        );
+           §        map.insert(
+           §            TypeId::of::<SkillObject>(),
+           §            transmute::<_, TraitObject>(
+           §                null::<${name(base)}>() as *const SkillObject
+           §            ).vtable,
+           §        );
+           §        ${
+          (for (t ← map) yield {
+            if (t.isInstanceOf[InterfaceType]) {
+              e"""map.insert(
+                 §    TypeId::of::<${traitName(t)}>(),
+                 §    transmute::<_, TraitObject>(
+                 §        null::<${name(base)}>() as *const ${traitName(t)}
+                 §    ).vtable,
+                 §);
+                 §""".stripMargin('§')
+            } else {
+              e"""map.insert(
+                 §    TypeId::of::<${name(t)}>(),
+                 §    VTable::none(),
+                 §);
+                 §map.insert(
+                 §    TypeId::of::<${traitName(t)}>(),
+                 §    transmute::<_, TraitObject>(
+                 §        null::<${name(t)}>() as *const ${traitName(t)}
+                 §    ).vtable,
+                 §);
+                 §""".stripMargin('§')
+            }
+          }).mkString.trim
+        }
+           §        map
+           §    }
+           §);
+           §""".stripMargin('§')
+      }).mkString.trim
+    }
+       §        map
+       §    };
+       §}
        §""".stripMargin('§')
-  }.trim
-
-  def genNucastStruct(base: UserType): String = {
-    val targets = getAllSuperTypes(base) ::: allSuperInterfaces(base)
-
-    e"""ptr_cast_able!(${name(base)} = {
-       §    SkillObject,${
-      if (targets.nonEmpty) {
-        "\n" + (for (sub ← targets) yield {
-          e"""${traitName(sub)},
-             §""".stripMargin('§')
-        }).mkString.trim
-      } else {
-        ""
-      }
-    }
-       §});
-       §ptr_cast_able!(${foreignName(base)} = {
-       §    SkillObject,${
-      if (targets.nonEmpty) {
-        "\n" + (for (sub ← targets) yield {
-          e"""${traitName(sub)},
-             §""".stripMargin('§')
-        }).mkString.trim
-      } else {
-        ""
-      }
-    }
-       §    foreign::Object,
-       §});
-       §""".stripMargin('§')
-  }.trim
-
-  def genNucastTrait(base: UserType): String = {
-    val targets = (getAllSuperTypes(base) ::: getAllSubTypes(base)).distinct
-
-    if (targets.nonEmpty) {
-      e"""ptr_cast_able!(${traitName(base)} =
-         §    ${
-        (for (t ← targets) yield {
-          e"""${genNucastTraitInner(t, foreign = false)}
-             §${genNucastTraitInner(t, foreign = true)}
-             §""".stripMargin('§')
-        }).mkString.trim
-      }
-         §);
-         §""".stripMargin('§')
-    } else {
-      e"""ptr_cast_able!(${traitName(base)});
-         §""".stripMargin('§')
-    }
-  }.trim
-
-  def genNucastTraitInner(base: Type, foreign: Boolean): String = {
-    val t = {
-      val t = IR.filter(u ⇒ u == base)
-      if (t.size != 1) {
-        throw new GeneratorException(s"Didn't find unique user type: ${base.getName} aka: ${name(base)}")
-      }
-      t.head
-    }
-
-    val targets = getAllSuperTypes(t) ::: allSuperInterfaces(t)
-
-    e"""${if (foreign) foreignName(base) else name(base)}: {
-       §    SkillObject,${
-      if (targets.nonEmpty) {
-        "\n" + (for (base ← targets) yield {
-          e"""${traitName(base)},
-             §""".stripMargin('§')
-        }).mkString.trim
-      } else {
-        ""
-      }
-    }${
-      if (foreign) {
-        "\nforeign::Object,"
-      } else {
-        ""
-      }
-    }
-       §},
-       §""".stripMargin('§')
-  }.trim
-
-  def genNucastInterface(base: InterfaceType): String = {
-    val targets = IR.filter(allSuperInterfaces(_).contains(base))
-
-    if (targets.nonEmpty) {
-      e"""ptr_cast_able!(${traitName(base)} =
-         §    ${
-        (for (t ← targets) yield {
-          e"""${genNucastTraitInner(t, foreign = false)}
-             §${genNucastTraitInner(t, foreign = true)}
-             §""".stripMargin('§')
-        }).mkString.trim
-      }
-         §);
-         §""".stripMargin('§')
-    } else {
-      e"""ptr_cast_able!(${traitName(base)});
-         §""".stripMargin('§')
-    }
-  }.trim
+  }
 }

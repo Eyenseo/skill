@@ -35,7 +35,6 @@ pub(crate) trait PoolPartsMaker {
         string_pool: &StringBlock,
     ) -> Result<(bool, Box<RefCell<FieldDeclaration>>), SkillFail>;
     fn make_instance(&self, skill_id: usize, type_id: usize) -> Ptr<SkillObject>;
-    fn make_foreign(&self, skill_id: usize, type_id: usize) -> Ptr<SkillObject>;
 }
 
 pub(crate) struct Pool {
@@ -151,7 +150,7 @@ impl Pool {
     pub(crate) fn deserialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail> {
         debug!(
             target: "SkillWriting",
-            "~~~Deserialize undefind Data for {}", self.name.as_str(),
+            "~~~Deserialize foreign data for {}", self.name.as_str(),
         );
 
         let block_reader = skill_file.block_reader();
@@ -175,7 +174,7 @@ impl Pool {
         let mut vec = self.instances.borrow_mut();
         if self.is_base() {
             // TODO add garbage type
-            let tmp = Ptr::new(foreign::ObjectProper::new(0, 0));
+            let tmp = Ptr::new(foreign::Foreign::new(0, 0));
             trace!(
                 target: "SkillParsing",
                 "Allocate space for:{} amount:{} with:{:?}",
@@ -197,36 +196,18 @@ impl Pool {
             self.get_type_id(),
         );
 
-        // TODO This could be improved as only certain chunks may contain foreign data
-        if !self.foreign_fields {
-            for block in self.blocks.iter() {
-                let begin = block.bpo + 1;
-                let end = begin + block.static_count;
-                for id in begin..end {
-                    trace!(
-                        target: "SkillParsing",
-                        "{} id:{} block:{:?}",
-                        self.name.as_str(),
-                        id,
-                        block,
-                    );
-                    vec[id - 1] = self.parts_maker.make_instance(id, self.type_id);
-                }
-            }
-        } else {
-            for block in self.blocks.iter() {
-                let begin = block.bpo + 1;
-                let end = begin + block.static_count;
-                for id in begin..end {
-                    trace!(
-                        target: "SkillParsing",
-                        "foreign::{} id:{} block:{:?}",
-                        self.name.as_str(),
-                        id,
-                        block,
-                    );
-                    vec[id - 1] = self.parts_maker.make_foreign(id, self.type_id);
-                }
+        for block in self.blocks.iter() {
+            let begin = block.bpo + 1;
+            let end = begin + block.static_count;
+            for id in begin..end {
+                trace!(
+                    target: "SkillParsing",
+                    "{} id:{} block:{:?}",
+                    self.name.as_str(),
+                    id,
+                    block,
+                );
+                vec[id - 1] = self.parts_maker.make_instance(id, self.type_id);
             }
         }
     }
@@ -371,13 +352,13 @@ impl Pool {
         self.cached_count = count;
     }
 
-    pub(crate) fn make_foreign(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
+    pub(crate) fn make_instance(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
         trace!(
             target: "SkillParsing",
             "Create new foreign::{}",
             self.name.as_str()
         );
-        self.parts_maker.make_foreign(skill_id, skill_type_id)
+        self.parts_maker.make_instance(skill_id, skill_type_id)
     }
 
     pub(crate) fn update_after_compress(

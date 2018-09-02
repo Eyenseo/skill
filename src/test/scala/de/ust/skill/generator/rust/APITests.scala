@@ -276,7 +276,7 @@ class APITests extends common.GenericAPITests {
                   §
                   §        ${objectIDs(root)}
                   §
-                  §        match SkillFile::create("/tmp/${funName}_$uuid.sf", FileMode::RW) {
+                  §        match SkillFile::create("/tmp/${funName}_$uuid.sf") {
                   §            Ok(mut sf) => match || -> Result<(), SkillFail> {
                   §                sf.check()?;
                   §                // create objects
@@ -345,7 +345,7 @@ class APITests extends common.GenericAPITests {
       tc.removeTypedefs().removeEnums()
       .get(t.getSkillName).asInstanceOf[UserType]
         .getAllFields.asScala
-        .find(_.getName.getSkillName.equals(fn)).get
+        .find(f ⇒ f.getName.getSkillName.equals(fn)).get
     } catch {
       case _: NoSuchElementException ⇒ fail(s"Field '$fn' does not exist, fix your test description!")
     }
@@ -378,7 +378,7 @@ class APITests extends common.GenericAPITests {
           } else {
             // NOTE all objects are read back so these names have to be valid
             // NOTE unwrapping is done to trigger a panic in case the cast ist illegal
-            e"Some(${v.toString}.clone().nucast::<SkillObject>().unwrap().downgrade())"
+            e"Some(${v.toString}.clone().cast::<SkillObject>().unwrap().downgrade())"
           }
       }
     case t: ConstantLengthArrayType ⇒
@@ -436,7 +436,7 @@ class APITests extends common.GenericAPITests {
       } else {
         // NOTE all objects are read back so these names have to be valid
         // NOTE unwrapping is done to trigger a panic in case the cast ist illegal
-        e"Some(${v.toString}.clone().nucast::<${gen.traitName(t)}>().unwrap().downgrade())"
+        e"Some(${v.toString}.clone().cast::<${gen.name(t)}>().unwrap().downgrade())"
       }
     case t: InterfaceType        ⇒
       t.getBaseType match {
@@ -446,7 +446,7 @@ class APITests extends common.GenericAPITests {
           } else {
             // NOTE all objects are read back so these names have to be valid
             // NOTE unwrapping is done to trigger a panic in case the cast ist illegal
-            e"Some(${v.toString}.clone().nucast::<${gen.traitName(t)}>().unwrap().downgrade())"
+            e"Some(${v.toString}.clone().cast::<${gen.traitName(t)}>().unwrap().downgrade())"
           }
         case _           ⇒
           if (null == v || v.toString.equals("null")) {
@@ -454,7 +454,7 @@ class APITests extends common.GenericAPITests {
           } else {
             // NOTE all objects are read back so these names have to be valid
             // NOTE unwrapping is done to trigger a panic in case the cast ist illegal
-            e"Some(${v.toString}.clone().nucast::<SkillObject>().unwrap().downgrade())"
+            e"Some(${v.toString}.clone().cast::<SkillObject>().unwrap().downgrade())"
           }
       }
     case _                       ⇒
@@ -608,8 +608,8 @@ class APITests extends common.GenericAPITests {
                 e"""assert_eq!(
                    §    $name.borrow_mut().$getter().is_some(), true);
                    §assert_eq!(
-                   §    $name.borrow_mut().$getter().as_ref().unwrap().upgrade().unwrap().nucast::<SkillObject>(),
-                   §    ${objFieldNames.get(fieldName).toString}.clone().nucast::<SkillObject>(),
+                   §    $name.borrow_mut().$getter().as_ref().unwrap().upgrade().unwrap().cast::<SkillObject>(),
+                   §    ${objFieldNames.get(fieldName).toString}.clone().cast::<SkillObject>(),
                    §);
                    §""".stripMargin('§')
               }

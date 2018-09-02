@@ -11,6 +11,8 @@ use std::ops::{Deref, DerefMut};
 use std::ptr;
 use std::ptr::NonNull;
 
+use ptr::VALID_CASTS;
+
 /// An error returned by [`RefCell::try_borrow`](struct.RefCell.html#method.try_borrow).
 pub struct BorrowError {
     private: (),
@@ -329,7 +331,9 @@ mod diggsey {
     #[doc(hidden)]
     #[repr(C)]
     #[derive(Copy, Clone, Debug)]
-    pub struct VTable(*const ());
+    pub(crate) struct VTable(*const ());
+
+    unsafe impl Sync for VTable {}
 
     impl VTable {
         pub(crate) fn none() -> VTable {
@@ -350,72 +354,39 @@ mod diggsey {
 
 pub(crate) use self::diggsey::*;
 
-#[macro_export]
-macro_rules! ptr_cast_able {
-    // Choose the right vtable branch based on wanted TypeId
-    (@gen_vtable $id:ident, $struct:ty, {$($trait:ty),*$(,)*}) => {
-        if $id == ::std::any::TypeId::of::<$struct>() {
-            Some($crate::common::ptr::VTable::none())
-        } else $(if $id == ::std::any::TypeId::of::<$trait>() {
-            unsafe {
-                let x = ::std::ptr::null::<$struct>() as *const $trait;
-                Some(::std::mem::transmute::<_, $crate::common::ptr::TraitObject>(x).vtable)
-            }
-        } else)* {
-            None
-        }
-    };
-    //----------------------------------------
-    // Empty
-    //----------------------------------------
-    ($for:ty) => {
-        impl $crate::common::ptr::CastAble<$for> for Ptr<$for> {
-            fn vtable(&self, id: ::std::any::TypeId) -> Option<$crate::common::ptr::VTable> {
-                None
-            }
-        }
-    };
-    //----------------------------------------
-    // Structs
-    //----------------------------------------
-    // impl Ptr<Struct>
-    // NOTE this has to be infront of the trait rule
-    ($for:ty = $traits:tt) => {
-        impl $crate::common::ptr::CastAble<$for> for Ptr<$for> {
-            fn vtable(&self, id: ::std::any::TypeId) -> Option<$crate::common::ptr::VTable> {
-                ptr_cast_able!(@gen_vtable id, $for, $traits)
-            }
-        }
-    };
-    //----------------------------------------
-    // Traits
-    //----------------------------------------
-    // Choose the right struct(s) based on TypeId
-    (@gen_for_trait $self:ident, $id:ident, ($struct:ty : $traits:tt, $($in:tt)*) -> ($($out:tt)*)) => {
-        ptr_cast_able!(@gen_for_trait $self, $id, ($($in)*) -> (
-            $($out)*
-            if $self.ptr_type_id() == ::std::any::TypeId::of::<$struct>() {
-                ptr_cast_able!(@gen_vtable $id, $struct, $traits)
-            } else )
-        );
-    };
-    // 'Write' the accumulated output
-    (@gen_for_trait $self:ident, $id:ident, ($(,)*) -> ($($out:tt)*)) => {$($out)* {None}};
-    // impl Ptr<Trait>
-    ($for:ty = $($in:tt)*) => {
-        impl $crate::common::ptr::CastAble<$for> for Ptr<$for> {
-            fn vtable(&self, id: ::std::any::TypeId) -> Option<$crate::common::ptr::VTable> {
-                ptr_cast_able!(@gen_for_trait self, id, ($($in)*,) -> ())
-            }
-        }
-    };
-}
-
-pub trait CastAble<T>
+impl<T> Ptr<T>
 where
     T: ?Sized,
 {
-    fn vtable(&self, id: TypeId) -> Option<VTable>;
+    pub fn cast<U>(&self) -> Option<Ptr<U>>
+    where
+        U: ?Sized + 'static,
+    {
+        if let Some(map) = VALID_CASTS.get(&unsafe { self.meta.as_ref() }.type_id) {
+            if let Some(vtable) = map.get(&::std::any::TypeId::of::<U>()) {
+                unsafe {
+                    let mut t = TraitObject {
+                        data: self.value.as_ptr() as *const (),
+                        vtable: *vtable,
+                    };
+                    let value = NonNull::new_unchecked(
+                        // NOTE mut-ref-ptr-to T to mut-ref-ptr-to U
+                        *::std::mem::transmute::<_, &mut *mut U>(&mut t),
+                    );
+                    let meta = self.meta.as_ref();
+                    meta.strong.set(meta.strong.get() + 1);
+                    Some(Ptr {
+                        meta: self.meta,
+                        value,
+                    })
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
 }
 
 impl<T> Ptr<T>
@@ -431,39 +402,6 @@ where
             meta: self.meta,
             value: self.value,
         }
-    }
-
-    pub fn nucast<U>(&self) -> Option<Ptr<U>>
-    where
-        U: ?Sized + 'static,
-        Self: CastAble<T>,
-    {
-        // Adapted from https://github.com/Diggsey/query_interface
-        if let Some(vtable) = self.vtable(::std::any::TypeId::of::<U>()) {
-            unsafe {
-                let data = self.value.as_ptr();
-                let mut t = TraitObject {
-                    data: data as *const (),
-                    vtable,
-                };
-                let value = NonNull::new_unchecked(
-                    // NOTE mut-ref-ptr-to T to mut-ret-ptr-to U
-                    *::std::mem::transmute::<_, &mut *mut U>(&mut t),
-                );
-                let meta = self.meta.as_ref();
-                meta.strong.set(meta.strong.get() + 1);
-                Some(Ptr {
-                    meta: self.meta,
-                    value,
-                })
-            }
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn ptr_type_id(&self) -> TypeId {
-        unsafe { self.meta.as_ref().type_id }
     }
 
     pub fn borrow(&self) -> Ref<T> {
@@ -964,78 +902,6 @@ mod tests {
             let b2 = ptr.borrow_mut(); // should panic
 
             assert_eq!(*b1, *b2);
-        }
-    }
-
-    mod casts {
-        use super::*;
-
-        #[derive(Debug, Clone)]
-        struct Foo;
-
-        #[derive(Debug, Clone)]
-        struct Bar;
-
-        trait FooT: Debug {
-            fn test(&self) -> String {
-                "FooT::Default".to_string()
-            }
-        }
-
-        trait BarT: Debug {
-            fn test(&self) -> String {
-                "BarT::Default".to_string()
-            }
-        }
-
-        impl FooT for Foo {
-            fn test(&self) -> String {
-                "Foo::FooT".to_string()
-            }
-        }
-
-        impl FooT for Bar {
-            fn test(&self) -> String {
-                "Bar::FooT".to_string()
-            }
-        }
-
-        impl BarT for Bar {
-            fn test(&self) -> String {
-                "Bar::BarT".to_string()
-            }
-        }
-
-        ptr_cast_able!(Foo = {FooT,});
-        ptr_cast_able!(Bar = {FooT, BarT,});
-        ptr_cast_able!(FooT = Foo: {FooT}, Bar: {FooT, BarT},);
-        ptr_cast_able!(BarT = Bar: {FooT, BarT});
-
-        #[test]
-        fn nucast() {
-            let bar = Ptr::new(Bar {});
-            let foo_t: Option<Ptr<FooT>> = bar.nucast();
-            assert!(foo_t.is_some());
-            let foo_t = foo_t.unwrap();
-            assert_eq!(foo_t.borrow().test(), "Bar::FooT");
-            let bar_t = foo_t.nucast::<BarT>();
-            assert!(bar_t.is_some());
-            let bar_t = bar_t.unwrap();
-            assert_eq!(bar_t.borrow().test(), "Bar::BarT");
-            let bar_t_bar: Option<Ptr<Bar>> = bar_t.nucast();
-            assert!(bar_t_bar.is_some());
-            let foo_t_foo: Option<Ptr<Foo>> = foo_t.nucast();
-            assert!(foo_t_foo.is_none());
-
-            let foo = Ptr::new(Foo {});
-            let foo_t = foo.nucast::<FooT>();
-            assert!(foo_t.is_some());
-            let foo_t = foo_t.unwrap();
-            assert!(foo_t.borrow().test() == "Foo::FooT");
-            let bar_t = foo_t.nucast::<BarT>();
-            assert!(bar_t.is_none());
-            let foo_t_foo = foo_t.nucast::<Foo>();
-            assert!(foo_t_foo.is_some());
         }
     }
 

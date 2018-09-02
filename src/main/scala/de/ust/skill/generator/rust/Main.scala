@@ -72,7 +72,7 @@ final class Main extends FakeMain
     case t: SetType                 ⇒ s"HashSet<${mapType(t.getBaseType)}>"
     case t: MapType                 ⇒ mapMapTypes(t.getBaseTypes.asScala.toList)
 
-    case t: UserType      ⇒ s"Option<WeakPtr<${traitName(t)}>>"
+    case t: UserType      ⇒ s"Option<WeakPtr<${name(t)}>>"
     case t: InterfaceType ⇒ t.getBaseType match {
       case _: UserType ⇒ s"Option<WeakPtr<${traitName(t)}>>"
       case _           ⇒ "Option<WeakPtr<SkillObject>>"
@@ -94,7 +94,6 @@ final class Main extends FakeMain
 
   override def setOption(option: String, value: String) {
     option match {
-      case "interfacechecks" ⇒ interfaceChecks = "true".equals(value)
       case unknown           ⇒ throw new GeneratorException(s"unknown Argument: $unknown")
     }
   }
@@ -165,39 +164,6 @@ final class Main extends FakeMain
 
       case t ⇒ throw new GeneratorException(s"Unknown type $t")
     }
-
-  protected def filterInterfacesFromIR() {
-    // find implementers
-    val ts = types.removeTypedefs()
-    for (t ← ts.getUsertypes.asScala) {
-      val is: mutable.HashSet[InterfaceType] = t.getSuperInterfaces.asScala
-                                               .flatMap(recursiveSuperInterfaces(_, new mutable.HashSet[InterfaceType]))
-                                               .to
-      interfaceCheckImplementations(t.getSkillName) = is.map(insertInterface(_, t))
-    }
-  }
-
-  private def insertInterface(i: InterfaceType, target: UserType): String = {
-    // register a potential implementation for the target type and interface
-    i.getBaseType match {
-      case b: UserType ⇒
-        interfaceCheckMethods.getOrElseUpdate(b.getSkillName, new mutable.HashSet[String]) += i.getName.capital()
-      case _           ⇒
-        interfaceCheckMethods.getOrElseUpdate(target.getBaseType.getSkillName, new mutable.HashSet[String]) +=
-        i.getName.capital()
-    }
-    // return the name to be used
-    i.getName.capital
-  }
-
-  private def recursiveSuperInterfaces(i: InterfaceType,
-                                       r: mutable.HashSet[InterfaceType]): mutable.HashSet[InterfaceType] = {
-    r += i
-    for (s ← i.getSuperInterfaces.asScala) {
-      recursiveSuperInterfaces(s, r)
-    }
-    r
-  }
 }
 
 object EscapeFunction {

@@ -263,15 +263,15 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        Ok(sf)
        §    }
        §
-       §    pub fn create(file: &str, mode: FileMode) -> Result<Self, SkillFail> {
+       §    pub fn create(file: &str) -> Result<Self, SkillFail> {
        §        debug!(
        §            target: "SkillWriting",
        §            "Start creating"
        §        );
        §        let f = match ::std::fs::OpenOptions::new()
        §            .read(true)
-       §            .write(mode == FileMode::RW)
-       §            .create(mode == FileMode::RW)
+       §            .write(true)
+       §            .create(true)
        §            .open(&file)
        §        {
        §            Ok(f) => Ok(f),
@@ -294,7 +294,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        file_builder.complete();
        §        let mut sf = SkillFile {
        §            file: Rc::new(RefCell::new(f)),
-       §            mode,
+       §            mode: FileMode::RW,
        §            block_reader: Rc::new(RefCell::new(data_chunk_reader)),
        §            type_pool,
        §            string_pool: StringPool::new(string_pool),${

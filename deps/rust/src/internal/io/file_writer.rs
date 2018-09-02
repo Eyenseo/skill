@@ -375,7 +375,7 @@ impl<'v> FileWriter<'v> {
                 let user = user.upgrade().unwrap();
                 trace!(
                     target: "SkillWriting",
-                    "~~~~FieldType = User{} ID:{}",
+                    "~~~~FieldType = User {} ID:{}",
                     user.borrow().pool().name().as_str(),
                     user.borrow().pool().get_type_id()
                 );

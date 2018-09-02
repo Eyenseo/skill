@@ -1,4 +1,5 @@
 use common::error::*;
+use common::internal::foreign::object::ForeignObject;
 use common::internal::io::*;
 use common::internal::*;
 use common::iterator::dynamic_data;
@@ -212,7 +213,6 @@ impl FieldDeclaration {
                             if let Some(obj) = obj {
                                 // Utter madness
                                 if let Some(obj) = obj.upgrade() {
-                                    let obj = obj.nucast::<foreign::Object>().unwrap();
                                     let obj = obj.borrow();
                                     if obj.to_delete() {
                                         offset += 2;
@@ -307,7 +307,6 @@ impl FieldDeclaration {
                         if let Some(obj) = obj {
                             // Utter mandness
                             if let Some(obj) = obj.upgrade() {
-                                let obj = obj.nucast::<foreign::Object>().unwrap();
                                 let obj = obj.borrow();
                                 if obj.to_delete() {
                                     offset += 1;
@@ -373,7 +372,6 @@ impl FieldDeclaration {
                             if let Some(obj) = obj {
                                 // Utter mandness
                                 if let Some(obj) = obj.upgrade() {
-                                    let obj = obj.nucast::<foreign::Object>().unwrap();
                                     let obj = obj.borrow();
 
                                     if obj.to_delete() {
@@ -514,7 +512,6 @@ impl FieldDeclaration {
                         if let Some(obj) = obj {
                             // Utter madness
                             if let Some(obj) = obj.upgrade() {
-                                let obj = obj.nucast::<foreign::Object>().unwrap();
                                 let obj = obj.borrow();
 
                                 if obj.to_delete() {
@@ -590,7 +587,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                                     o + block.bpo,
                                 );
                                 o += 1;
-                                match obj.nucast::<foreign::Object>() {
+                                match obj.cast::<foreign::Foreign>() {
                                     Some(obj) => {
                                         let mut obj = obj.borrow_mut();
 
@@ -639,7 +636,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                             );
                             o += 1;
 
-                            match obj.nucast::<foreign::Object>() {
+                            match obj.cast::<foreign::Foreign>() {
                                 Some(obj) => {
                                     let mut obj = obj.borrow_mut();
 
@@ -702,7 +699,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                 BuildInType::ConstTi32 => offset = 4 * iter.count(),
                 BuildInType::ConstTi64 => offset = 8 * iter.count(),
                 BuildInType::ConstTv64 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -711,7 +708,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     };
                 },
                 BuildInType::Tannotation => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -740,7 +737,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                 BuildInType::Ti32 => offset = 4 * iter.count(),
                 BuildInType::Ti64 => offset = 8 * iter.count(),
                 BuildInType::Tv64 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -751,7 +748,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                 BuildInType::Tf32 => offset = 4 * iter.count(),
                 BuildInType::Tf64 => offset = 8 * iter.count(),
                 BuildInType::Tstring => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -766,7 +763,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::ConstTarray(length, box_v) => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -777,7 +774,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::Tarray(box_v) => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -789,7 +786,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::Tlist(box_v) => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -801,7 +798,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::Tset(box_v) => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -813,7 +810,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::Tmap(key_box_v, box_v) => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -827,7 +824,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                 },
             },
             FieldType::User(_pool) => for obj in iter {
-                let obj = obj.nucast::<foreign::Object>().unwrap();
+                let obj = obj.cast::<foreign::Foreign>().unwrap();
                 let obj = obj.borrow(); // borrowing madness
 
                 match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -888,7 +885,7 @@ impl io::FieldDeclaration for FieldDeclaration {
         match &self.field_type {
             FieldType::BuildIn(field) => match field {
                 BuildInType::ConstTi8 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -897,7 +894,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::ConstTi16 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -906,7 +903,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::ConstTi32 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -915,7 +912,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::ConstTi64 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -924,7 +921,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::ConstTv64 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -933,14 +930,13 @@ impl io::FieldDeclaration for FieldDeclaration {
                     };
                 },
                 BuildInType::Tannotation => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::User(obj) => {
                             if let Some(obj) = obj {
                                 if let Some(obj) = obj.upgrade() {
-                                    let obj = obj.nucast::<foreign::Object>().unwrap();
                                     let obj = obj.borrow(); // borrowing madness
                                     if obj.to_delete() {
                                         writer.write_i8(0)?;
@@ -962,7 +958,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::Tbool => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -971,7 +967,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     };
                 },
                 BuildInType::Ti8 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -980,7 +976,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     };
                 },
                 BuildInType::Ti16 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -989,7 +985,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     };
                 },
                 BuildInType::Ti32 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -998,7 +994,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     };
                 },
                 BuildInType::Ti64 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -1007,7 +1003,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     };
                 },
                 BuildInType::Tv64 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -1016,7 +1012,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::Tf32 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -1025,7 +1021,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::Tf64 => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -1034,7 +1030,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::Tstring => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -1049,7 +1045,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::ConstTarray(_length, box_v) => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -1060,7 +1056,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::Tarray(box_v) => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -1072,7 +1068,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::Tlist(box_v) => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -1084,7 +1080,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::Tset(box_v) => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -1096,7 +1092,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 },
                 BuildInType::Tmap(key_box_v, box_v) => for obj in iter {
-                    let obj = obj.nucast::<foreign::Object>().unwrap();
+                    let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
@@ -1120,14 +1116,13 @@ impl io::FieldDeclaration for FieldDeclaration {
                 },
             },
             FieldType::User(_pool) => for obj in iter {
-                let obj = obj.nucast::<foreign::Object>().unwrap();
+                let obj = obj.cast::<foreign::Foreign>().unwrap();
                 let obj = obj.borrow(); // borrowing madness
 
                 match &obj.foreign_fields()[self.foreign_vec_index] {
                     foreign::FieldData::User(obj) => {
                         if let Some(obj) = obj {
                             if let Some(obj) = obj.upgrade() {
-                                let obj = obj.nucast::<foreign::Object>().unwrap();
                                 let obj = obj.borrow(); // borrowing madness
 
                                 if obj.to_delete() {

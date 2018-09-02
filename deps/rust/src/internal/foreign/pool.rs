@@ -47,29 +47,13 @@ impl PoolPartsMaker for Maker {
                 .unwrap()
                 .borrow()
                 .pool()
-                .make_foreign(skill_id, skill_type_id);
+                .make_instance(skill_id, skill_type_id);
         }
         trace!(
             target: "SkillParsing",
             "Create new ObjectProper",
         );
-        Ptr::new(foreign::ObjectProper::new(skill_id, skill_type_id))
-    }
-
-    fn make_foreign(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
-        if let Some(pool) = self.super_pool.as_ref() {
-            return pool
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .pool()
-                .make_foreign(skill_id, skill_type_id);
-        }
-        trace!(
-            target: "SkillParsing",
-            "Create new ObjectProper",
-        );
-        Ptr::new(foreign::ObjectProper::new(skill_id, skill_type_id))
+        Ptr::new(foreign::Foreign::new(skill_id, skill_type_id))
     }
 }
 

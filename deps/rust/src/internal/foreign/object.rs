@@ -5,37 +5,39 @@ use common::*;
 use std::cell::Cell;
 
 #[derive(Default, Debug)]
-pub(crate) struct ObjectProper {
+#[repr(C)]
+pub(crate) struct Foreign {
+    // NOTE be sure to change PoolMaker::genTypeStruct too!
     skill_id: Cell<usize>,
     skill_type_id: usize,
-    undefind_data: Vec<foreign::FieldData>,
+    foreign_data: Vec<foreign::FieldData>,
 }
 
-pub(crate) trait Object: SkillObject {
+pub(crate) trait ForeignObject: SkillObject {
     fn foreign_fields(&self) -> &Vec<foreign::FieldData>;
     fn foreign_fields_mut(&mut self) -> &mut Vec<foreign::FieldData>;
 }
 
-impl ObjectProper {
-    pub(crate) fn new(skill_id: usize, skill_type_id: usize) -> ObjectProper {
-        ObjectProper {
+impl Foreign {
+    pub(crate) fn new(skill_id: usize, skill_type_id: usize) -> Foreign {
+        Foreign {
             skill_id: Cell::new(skill_id),
             skill_type_id,
-            undefind_data: Vec::default(),
+            foreign_data: Vec::default(),
         }
     }
 }
 
-impl Object for ObjectProper {
+impl ForeignObject for Foreign {
     fn foreign_fields(&self) -> &Vec<foreign::FieldData> {
-        &self.undefind_data
+        &self.foreign_data
     }
     fn foreign_fields_mut(&mut self) -> &mut Vec<foreign::FieldData> {
-        &mut self.undefind_data
+        &mut self.foreign_data
     }
 }
 
-impl SkillObject for ObjectProper {
+impl SkillObject for Foreign {
     fn skill_type_id(&self) -> usize {
         self.skill_type_id
     }
@@ -54,7 +56,7 @@ impl SkillObject for ObjectProper {
     }
 }
 
-impl Deletable for ObjectProper {
+impl Deletable for Foreign {
     fn mark_for_deletion(&mut self) {
         self.skill_id.set(skill_object::DELETE);
     }

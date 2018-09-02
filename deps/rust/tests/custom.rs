@@ -44,7 +44,6 @@ mod tests {
 
         match SkillFile::create(
             "/tmp/api_custom_accept_custom_6993977d-76a6-4ea6-9996-861de3589b68.sf",
-            FileMode::RW,
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;

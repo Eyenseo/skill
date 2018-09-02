@@ -8,7 +8,7 @@ pub(crate) mod skill_object;
 mod skill_string;
 mod string_pool;
 
-pub(crate) use self::ptr::{BorrowError, BorrowMutError, Ref, RefMut, TraitObject};
+pub(crate) use self::ptr::{BorrowError, BorrowMutError, Ref, RefMut};
 pub use self::ptr::{Ptr, WeakPtr};
 pub(crate) use self::skill_object::Deletable;
 pub use self::skill_object::SkillObject;

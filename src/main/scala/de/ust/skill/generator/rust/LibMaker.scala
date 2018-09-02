@@ -48,6 +48,9 @@ trait LibMaker extends GeneralOutputMaker {
                   §extern crate failure_derive;
                   §
                   §#[macro_use]
+                  §extern crate lazy_static;
+                  §
+                  §#[macro_use]
                   §pub mod common;
                   §
                   §mod skill_file;
@@ -110,9 +113,10 @@ trait LibMaker extends GeneralOutputMaker {
                   §
                   §[dependencies]
                   §memmap = "0.6.2"
-                  §log = { version = "0.4.3", features = ["max_level_trace", "release_max_level_off"] }
+                  §log = { version = "0.4.4", features = ["max_level_trace", "release_max_level_off"] }
                   §failure = "0.1.2"
                   §failure_derive = "0.1.2"
+                  §lazy_static = "1.1.0"
                   §
                   §""".stripMargin('§')
              )
