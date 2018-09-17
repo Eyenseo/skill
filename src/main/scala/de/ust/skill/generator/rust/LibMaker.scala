@@ -38,6 +38,7 @@ trait LibMaker extends GeneralOutputMaker {
                   §#![feature(specialization)]
                   §#![feature(core_intrinsics)]
                   §#![feature(extern_prelude)]
+                  §#![feature(optin_builtin_traits)]
                   §
                   §#[macro_use]
                   §extern crate log;

@@ -5,6 +5,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::{Debug, Display};
 use std::hash::{Hash, Hasher};
+use std::intrinsics::abort;
 use std::marker::Unsize;
 use std::ops::CoerceUnsized;
 use std::ops::{Deref, DerefMut};
@@ -13,262 +14,11 @@ use std::ptr::NonNull;
 
 use ptr::VALID_CASTS;
 
-/// An error returned by [`RefCell::try_borrow`](struct.RefCell.html#method.try_borrow).
-pub struct BorrowError {
-    private: (),
-}
-
-impl Debug for BorrowError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("BorrowError").finish()
-    }
-}
-
-impl Display for BorrowError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Display::fmt("already mutably borrowed", f)
-    }
-}
-
-/// An error returned by [`RefCell::try_borrow_mut`](struct.RefCell.html#method.try_borrow_mut).
-pub struct BorrowMutError {
-    private: (),
-}
-
-impl Debug for BorrowMutError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("BorrowMutError").finish()
-    }
-}
-
-impl Display for BorrowMutError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Display::fmt("already borrowed", f)
-    }
-}
-
-struct BorrowRef<'b> {
-    borrow: &'b Cell<BorrowFlag>,
-}
-
-impl<'b> BorrowRef<'b> {
-    #[inline]
-    fn new(borrow: &'b Cell<BorrowFlag>) -> Option<BorrowRef<'b>> {
-        match borrow.get() {
-            WRITING => None,
-            b => {
-                borrow.set(b + 1);
-                Some(BorrowRef { borrow })
-            }
-        }
-    }
-}
-
-impl<'b> Drop for BorrowRef<'b> {
-    #[inline]
-    fn drop(&mut self) {
-        let borrow = self.borrow.get();
-        debug_assert!(borrow != WRITING && borrow != UNUSED);
-        self.borrow.set(borrow - 1);
-    }
-}
-
-impl<'b> Clone for BorrowRef<'b> {
-    #[inline]
-    fn clone(&self) -> BorrowRef<'b> {
-        // Since this Ref exists, we know the borrow flag
-        // is not set to WRITING.
-        let borrow = self.borrow.get();
-        debug_assert!(borrow != UNUSED);
-        // Prevent the borrow counter from overflowing.
-        assert!(borrow != WRITING);
-        self.borrow.set(borrow + 1);
-        BorrowRef {
-            borrow: self.borrow,
-        }
-    }
-}
-
-/// Wraps a borrowed reference to a value in a `RefCell` box.
-/// A wrapper type for an immutably borrowed value from a `RefCell<T>`.
-///
-/// See the [module-level documentation](index.html) for more.
-pub struct Ref<'b, T: ?Sized + 'b> {
-    value: &'b T,
-    borrow: BorrowRef<'b>,
-}
-
-impl<'b, T: ?Sized> Deref for Ref<'b, T> {
-    type Target = T;
-
-    #[inline]
-    fn deref(&self) -> &T {
-        self.value
-    }
-}
-
-impl<'b, T: ?Sized> Ref<'b, T> {
-    /// Copies a `Ref`.
-    ///
-    /// The `RefCell` is already immutably borrowed, so this cannot fail.
-    ///
-    /// This is an associated function that needs to be used as
-    /// `Ref::clone(...)`.  A `Clone` implementation or a method would interfere
-    /// with the widespread use of `r.borrow().clone()` to clone the contents of
-    /// a `RefCell`.
-    #[inline]
-    pub fn clone(orig: &Ref<'b, T>) -> Ref<'b, T> {
-        Ref {
-            value: orig.value,
-            borrow: orig.borrow.clone(),
-        }
-    }
-
-    /// Make a new `Ref` for a component of the borrowed data.
-    ///
-    /// The `RefCell` is already immutably borrowed, so this cannot fail.
-    ///
-    /// This is an associated function that needs to be used as `Ref::map(...)`.
-    /// A method would interfere with methods of the same name on the contents
-    /// of a `RefCell` used through `Deref`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::cell::{RefCell, Ref};
-    ///
-    /// let c = RefCell::new((5, 'b'));
-    /// let b1: Ref<(u32, char)> = c.borrow();
-    /// let b2: Ref<u32> = Ref::map(b1, |t| &t.0);
-    /// assert_eq!(*b2, 5)
-    /// ```
-    #[inline]
-    pub fn map<U: ?Sized, F>(orig: Ref<'b, T>, f: F) -> Ref<'b, U>
-    where
-        F: FnOnce(&T) -> &U,
-    {
-        Ref {
-            value: f(orig.value),
-            borrow: orig.borrow,
-        }
-    }
-}
-
-impl<'b, T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<Ref<'b, U>> for Ref<'b, T> {}
-
-impl<'a, T: ?Sized + fmt::Display> fmt::Display for Ref<'a, T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.value.fmt(f)
-    }
-}
-
-impl<'b, T: ?Sized> RefMut<'b, T> {
-    /// Make a new `RefMut` for a component of the borrowed data, e.g. an enum
-    /// variant.
-    ///
-    /// The `RefCell` is already mutably borrowed, so this cannot fail.
-    ///
-    /// This is an associated function that needs to be used as
-    /// `RefMut::map(...)`.  A method would interfere with methods of the same
-    /// name on the contents of a `RefCell` used through `Deref`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::cell::{RefCell, RefMut};
-    ///
-    /// let c = RefCell::new((5, 'b'));
-    /// {
-    ///     let b1: RefMut<(u32, char)> = c.borrow_mut();
-    ///     let mut b2: RefMut<u32> = RefMut::map(b1, |t| &mut t.0);
-    ///     assert_eq!(*b2, 5);
-    ///     *b2 = 42;
-    /// }
-    /// assert_eq!(*c.borrow(), (42, 'b'));
-    /// ```
-    #[inline]
-    pub fn map<U: ?Sized, F>(orig: RefMut<'b, T>, f: F) -> RefMut<'b, U>
-    where
-        F: FnOnce(&mut T) -> &mut U,
-    {
-        // FIXME(nll-rfc#40): fix borrow-check
-        let RefMut { value, borrow } = orig;
-        RefMut {
-            value: f(value),
-            borrow,
-        }
-    }
-}
-
-struct BorrowRefMut<'b> {
-    borrow: &'b Cell<BorrowFlag>,
-}
-
-impl<'b> Drop for BorrowRefMut<'b> {
-    #[inline]
-    fn drop(&mut self) {
-        let borrow = self.borrow.get();
-        debug_assert!(borrow == WRITING);
-        self.borrow.set(UNUSED);
-    }
-}
-
-impl<'b> BorrowRefMut<'b> {
-    #[inline]
-    fn new(borrow: &'b Cell<BorrowFlag>) -> Option<BorrowRefMut<'b>> {
-        match borrow.get() {
-            UNUSED => {
-                borrow.set(WRITING);
-                Some(BorrowRefMut { borrow })
-            }
-            _ => None,
-        }
-    }
-}
-
-/// A wrapper type for a mutably borrowed value from a `RefCell<T>`.
-///
-/// See the [module-level documentation](index.html) for more.
-pub struct RefMut<'b, T: ?Sized + 'b> {
-    value: &'b mut T,
-    borrow: BorrowRefMut<'b>,
-}
-
-impl<'b, T: ?Sized> Deref for RefMut<'b, T> {
-    type Target = T;
-
-    #[inline]
-    fn deref(&self) -> &T {
-        self.value
-    }
-}
-
-impl<'b, T: ?Sized> DerefMut for RefMut<'b, T> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut T {
-        self.value
-    }
-}
-
-impl<'b, T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<RefMut<'b, U>> for RefMut<'b, T> {}
-
-impl<'a, T: ?Sized + fmt::Display> fmt::Display for RefMut<'a, T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.value.fmt(f)
-    }
-}
+// NOTE std code adapted from 1.29.0
 
 //////////////////////////////////////////
-// Strong Pointer
+// Ptr - custom
 //////////////////////////////////////////
-
-// Values [1, MAX-1] represent the number of `Ref` active
-// (will not outgrow its range since `usize` is the size of the address space)
-type BorrowFlag = usize;
-
-const UNUSED: BorrowFlag = 0;
-const WRITING: BorrowFlag = !0;
-
 #[derive(Debug)]
 struct MetaData {
     cast_id: usize,
@@ -306,17 +56,16 @@ where
 impl<T: ?Sized> Drop for Ptr<T> {
     fn drop(&mut self) {
         unsafe {
-            let meta = self.meta.as_ref();
-
-            meta.strong.set(meta.strong.get() - 1);
-            if meta.strong.get() == 0 {
+            self.dec_strong();
+            if self.strong() == 0 {
+                // destroy the contained object
                 Box::from_raw(self.value.as_ptr());
 
                 // remove the implicit "strong weak" pointer now that we've
                 // destroyed the contents.
-                meta.weak.set(meta.weak.get() - 1);
+                self.dec_weak();
 
-                if meta.weak.get() == 0 {
+                if self.weak() == 0 {
                     Box::from_raw(self.meta.as_ptr());
                 }
             }
@@ -393,128 +142,11 @@ where
     }
 }
 
-impl<T> Ptr<T>
-where
-    T: ?Sized,
-{
-    pub fn downgrade(&self) -> WeakPtr<T> {
-        unsafe {
-            let meta = self.meta.as_ref();
-            meta.weak.set(meta.weak.get() + 1);
-        }
-        WeakPtr {
-            meta: self.meta,
-            value: self.value,
-        }
-    }
-
-    pub fn borrow(&self) -> Ref<T> {
-        match BorrowRef::new(unsafe { &self.meta.as_ref().borrow }) {
-            Some(b) => Ref {
-                value: unsafe { &*self.value.as_ref() },
-                borrow: b,
-            },
-            None => panic!("already mutably borrowed"),
-        }
-    }
-    pub fn try_borrow(&self) -> Result<Ref<T>, BorrowError> {
-        match BorrowRef::new(unsafe { &self.meta.as_ref().borrow }) {
-            Some(b) => Ok(Ref {
-                value: unsafe { &*self.value.as_ptr() },
-                borrow: b,
-            }),
-            None => Err(BorrowError { private: () }),
-        }
-    }
-
-    pub fn borrow_mut(&self) -> RefMut<T> {
-        match BorrowRefMut::new(unsafe { &self.meta.as_ref().borrow }) {
-            Some(b) => RefMut {
-                value: unsafe { &mut *self.value.as_ptr() },
-                borrow: b,
-            },
-            None => panic!("already mutably borrowed"),
-        }
-    }
-
-    pub fn try_borrow_mut(&self) -> Result<RefMut<T>, BorrowMutError> {
-        match BorrowRefMut::new(unsafe { &self.meta.as_ref().borrow }) {
-            Some(b) => Ok(RefMut {
-                value: unsafe { &mut *self.value.as_ptr() },
-                borrow: b,
-            }),
-            None => Err(BorrowMutError { private: () }),
-        }
-    }
-
-    /// Gets the number of [`Weak`][weak] pointers to this value.
-    ///
-    /// [weak]: struct.Weak.html
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    ///
-    /// let five = Rc::new(5);
-    /// let weak_five = Rc::downgrade(&five);
-    ///
-    /// assert_eq!(1, Rc::weak_count(&five));
-    /// ```
-    #[inline]
-    pub fn weak_count(&self) -> usize {
-        let weak = unsafe { self.meta.as_ref().weak.get() };
-        weak - 1
-    }
-
-    /// Gets the number of strong (`Rc`) pointers to this value.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    ///
-    /// let five = Rc::new(5);
-    /// let also_five = Rc::clone(&five);
-    ///
-    /// assert_eq!(2, Rc::strong_count(&five));
-    /// ```
-    #[inline]
-    pub fn strong_count(&self) -> usize {
-        unsafe { self.meta.as_ref().strong.get() }
-    }
-
-    /// Returns true if there are no other `Rc` or [`Weak`][weak] pointers to
-    /// this inner value.
-    ///
-    /// [weak]: struct.Weak.html
-    #[inline]
-    fn is_unique(&self) -> bool {
-        self.weak_count() == 0 && self.strong_count() == 1
-    }
-
-    #[inline]
-    /// Returns true if the two `Rc`s point to the same value (not
-    /// just values that compare as equal).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    ///
-    /// let five = Rc::new(5);
-    /// let same_five = Rc::clone(&five);
-    /// let other_five = Rc::new(5);
-    ///
-    /// assert!(Rc::ptr_eq(&five, &same_five));
-    /// assert!(!Rc::ptr_eq(&five, &other_five));
-    /// ```
-    pub fn ptr_eq(this: &Self, other: &Self) -> bool {
-        this.value.as_ptr() == other.value.as_ptr()
-    }
-}
-
 impl<T: ?Sized> Clone for Ptr<T> {
+    /// Makes a clone of the `Ptr` pointer.
+    ///
+    /// This creates another pointer to the same inner value, increasing the
+    /// strong reference count.
     #[inline]
     fn clone(&self) -> Ptr<T> {
         unsafe {
@@ -529,69 +161,20 @@ impl<T: ?Sized> Clone for Ptr<T> {
     }
 }
 
-impl<T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<Ptr<U>> for Ptr<T> {}
-
-impl<T> From<T> for Ptr<T>
-where
-    T: 'static + CastAble,
-{
-    fn from(t: T) -> Self {
-        Ptr::new(t)
-    }
-}
-
-impl<T> Default for Ptr<T>
-where
-    T: Default + 'static + CastAble,
-{
-    /// Creates a new `Rc<T>`, with the `Default` value for `T`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    ///
-    /// let x: Rc<i32> = Default::default();
-    /// assert_eq!(*x, 0);
-    /// ```
-    #[inline]
-    fn default() -> Ptr<T> {
-        Ptr::new(Default::default())
-    }
-}
+impl<T: ?Sized> !Sync for Ptr<T> {}
 
 impl<T: ?Sized> PartialEq for Ptr<T> {
-    /// Equality for two `Rc`s.
+    /// Equality for two `Ptr`s.
     ///
-    /// Two `Rc`s are equal if their inner values are equal.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    ///
-    /// let five = Rc::new(5);
-    ///
-    /// assert!(five == Rc::new(5));
-    /// ```
+    /// Two `Ptr`s are equal if their inner meta data are equal.
     #[inline(always)]
     fn eq(&self, other: &Ptr<T>) -> bool {
         self.meta == other.meta
     }
 
-    /// Inequality for two `Rc`s.
+    /// Inequality for two `Ptr`s.
     ///
-    /// Two `Rc`s are unequal if their inner values are unequal.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    ///
-    /// let five = Rc::new(5);
-    ///
-    /// assert!(five != Rc::new(6));
-    /// ```
+    /// Two `Rc`s are unequal if their inner meta data are unequal.
     #[inline(always)]
     fn ne(&self, other: &Ptr<T>) -> bool {
         self.meta != other.meta
@@ -601,92 +184,41 @@ impl<T: ?Sized> PartialEq for Ptr<T> {
 impl<T: ?Sized> Eq for Ptr<T> {}
 
 impl<T: ?Sized> PartialOrd for Ptr<T> {
-    /// Partial comparison for two `Rc`s.
+    /// Partial comparison for two `Ptr`s.
     ///
-    /// The two are compared by calling `partial_cmp()` on their inner values.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use std::cmp::Ordering;
-    ///
-    /// let five = Rc::new(5);
-    ///
-    /// assert_eq!(Some(Ordering::Less), five.partial_cmp(&Rc::new(6)));
-    /// ```
+    /// The two are compared by calling `partial_cmp()` on their meta data.
     #[inline(always)]
     fn partial_cmp(&self, other: &Ptr<T>) -> Option<Ordering> {
         (self.meta).partial_cmp(&other.meta)
     }
 
-    /// Less-than comparison for two `Rc`s.
+    /// Less-than comparison for two `Ptr`s.
     ///
-    /// The two are compared by calling `<` on their inner values.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    ///
-    /// let five = Rc::new(5);
-    ///
-    /// assert!(five < Rc::new(6));
-    /// ```
+    /// The two are compared by calling `<` on their meta data.
     #[inline(always)]
     fn lt(&self, other: &Ptr<T>) -> bool {
         self.meta < other.meta
     }
 
-    /// 'Less than or equal to' comparison for two `Rc`s.
+    /// 'Less than or equal to' comparison for two `Ptr`s.
     ///
-    /// The two are compared by calling `<=` on their inner values.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    ///
-    /// let five = Rc::new(5);
-    ///
-    /// assert!(five <= Rc::new(5));
-    /// ```
+    /// The two are compared by calling `<=` on their meta data.
     #[inline(always)]
     fn le(&self, other: &Ptr<T>) -> bool {
         self.meta <= other.meta
     }
 
-    /// Greater-than comparison for two `Rc`s.
+    /// Greater-than comparison for two `Ptr`s.
     ///
-    /// The two are compared by calling `>` on their inner values.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    ///
-    /// let five = Rc::new(5);
-    ///
-    /// assert!(five > Rc::new(4));
-    /// ```
+    /// The two are compared by calling `>` on their meta data.
     #[inline(always)]
     fn gt(&self, other: &Ptr<T>) -> bool {
         self.meta > other.meta
     }
 
-    /// 'Greater than or equal to' comparison for two `Rc`s.
+    /// 'Greater than or equal to' comparison for two `Ptr`s.
     ///
-    /// The two are compared by calling `>=` on their inner values.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    ///
-    /// let five = Rc::new(5);
-    ///
-    /// assert!(five >= Rc::new(5));
-    /// ```
+    /// The two are compared by calling `>=` on their meta data.
     #[inline(always)]
     fn ge(&self, other: &Ptr<T>) -> bool {
         self.meta >= other.meta
@@ -694,20 +226,9 @@ impl<T: ?Sized> PartialOrd for Ptr<T> {
 }
 
 impl<T: ?Sized> Ord for Ptr<T> {
-    /// Comparison for two `Rc`s.
+    /// Comparison for two `Ptr`s.
     ///
-    /// The two are compared by calling `cmp()` on their inner values.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use std::cmp::Ordering;
-    ///
-    /// let five = Rc::new(5);
-    ///
-    /// assert_eq!(Ordering::Less, five.cmp(&Rc::new(6)));
-    /// ```
+    /// The two are compared by calling `cmp()` on their meta data.
     #[inline]
     fn cmp(&self, other: &Ptr<T>) -> Ordering {
         (self.meta).cmp(&other.meta)
@@ -748,7 +269,7 @@ impl<T: ?Sized + fmt::Display> fmt::Display for Ptr<T> {
 }
 
 //////////////////////////////////////////
-// Weak Pointer
+// WeakPtr - custom
 //////////////////////////////////////////
 pub struct WeakPtr<T>
 where
@@ -758,42 +279,85 @@ where
     value: NonNull<T>,
 }
 
-impl<T> WeakPtr<T>
-where
-    T: ?Sized,
-{
-    pub fn upgrade(&self) -> Option<Ptr<T>> {
-        unsafe {
-            let meta = self.meta.as_ref();
+impl<T: ?Sized> !Sync for WeakPtr<T> {}
 
-            if meta.strong.get() > 0 {
-                meta.strong.set(meta.strong.get() + 1);
-                let p = Ptr {
-                    meta: self.meta,
-                    value: self.value,
-                };
-                return Some(p);
-            }
-            None
-        }
+impl<T: ?Sized> PartialEq for WeakPtr<T> {
+    /// Equality for two `WeakPtr`s.
+    ///
+    /// Two `WeakPtr`s are equal if their inner meta data are equal.
+    #[inline(always)]
+    fn eq(&self, other: &WeakPtr<T>) -> bool {
+        self.meta == other.meta
+    }
+
+    /// Inequality for two `WeakPtr`s.
+    ///
+    /// Two `Rc`s are unequal if their inner meta data are unequal.
+    #[inline(always)]
+    fn ne(&self, other: &WeakPtr<T>) -> bool {
+        self.meta != other.meta
     }
 }
 
-impl<T: ?Sized> Drop for WeakPtr<T> {
-    fn drop(&mut self) {
-        unsafe {
-            let meta = self.meta.as_ref();
+impl<T: ?Sized> Eq for WeakPtr<T> {}
 
-            meta.weak.set(meta.weak.get() - 1);
+impl<T: ?Sized> PartialOrd for WeakPtr<T> {
+    /// Partial comparison for two `WeakPtr`s.
+    ///
+    /// The two are compared by calling `partial_cmp()` on their meta data.
+    #[inline(always)]
+    fn partial_cmp(&self, other: &WeakPtr<T>) -> Option<Ordering> {
+        (self.meta).partial_cmp(&other.meta)
+    }
 
-            if meta.weak.get() == 0 {
-                Box::from_raw(self.meta.as_ptr());
-            }
-        }
+    /// Less-than comparison for two `WeakPtr`s.
+    ///
+    /// The two are compared by calling `<` on their meta data.
+    #[inline(always)]
+    fn lt(&self, other: &WeakPtr<T>) -> bool {
+        self.meta < other.meta
+    }
+
+    /// 'Less than or equal to' comparison for two `WeakPtr`s.
+    ///
+    /// The two are compared by calling `<=` on their meta data.
+    #[inline(always)]
+    fn le(&self, other: &WeakPtr<T>) -> bool {
+        self.meta <= other.meta
+    }
+
+    /// Greater-than comparison for two `WeakPtr`s.
+    ///
+    /// The two are compared by calling `>` on their meta data.
+    #[inline(always)]
+    fn gt(&self, other: &WeakPtr<T>) -> bool {
+        self.meta > other.meta
+    }
+
+    /// 'Greater than or equal to' comparison for two `WeakPtr`s.
+    ///
+    /// The two are compared by calling `>=` on their meta data.
+    #[inline(always)]
+    fn ge(&self, other: &WeakPtr<T>) -> bool {
+        self.meta >= other.meta
     }
 }
 
-impl<T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<WeakPtr<U>> for WeakPtr<T> {}
+impl<T: ?Sized> Ord for WeakPtr<T> {
+    /// Comparison for two `WeakPtr`s.
+    ///
+    /// The two are compared by calling `cmp()` on their meta data.
+    #[inline]
+    fn cmp(&self, other: &WeakPtr<T>) -> Ordering {
+        (self.meta).cmp(&other.meta)
+    }
+}
+
+impl<T: ?Sized> Hash for WeakPtr<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        (self.meta).hash(state);
+    }
+}
 
 impl<T: ?Sized> fmt::Debug for WeakPtr<T> {
     default fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -807,60 +371,550 @@ impl<T: ?Sized> fmt::Debug for WeakPtr<T> {
     }
 }
 
-impl<T: ?Sized> PartialEq for WeakPtr<T> {
+//////////////////////////////////////////
+// Glue - custom
+//////////////////////////////////////////
+impl<T: ?Sized> RcBoxPtr for Ptr<T> {
     #[inline(always)]
-    fn eq(&self, other: &WeakPtr<T>) -> bool {
-        self.meta == other.meta
-    }
-
-    #[inline(always)]
-    fn ne(&self, other: &WeakPtr<T>) -> bool {
-        self.meta != other.meta
+    fn inner(&self) -> &MetaData {
+        unsafe { self.meta.as_ref() }
     }
 }
 
-impl<T: ?Sized> Eq for WeakPtr<T> {}
-
-impl<T: ?Sized> PartialOrd for WeakPtr<T> {
+impl<T: ?Sized> RcBoxPtr for WeakPtr<T> {
     #[inline(always)]
-    fn partial_cmp(&self, other: &WeakPtr<T>) -> Option<Ordering> {
-        (self.meta).partial_cmp(&other.meta)
-    }
-
-    #[inline(always)]
-    fn lt(&self, other: &WeakPtr<T>) -> bool {
-        self.meta < other.meta
-    }
-
-    #[inline(always)]
-    fn le(&self, other: &WeakPtr<T>) -> bool {
-        self.meta <= other.meta
-    }
-
-    #[inline(always)]
-    fn gt(&self, other: &WeakPtr<T>) -> bool {
-        self.meta > other.meta
-    }
-
-    #[inline(always)]
-    fn ge(&self, other: &WeakPtr<T>) -> bool {
-        self.meta >= other.meta
+    fn inner(&self) -> &MetaData {
+        unsafe { self.meta.as_ref() }
     }
 }
 
-impl<T: ?Sized> Ord for WeakPtr<T> {
+impl RcBoxPtr for MetaData {
+    #[inline(always)]
+    fn inner(&self) -> &MetaData {
+        self
+    }
+}
+
+//////////////////////////////////////////
+// STD
+//////////////////////////////////////////
+//////////////////////////////////////////
+// RefCell Errors
+//////////////////////////////////////////
+pub struct BorrowError {
+    _private: (),
+}
+
+impl Debug for BorrowError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("BorrowError").finish()
+    }
+}
+
+impl Display for BorrowError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt("already mutably borrowed", f)
+    }
+}
+
+pub struct BorrowMutError {
+    _private: (),
+}
+
+impl Debug for BorrowMutError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("BorrowMutError").finish()
+    }
+}
+
+impl Display for BorrowMutError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt("already borrowed", f)
+    }
+}
+
+//////////////////////////////////////////
+// RefCell Refs
+//////////////////////////////////////////
+struct BorrowRef<'b> {
+    borrow: &'b Cell<BorrowFlag>,
+}
+
+impl<'b> BorrowRef<'b> {
     #[inline]
-    fn cmp(&self, other: &WeakPtr<T>) -> Ordering {
-        (self.meta).cmp(&other.meta)
+    fn new(borrow: &'b Cell<BorrowFlag>) -> Option<BorrowRef<'b>> {
+        let b = borrow.get();
+        if is_writing(b) || b == isize::max_value() {
+            // If there's currently a writing borrow, or if incrementing the
+            // refcount would overflow into a writing borrow.
+            None
+        } else {
+            borrow.set(b + 1);
+            Some(BorrowRef { borrow })
+        }
     }
 }
 
-impl<T: ?Sized> Hash for WeakPtr<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        (self.meta).hash(state);
+impl<'b> Drop for BorrowRef<'b> {
+    #[inline]
+    fn drop(&mut self) {
+        let borrow = self.borrow.get();
+        debug_assert!(is_reading(borrow));
+        self.borrow.set(borrow - 1);
     }
 }
 
+impl<'b> Clone for BorrowRef<'b> {
+    #[inline]
+    fn clone(&self) -> BorrowRef<'b> {
+        // Since this Ref exists, we know the borrow flag
+        // is a reading borrow.
+        let borrow = self.borrow.get();
+        debug_assert!(is_reading(borrow));
+        // Prevent the borrow counter from overflowing into
+        // a writing borrow.
+        assert!(borrow != isize::max_value());
+        self.borrow.set(borrow + 1);
+        BorrowRef {
+            borrow: self.borrow,
+        }
+    }
+}
+
+/// Wraps a borrowed reference to a value in a `Ptr` box.
+/// A wrapper type for an immutably borrowed value from a `Ptr<T>`.
+pub struct Ref<'b, T: ?Sized + 'b> {
+    value: &'b T,
+    borrow: BorrowRef<'b>,
+}
+
+impl<'b, T: ?Sized> Deref for Ref<'b, T> {
+    type Target = T;
+
+    #[inline]
+    fn deref(&self) -> &T {
+        self.value
+    }
+}
+
+impl<'b, T: ?Sized> Ref<'b, T> {
+    /// Copies a `Ref`.
+    ///
+    /// The `Ptr` is already immutably borrowed, so this cannot fail.
+    ///
+    /// This is an associated function that needs to be used as
+    /// `Ref::clone(...)`.  A `Clone` implementation or a method would interfere
+    /// with the widespread use of `r.borrow().clone()` to clone the contents of
+    /// a `Ptr`.
+    #[inline]
+    pub fn clone(orig: &Ref<'b, T>) -> Ref<'b, T> {
+        Ref {
+            value: orig.value,
+            borrow: orig.borrow.clone(),
+        }
+    }
+
+    /// Make a new `Ref` for a component of the borrowed data.
+    ///
+    /// The `Ptr` is already immutably borrowed, so this cannot fail.
+    ///
+    /// This is an associated function that needs to be used as `Ref::map(...)`.
+    /// A method would interfere with methods of the same name on the contents
+    /// of a `Ptr` used through `Deref`.
+    #[inline]
+    pub fn map<U: ?Sized, F>(orig: Ref<'b, T>, f: F) -> Ref<'b, U>
+    where
+        F: FnOnce(&T) -> &U,
+    {
+        Ref {
+            value: f(orig.value),
+            borrow: orig.borrow,
+        }
+    }
+}
+
+//#[unstable(feature = "coerce_unsized", issue = "27732")]
+impl<'b, T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<Ref<'b, U>> for Ref<'b, T> {}
+
+impl<'a, T: ?Sized + fmt::Display> fmt::Display for Ref<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.value.fmt(f)
+    }
+}
+
+impl<'b, T: ?Sized> RefMut<'b, T> {
+    /// Make a new `RefMut` for a component of the borrowed data, e.g. an enum
+    /// variant.
+    ///
+    /// The `Ptr` is already mutably borrowed, so this cannot fail.
+    ///
+    /// This is an associated function that needs to be used as
+    /// `RefMut::map(...)`.  A method would interfere with methods of the same
+    /// name on the contents of a `Ptr` used through `Deref`.
+    #[inline]
+    pub fn map<U: ?Sized, F>(orig: RefMut<'b, T>, f: F) -> RefMut<'b, U>
+    where
+        F: FnOnce(&mut T) -> &mut U,
+    {
+        // FIXME(nll-rfc#40): fix borrow-check
+        let RefMut { value, borrow } = orig;
+        RefMut {
+            value: f(value),
+            borrow,
+        }
+    }
+}
+
+struct BorrowRefMut<'b> {
+    borrow: &'b Cell<BorrowFlag>,
+}
+
+impl<'b> Drop for BorrowRefMut<'b> {
+    #[inline]
+    fn drop(&mut self) {
+        let borrow = self.borrow.get();
+        debug_assert!(is_writing(borrow));
+        self.borrow.set(borrow + 1);
+    }
+}
+
+impl<'b> BorrowRefMut<'b> {
+    #[inline]
+    fn new(borrow: &'b Cell<BorrowFlag>) -> Option<BorrowRefMut<'b>> {
+        // NOTE: Unlike BorrowRefMut::clone, new is called to create the initial
+        // mutable reference, and so there must currently be no existing
+        // references. Thus, while clone increments the mutable refcount, here
+        // we explicitly only allow going from UNUSED to UNUSED - 1.
+        match borrow.get() {
+            UNUSED => {
+                borrow.set(UNUSED - 1);
+                Some(BorrowRefMut { borrow })
+            }
+            _ => None,
+        }
+    }
+    // Clone a `BorrowRefMut`.
+    //
+    // This is only valid if each `BorrowRefMut` is used to track a mutable
+    // reference to a distinct, nonoverlapping range of the original object.
+    // This isn't in a Clone impl so that code doesn't call this implicitly.
+    #[inline]
+    fn clone(&self) -> BorrowRefMut<'b> {
+        let borrow = self.borrow.get();
+        debug_assert!(is_writing(borrow));
+        // Prevent the borrow counter from underflowing.
+        assert!(borrow != isize::min_value());
+        self.borrow.set(borrow - 1);
+        BorrowRefMut {
+            borrow: self.borrow,
+        }
+    }
+}
+
+/// A wrapper type for a mutably borrowed value from a `Ptr<T>`.
+pub struct RefMut<'b, T: ?Sized + 'b> {
+    value: &'b mut T,
+    borrow: BorrowRefMut<'b>,
+}
+
+impl<'b, T: ?Sized> Deref for RefMut<'b, T> {
+    type Target = T;
+
+    #[inline]
+    fn deref(&self) -> &T {
+        self.value
+    }
+}
+
+impl<'b, T: ?Sized> DerefMut for RefMut<'b, T> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut T {
+        self.value
+    }
+}
+
+//#[unstable(feature = "coerce_unsized", issue = "27732")]
+impl<'b, T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<RefMut<'b, U>> for RefMut<'b, T> {}
+
+impl<'a, T: ?Sized + fmt::Display> fmt::Display for RefMut<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.value.fmt(f)
+    }
+}
+
+//////////////////////////////////////////
+// Ptr - std
+//////////////////////////////////////////
+// Positive values represent the number of `Ref` active. Negative values
+// represent the number of `RefMut` active. Multiple `RefMut`s can only be
+// active at a time if they refer to distinct, nonoverlapping components of a
+// `Ptr` (e.g., different ranges of a slice).
+//
+// `Ref` and `RefMut` are both two words in size, and so there will likely never
+// be enough `Ref`s or `RefMut`s in existence to overflow half of the `usize`
+// range. Thus, a `BorrowFlag` will probably never overflow or underflow.
+// However, this is not a guarantee, as a pathological program could repeatedly
+// create and then mem::forget `Ref`s or `RefMut`s. Thus, all code must
+// explicitly check for overflow and underflow in order to avoid unsafety, or at
+// least behave correctly in the event that overflow or underflow happens (e.g.,
+// see BorrowRef::new).
+type BorrowFlag = isize;
+
+const UNUSED: BorrowFlag = 0;
+
+#[inline(always)]
+fn is_writing(x: BorrowFlag) -> bool {
+    x < UNUSED
+}
+
+#[inline(always)]
+fn is_reading(x: BorrowFlag) -> bool {
+    x > UNUSED
+}
+
+impl<T> Ptr<T>
+where
+    T: ?Sized,
+{
+    /// Creates a new [`WeakPtr`][weak] pointer to this value.
+    pub fn downgrade(&self) -> WeakPtr<T> {
+        self.inc_weak();
+        // Make sure we do not create a dangling Weak
+        debug_assert!(!is_dangling(self.value));
+        WeakPtr {
+            meta: self.meta,
+            value: self.value,
+        }
+    }
+
+    /// Immutably borrows the wrapped value.
+    ///
+    /// The borrow lasts until the returned `Ref` exits scope. Multiple
+    /// immutable borrows can be taken out at the same time.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the value is currently mutably borrowed. For a non-panicking variant, use
+    /// [`try_borrow`](#method.try_borrow).
+    #[inline]
+    pub fn borrow(&self) -> Ref<T> {
+        self.try_borrow().expect("already mutably borrowed")
+    }
+
+    /// Immutably borrows the wrapped value, returning an error if the value is currently mutably
+    /// borrowed.
+    ///
+    /// The borrow lasts until the returned `Ref` exits scope. Multiple immutable borrows can be
+    /// taken out at the same time.
+    ///
+    /// This is the non-panicking variant of [`borrow`](#method.borrow).
+    #[inline]
+    pub fn try_borrow(&self) -> Result<Ref<T>, BorrowError> {
+        match BorrowRef::new(&unsafe { self.meta.as_ref() }.borrow) {
+            Some(b) => Ok(Ref {
+                value: unsafe { &*self.value.as_ptr() },
+                borrow: b,
+            }),
+            None => Err(BorrowError { _private: () }),
+        }
+    }
+
+    /// Mutably borrows the wrapped value.
+    ///
+    /// The borrow lasts until the returned `RefMut` or all `RefMut`s derived
+    /// from it exit scope. The value cannot be borrowed while this borrow is
+    /// active.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the value is currently borrowed. For a non-panicking variant, use
+    /// [`try_borrow_mut`](#method.try_borrow_mut).
+    #[inline]
+    pub fn borrow_mut(&self) -> RefMut<T> {
+        self.try_borrow_mut().expect("already borrowed")
+    }
+
+    /// Mutably borrows the wrapped value, returning an error if the value is currently borrowed.
+    ///
+    /// The borrow lasts until the returned `RefMut` or all `RefMut`s derived
+    /// from it exit scope. The value cannot be borrowed while this borrow is
+    /// active.
+    ///
+    /// This is the non-panicking variant of [`borrow_mut`](#method.borrow_mut).
+    #[inline]
+    pub fn try_borrow_mut(&self) -> Result<RefMut<T>, BorrowMutError> {
+        match BorrowRefMut::new(&unsafe { self.meta.as_ref() }.borrow) {
+            Some(b) => Ok(RefMut {
+                value: unsafe { &mut *self.value.as_ptr() },
+                borrow: b,
+            }),
+            None => Err(BorrowMutError { _private: () }),
+        }
+    }
+
+    /// Gets the number of [`WeakPtr`][weak] pointers to this value.
+    #[inline]
+    pub fn weak_count(&self) -> usize {
+        let weak = unsafe { self.meta.as_ref().weak.get() };
+        weak - 1
+    }
+
+    /// Gets the number of strong (`Ptr`) pointers to this value.
+    #[inline]
+    pub fn strong_count(&self) -> usize {
+        unsafe { self.meta.as_ref().strong.get() }
+    }
+
+    /// Returns true if there are no other `Ptr` or [`WeakPtr`][weak] pointers to
+    /// this inner value.
+    #[inline]
+    fn is_unique(&self) -> bool {
+        self.weak_count() == 0 && self.strong_count() == 1
+    }
+    #[inline]
+    /// Returns true if the two `Ptr`s point to the same value (not
+    /// just values that compare as equal).
+    pub fn ptr_eq(this: &Self, other: &Self) -> bool {
+        this.value.as_ptr() == other.value.as_ptr()
+    }
+}
+
+//#[unstable(feature = "coerce_unsized", issue = "27732")]
+impl<T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<Ptr<U>> for Ptr<T> {}
+
+impl<T> From<T> for Ptr<T>
+where
+    T: 'static + CastAble,
+{
+    fn from(t: T) -> Self {
+        Ptr::new(t)
+    }
+}
+
+impl<T> Default for Ptr<T>
+where
+    T: Default + 'static + CastAble,
+{
+    /// Creates a new `Ptr<T>`, with the `Default` value for `T`.
+    #[inline]
+    fn default() -> Ptr<T> {
+        Ptr::new(Default::default())
+    }
+}
+
+pub(crate) fn is_dangling<T: ?Sized>(ptr: NonNull<T>) -> bool {
+    let address = ptr.as_ptr() as *mut () as usize;
+    address == std::usize::MAX
+}
+
+//////////////////////////////////////////
+// Weak Pointer - std
+//////////////////////////////////////////
+impl<T> WeakPtr<T>
+where
+    T: ?Sized,
+{
+    pub fn upgrade(&self) -> Option<Ptr<T>> {
+        let inner = self.inner();
+        if inner.strong() == 0 {
+            None
+        } else {
+            inner.inc_strong();
+            Some(Ptr {
+                meta: self.meta,
+                value: self.value,
+            })
+        }
+    }
+}
+
+impl<T: ?Sized> Drop for WeakPtr<T> {
+    /// Drops the `Weak` pointer.
+    fn drop(&mut self) {
+        let inner = self.inner();
+        inner.dec_weak();
+        // the weak count starts at 1, and will only go to zero if all
+        // the strong pointers have disappeared.
+        if inner.weak() == 0 {
+            unsafe {
+                Box::from_raw(self.meta.as_ptr());
+            }
+        }
+    }
+}
+
+impl<T: ?Sized> Clone for WeakPtr<T> {
+    /// Makes a clone of the `WeakPtr` pointer that points to the same value.
+    #[inline]
+    fn clone(&self) -> WeakPtr<T> {
+        self.inner().inc_weak();
+        WeakPtr {
+            value: self.value,
+            meta: self.meta,
+        }
+    }
+}
+
+impl<T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<WeakPtr<U>> for WeakPtr<T> {}
+
+//////////////////////////////////////////
+// Glue - std
+//////////////////////////////////////////
+// NOTE: We checked_add here to deal with mem::forget safely. In particular
+// if you mem::forget Rcs (or Weaks), the ref-count can overflow, and then
+// you can free the allocation while outstanding Rcs (or Weaks) exist.
+// We abort because this is such a degenerate scenario that we don't care about
+// what happens -- no real program should ever experience this.
+//
+// This should have negligible overhead since you don't actually need to
+// clone these much in Rust thanks to ownership and move-semantics.
+
+#[doc(hidden)]
+trait RcBoxPtr {
+    fn inner(&self) -> &MetaData;
+
+    #[inline]
+    fn strong(&self) -> usize {
+        self.inner().strong.get()
+    }
+
+    #[inline]
+    fn inc_strong(&self) {
+        self.inner().strong.set(
+            self.strong()
+                .checked_add(1)
+                .unwrap_or_else(|| unsafe { abort() }),
+        );
+    }
+
+    #[inline]
+    fn dec_strong(&self) {
+        self.inner().strong.set(self.strong() - 1);
+    }
+
+    #[inline]
+    fn weak(&self) -> usize {
+        self.inner().weak.get()
+    }
+
+    #[inline]
+    fn inc_weak(&self) {
+        self.inner().weak.set(
+            self.weak()
+                .checked_add(1)
+                .unwrap_or_else(|| unsafe { abort() }),
+        );
+    }
+
+    #[inline]
+    fn dec_weak(&self) {
+        self.inner().weak.set(self.weak() - 1);
+    }
+}
+
+//////////////////////////////////////////
+// Tests
+//////////////////////////////////////////
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -940,10 +994,10 @@ mod tests {
 
         #[test]
         fn test_clone() {
-            let x = Ptr::new_t(5);
+            let x = Ptr::new_t(RefCell::new(5));
             let y = x.clone();
-            *x.borrow_mut() = 20;
-            assert_eq!(*y.borrow(), 20);
+            *x.borrow().borrow_mut() = 20;
+            assert_eq!(*y.borrow().borrow(), 20);
         }
 
         #[test]
@@ -969,14 +1023,14 @@ mod tests {
         #[test]
         fn test_live() {
             let x = Ptr::new_t(5);
-            let y = x.clone().downgrade();
+            let y = x.downgrade();
             assert!(y.upgrade().is_some());
         }
 
         #[test]
         fn test_dead() {
             let x = Ptr::new_t(5);
-            let y = x.clone().downgrade();
+            let y = x.downgrade();
             drop(x);
             assert!(y.upgrade().is_none());
         }
@@ -984,16 +1038,14 @@ mod tests {
         #[test]
         fn weak_self_cyclic() {
             struct Cycle {
-                x: RefCell<Option<WeakPtr<Cycle>>>,
+                x: Ptr<Option<WeakPtr<Cycle>>>,
             }
 
             let a = Ptr::new_t(Cycle {
-                x: RefCell::new(None),
+                x: Ptr::new_t(None),
             });
             let b = a.clone().downgrade();
-
-            let ab = a.borrow();
-            *ab.x.borrow_mut() = Some(b);
+            *a.borrow().x.borrow_mut() = Some(b);
 
             // hopefully we don't double-free (or leak)...
         }
@@ -1001,106 +1053,105 @@ mod tests {
         #[test]
         fn is_unique() {
             let x = Ptr::new_t(3);
-            assert!(Ptr::is_unique(&x));
+            assert!(x.is_unique());
             let y = x.clone();
-            assert!(!Ptr::is_unique(&x));
+            assert!(!x.is_unique());
             drop(y);
-            assert!(Ptr::is_unique(&x));
-            let w = Ptr::downgrade(&x);
-            assert!(!Ptr::is_unique(&x));
+            assert!(x.is_unique());
+            let w = x.downgrade();
+            assert!(!x.is_unique());
             drop(w);
-            assert!(Ptr::is_unique(&x));
+            assert!(x.is_unique());
         }
 
         #[test]
         fn test_strong_count() {
             let a = Ptr::new_t(0);
-            assert!(Ptr::strong_count(&a) == 1);
-            let w = Ptr::downgrade(&a);
-            assert!(Ptr::strong_count(&a) == 1);
+            assert_eq!(a.strong_count(), 1);
+            let w = a.downgrade();
+            assert_eq!(a.strong_count(), 1);
             let b = w.upgrade().expect("upgrade of live rc failed");
-            assert!(Ptr::strong_count(&b) == 2);
-            assert!(Ptr::strong_count(&a) == 2);
+            assert_eq!(b.strong_count(), 2);
+            assert_eq!(a.strong_count(), 2);
             drop(w);
             drop(a);
-            assert!(Ptr::strong_count(&b) == 1);
+            assert_eq!(b.strong_count(), 1);
             let c = b.clone();
-            assert!(Ptr::strong_count(&b) == 2);
-            assert!(Ptr::strong_count(&c) == 2);
+            assert_eq!(b.strong_count(), 2);
+            assert_eq!(c.strong_count(), 2);
         }
 
         #[test]
         fn test_weak_count() {
             let a = Ptr::new_t(0);
-            assert!(Ptr::strong_count(&a) == 1);
-            assert!(Ptr::weak_count(&a) == 0);
-            let w = Ptr::downgrade(&a);
-            assert!(Ptr::strong_count(&a) == 1);
-            assert!(Ptr::weak_count(&a) == 1);
+            assert_eq!(a.strong_count(), 1);
+            assert_eq!(a.weak_count(), 0);
+            let w = a.downgrade();
+            assert_eq!(a.strong_count(), 1);
+            assert_eq!(a.weak_count(), 1);
             drop(w);
-            assert!(Ptr::strong_count(&a) == 1);
-            assert!(Ptr::weak_count(&a) == 0);
+            assert_eq!(a.strong_count(), 1);
+            assert_eq!(a.weak_count(), 0);
             let c = a.clone();
-            assert!(Ptr::strong_count(&a) == 2);
-            assert!(Ptr::weak_count(&a) == 0);
+            assert_eq!(a.strong_count(), 2);
+            assert_eq!(a.weak_count(), 0);
             drop(c);
         }
 
-        //  NOTE not needed
-        //  #[test]
-        //  fn try_unwrap() {
-        //      ...
-        //  }
+        // NOTE not needed
+        // #[test]
+        // fn try_unwrap() {
+        //     ...
+        // }
 
-        //  NOTE not needed
-        //  #[test]
-        //  fn into_from_raw() {
-        //      ...
-        //  }
+        // NOTE not needed
+        // #[test]
+        // fn into_from_raw() {
+        //     ...
+        // }
 
-        //  NOTE not needed
-        //  #[test]
-        //  fn test_into_from_raw_unsized() {
-        //      ...
-        //  }
+        // NOTE not needed
+        // #[test]
+        // fn test_into_from_raw_unsized() {
+        //     ...
+        // }
 
-        //  NOTE not needed
-        //  #[test]
-        //  fn get_mut() {
-        //      ...
-        //  }
+        // NOTE not needed
+        // #[test]
+        // fn get_mut() {
+        //     ...
+        // }
 
-        //  NOTE There is no copy on write
-        //  #[test]
-        //  fn test_cowrc_clone_make_unique() {
-        //      ...
-        //  }
+        // NOTE There is no copy on write
+        // #[test]
+        // fn test_cowrc_clone_make_unique() {
+        //     ...
+        // }
 
-        //  NOTE There is no copy on write
-        //  #[test]
-        //  fn test_cowrc_clone_unique2() {
-        //      ...
-        //  }
+        // NOTE There is no copy on write
+        // #[test]
+        // fn test_cowrc_clone_unique2() {
+        //     ...
+        // }
 
-        //  NOTE There is no copy on write
-        //  #[test]
-        //  fn test_cowrc_clone_weak() {
-        //      ...
-        //  }
+        // NOTE There is no copy on write
+        // #[test]
+        // fn test_cowrc_clone_weak() {
+        //     ...
+        // }
 
-        //  TODO do we want this?
-        //  #[test]
-        //  fn test_show() {
-        //      let foo = Ptr::new_t(75);
-        //      assert_eq!(format!("{:?}", foo), "75");
-        //  }
+        // TODO do we want this?
+        // #[test]
+        // fn test_show() {
+        //     let foo = Ptr::new_t(75);
+        //     assert_eq!(format!("{:?}", foo), "75");
+        // }
 
-        //  TODO we want this
-        //  #[test]
-        //  fn test_unsized() {
-        //      let foo: Ptr<[i32]> = Ptr::new_t([1, 2, 3]);
-        //      assert_eq!(foo, foo.clone());
-        //  }
+        // NOTE not needed
+        // #[test]
+        // fn test_unsized() {
+        //     ...
+        // }
 
         // NOTE this dosn't work as form has the CastAble bound
         //  #[test]
@@ -1110,11 +1161,10 @@ mod tests {
         //      assert!(123 == *foo_rc.borrow());
         //  }
 
-        //  TODO do we need this? (for inits?)
+        // NOTE not needed
         //  #[test]
         //  fn test_new_weak() {
-        //      let foo: WeakPtr<usize> = WeakPtr::new_t();
-        //      assert!(foo.upgrade().is_none());
+        //      ...
         //  }
 
         #[test]
@@ -1127,127 +1177,71 @@ mod tests {
             assert!(!Ptr::ptr_eq(&five, &other_five));
         }
 
-        //  TODO maybe want this
-        //  #[test]
-        //  fn test_from_str() {
-        //      let r: Ptr<str> = Ptr::from("foo");
+        // NOTE not needed
+        // #[test]
+        // fn test_from_str() {
+        //     ...
+        // }
 
-        //      assert_eq!(&r[..], "foo");
-        //  }
+        // NOTE not needed
+        //#[test]
+        //fn test_copy_from_slice() {
+        //    ...
+        //}
 
-        //  TODO maybe want this
-        //  #[test]
-        //  fn test_copy_from_slice() {
-        //      let s: &[u32] = &[1, 2, 3];
-        //      let r: Ptr<[u32]> = Ptr::from(s);
+        // NOTE not needed
+        // #[test]
+        // fn test_clone_from_slice() {
+        //     ...
+        // }
 
-        //      assert_eq!(&r[..], [1, 2, 3]);
-        //  }
+        // NOTE not needed
+        // #[test]
+        // #[should_panic]
+        // fn test_clone_from_slice_panic() {
+        //     ...
+        // }
 
-        //  TODO maybe want this
-        //  #[test]
-        //  fn test_clone_from_slice() {
-        //      #[derive(Clone, Debug, Eq, PartialEq)]
-        //      struct X(u32);
+        // NOTE not needed
+        // #[test]
+        // fn test_from_box() {
+        //     ...
+        // }
 
-        //      let s: &[X] = &[X(1), X(2), X(3)];
-        //      let r: Ptr<[X]> = Ptr::from(s);
+        // NOTE not needed
+        // #[test]
+        // fn test_from_box_str() {
+        //     ...
+        // }
 
-        //      assert_eq!(&r[..], s);
-        //  }
+        // NOTE not needed
+        // #[test]
+        // fn test_from_box_slice() {
+        //     ...
+        // }
 
-        //  TODO maybe want this
-        //  #[test]
-        //  #[should_panic]
-        //  fn test_clone_from_slice_panic() {
-        //      use std::string::{String, ToString};
+        // NOTE not needed
+        // #[test]
+        // fn test_from_box_trait() {
+        //     ...
+        // }
 
-        //      struct Fail(u32, String);
+        // NOTE not needed
+        // #[test]
+        // fn test_from_box_trait_zero_sized() {
+        //     ...
+        // }
 
-        //      impl Clone for Fail {
-        //          fn clone(&self) -> Fail {
-        //              if self.0 == 2 {
-        //                  panic!();
-        //              }
-        //              Fail(self.0, self.1.clone())
-        //          }
-        //      }
+        // NOTE not needed
+        // #[test]
+        // fn test_from_vec() {
+        //     ...
+        // }
 
-        //      let s: &[Fail] = &[
-        //          Fail(0, "foo".to_string()),
-        //          Fail(1, "bar".to_string()),
-        //          Fail(2, "baz".to_string()),
-        //      ];
-
-        //      // Should panic, but not cause memory corruption
-        //      let r: Ptr<[Fail]> = Ptr::from(s);
-        //  }
-
-        //  TODO maybe want this
-        //  #[test]
-        //  fn test_from_box() {
-        //      let b: Box<u32> = Box::new(123);
-        //      let r: Ptr<u32> = Ptr::from(b);
-
-        //      assert_eq!(*r, 123);
-        //  }
-
-        //  TODO maybe want this
-        //  #[test]
-        //  fn test_from_box_str() {
-        //      use std::string::String;
-
-        //      let s = String::from("foo").into_boxed_str();
-        //      let r: Ptr<str> = Ptr::from(s);
-
-        //      assert_eq!(&r[..], "foo");
-        //  }
-
-        //  TODO maybe want this
-        //  #[test]
-        //  fn test_from_box_slice() {
-        //      let s = vec![1, 2, 3].into_boxed_slice();
-        //      let r: Ptr<[u32]> = Ptr::from(s);
-
-        //      assert_eq!(&r[..], [1, 2, 3]);
-        //  }
-
-        //  TODO maybe want this
-        //  #[test]
-        //  fn test_from_box_trait() {
-        //      use std::fmt::Display;
-        //      use std::string::ToString;
-
-        //      let b: Box<Display> = Box::new(123);
-        //      let r: Ptr<Display> = Ptr::from(b);
-
-        //      assert_eq!(r.to_string(), "123");
-        //  }
-
-        //  TODO maybe want this
-        //  #[test]
-        //  fn test_from_box_trait_zero_sized() {
-        //      use std::fmt::Debug;
-
-        //      let b: Box<Debug> = Box::new(());
-        //      let r: Ptr<Debug> = Ptr::from(b);
-
-        //      assert_eq!(format!("{:?}", r), "()");
-        //  }
-
-        //  TODO maybe want this
-        //  #[test]
-        //  fn test_from_vec() {
-        //      let v = vec![1, 2, 3];
-        //      let r: Ptr<[u32]> = Ptr::from(v);
-
-        //      assert_eq!(&r[..], [1, 2, 3]);
-        //  }
-
-        //  NOTE we're generating our own cast functions
-        //  #[test]
-        //  fn test_downcast() {
-        //      ...
-        //  }
+        // NOTE not needed
+        // #[test]
+        // fn test_downcast() {
+        //     ...
+        // }
     }
 }
