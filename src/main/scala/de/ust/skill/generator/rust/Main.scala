@@ -18,6 +18,11 @@ abstract class FakeMain extends GeneralOutputMaker {
   def make {}
 }
 
+/**
+  * Main Generator mixin for Rust
+  *
+  * @author Roland Jaeger
+  */
 final class Main extends FakeMain
                  with SkillFileMaker
                  with PoolsMaker

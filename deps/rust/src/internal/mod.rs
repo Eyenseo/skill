@@ -1,3 +1,7 @@
+/*
+ * @author Roland Jaeger
+ */
+
 pub(crate) mod foreign;
 pub(crate) mod io;
 mod literal_keeper;

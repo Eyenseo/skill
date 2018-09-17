@@ -14,6 +14,9 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
+/**
+  * @author Roland Jaeger
+  */
 object GeneralOutputMaker {
   /**
     * Takes a camel cased identifier name and returns an underscore separated

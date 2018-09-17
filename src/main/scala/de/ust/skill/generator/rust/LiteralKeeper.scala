@@ -9,6 +9,13 @@ import de.ust.skill.generator.common.IndenterLaw._
 
 import scala.collection.JavaConverters._
 
+/**
+  * Generates LiteralKeeper
+  *
+  * In comparison to C++ this keeper is only kept because of faster comparisons
+  *
+  * @author Roland Jaeger
+  */
 trait LiteralKeeper extends GeneralOutputMaker {
   abstract override def make {
     super.make

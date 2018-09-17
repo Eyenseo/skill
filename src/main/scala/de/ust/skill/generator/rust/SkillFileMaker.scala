@@ -7,6 +7,11 @@ package de.ust.skill.generator.rust
 
 import de.ust.skill.generator.common.IndenterLaw._
 
+/**
+  * Generator SkillFile and SkillFileBuilder
+  *
+  * @author Roland Jaeger
+  */
 trait SkillFileMaker extends GeneralOutputMaker {
   abstract override def make {
     super.make

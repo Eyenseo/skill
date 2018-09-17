@@ -1,3 +1,7 @@
+/*
+ * @author Roland Jaeger
+ */
+
 mod field_data;
 mod field_declaration;
 mod object;

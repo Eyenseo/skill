@@ -1,3 +1,7 @@
+/*
+ * @author Roland Jaeger
+ */
+
 use common::error::*;
 use common::internal::foreign::object::ForeignObject;
 use common::internal::io::*;

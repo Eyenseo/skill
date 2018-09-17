@@ -1,3 +1,8 @@
+/*
+ * @author Roland Jaeger
+ */
+
+
 #[macro_use]
 pub(crate) mod ptr;
 

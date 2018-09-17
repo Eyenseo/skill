@@ -1,3 +1,7 @@
+/*
+ * @author Roland Jaeger
+ */
+
 #![feature(test)]
 #![feature(nll)]
 

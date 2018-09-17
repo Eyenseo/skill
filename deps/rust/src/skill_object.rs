@@ -1,3 +1,7 @@
+/*
+ * @author Roland Jaeger
+ */
+
 use common::error::*;
 
 pub(crate) const DELETE: usize = std::usize::MAX;

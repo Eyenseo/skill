@@ -1,3 +1,7 @@
+/*
+ * @author Roland Jaeger
+ */
+
 use std::any::TypeId;
 use std::boxed::Box;
 use std::cell::Cell;

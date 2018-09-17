@@ -1,3 +1,7 @@
+/*
+ * @author Roland Jaeger
+ */
+
 #![feature(test)]
 
 extern crate unknown;

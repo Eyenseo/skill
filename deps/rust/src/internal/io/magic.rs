@@ -1,3 +1,7 @@
+/*
+ * @author Roland Jaeger
+ */
+
 use common::internal::PoolProxy;
 
 use std::cell::RefCell;

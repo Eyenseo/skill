@@ -1,3 +1,7 @@
+/*
+ * @author Roland Jaeger
+ */
+
 pub mod dynamic_instances;
 pub mod static_instances;
 pub(crate) mod type_hierarchy;

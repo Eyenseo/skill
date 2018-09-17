@@ -7,6 +7,11 @@ package de.ust.skill.generator.rust
 
 import de.ust.skill.generator.common.IndenterLaw._
 
+/**
+  * Generates the lib.rs and Cargo.toml file
+  *
+  * @author Roland Jaeger
+  */
 trait LibMaker extends GeneralOutputMaker {
 
   abstract override def make {

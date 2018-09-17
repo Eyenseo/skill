@@ -1,3 +1,7 @@
+/*
+ * @author Roland Jaeger
+ */
+
 use common::*;
 
 use std::collections::HashMap;

@@ -8,7 +8,11 @@ package de.ust.skill.generator.rust
 import java.io.File
 import java.nio.file.Files
 
-
+/**
+  * Copies the dependencies that cant be a separate crate because of the vtable lookup table
+  *
+  * @author Roland Jaeger
+  */
 trait DependenciesMaker extends GeneralOutputMaker {
 
   final private val depsSrc = new File("deps/rust/src")

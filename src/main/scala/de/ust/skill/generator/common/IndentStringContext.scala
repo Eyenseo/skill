@@ -1,7 +1,13 @@
 
 package de.ust.skill.generator.common
 
-// Adapted from https://stackoverflow.com/a/11426477
+/**
+  * This class allows to conveniently indent substrings in string interpolation
+  * by prepending the current indention to all lines in the interpolation
+  *
+  * @note Adapted from https://stackoverflow.com/a/11426477
+  * @author Roland Jaeger
+  */
 class IndentStringContext(sc: StringContext, margin: Char) {
   def e(args: Any*): String = {
     val sb = new StringBuilder()
