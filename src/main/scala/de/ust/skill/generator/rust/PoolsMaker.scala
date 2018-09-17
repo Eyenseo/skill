@@ -142,9 +142,9 @@ trait PoolsMaker extends GeneralOutputMaker {
     e"""#[derive(Default, Debug)]
        §#[repr(C)]
        §pub struct ${name(base)} {
-       §    skill_id: Cell<usize>,
-       §    skill_type_id: usize,
-       §    foreign_data: Vec<foreign::FieldData>,
+       §    z_skill_id: Cell<usize>,
+       §    z_skill_type_id: usize,
+       §    z_foreign_data: Vec<foreign::FieldData>,
        §    ${
       (for (t ← getAllSupers(base)) yield {
         (for (f ← t.getFields.asScala.filterNot(_.isConstant)) yield {
@@ -153,7 +153,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                          .get(base.getSkillName).asInstanceOf[UserType].getAllFields.asScala
                                                                        .find(_.getName == f.getName).get
 
-          e"""${internalName(f)}: ${mapType(orig.getType)},
+          e"""${field(f)}: ${mapType(orig.getType)},
              §""".stripMargin('§')
         }).mkString +
         (for (c ← t.getCustomizations.asScala.filter(c ⇒ c.language.equals("rust")).flatMap({
@@ -265,9 +265,9 @@ trait PoolsMaker extends GeneralOutputMaker {
         }>(${field.constantValue()})
            §}""".stripMargin('§')
       } else if (field.getType.isInstanceOf[ReferenceType] || field.getType.isInstanceOf[ContainerType]) {
-        e"&self.${internalName(field)}"
+        e"&self.${name(field)}"
       } else {
-        e"self.${internalName(field)}"
+        e"self.${name(field)}"
       }
     }
        §}${
@@ -275,7 +275,7 @@ trait PoolsMaker extends GeneralOutputMaker {
           (field.getType.isInstanceOf[ReferenceType] || field.getType.isInstanceOf[ContainerType])) {
         e"""
            §fn get_${name(field)}_mut(&mut self) -> &mut ${mapType(field.getType)} {
-           §    &mut self.${internalName(field)}
+           §    &mut self.${name(field)}
            §}""".stripMargin('§')
       } else {
         ""
@@ -284,7 +284,7 @@ trait PoolsMaker extends GeneralOutputMaker {
       if (!field.isConstant) {
         e"""
            §fn set_${name(field)}(&mut self, value: ${mapType(field.getType)}) {
-           §    self.${internalName(field)} = value;
+           §    self.${name(field)} = value;
            §}""".stripMargin('§')
       } else {
         ""
@@ -297,12 +297,12 @@ trait PoolsMaker extends GeneralOutputMaker {
     e"""impl ${name(base)} {
        §    pub fn new(skill_id: usize, skill_type_id: usize) -> ${name(base)} {
        §        ${name(base)} {
-       §            skill_id: Cell::new(skill_id),
-       §            skill_type_id,
-       §            foreign_data: Vec::default(),
+       §            z_skill_id: Cell::new(skill_id),
+       §            z_skill_type_id: skill_type_id,
+       §            z_foreign_data: Vec::default(),
        §            ${
       ((for (f ← base.getAllFields.asScala.filterNot(_.isConstant)) yield {
-        e"""${internalName(f)}: ${defaultValue(f)},
+        e"""${name(f)}: ${defaultValue(f)},
            §""".stripMargin('§')
       }).mkString +
        (for (c ← gatherCustoms(base)) yield {
@@ -389,36 +389,36 @@ trait PoolsMaker extends GeneralOutputMaker {
     }
        §impl foreign::ForeignObject for ${name(base)} {
        §    fn foreign_fields(&self) -> &Vec<foreign::FieldData> {
-       §        &self.foreign_data
+       §        &self.z_foreign_data
        §    }
        §    fn foreign_fields_mut(&mut self) -> &mut Vec<foreign::FieldData> {
-       §        &mut self.foreign_data
+       §        &mut self.z_foreign_data
        §    }
        §}
        §
        §impl SkillObject for ${name(base)} {
        §    fn skill_type_id(&self) -> usize {
-       §        self.skill_type_id
+       §        self.z_skill_type_id
        §    }
        §
        §    fn get_skill_id(&self) -> usize {
-       §        self.skill_id.get()
+       §        self.z_skill_id.get()
        §    }
        §    fn set_skill_id(&self, skill_id: usize) -> Result<(), SkillFail> {
        §        if skill_id == skill_object::DELETE {
        §            return Err(SkillFail::user(UserFail::ReservedID { id: skill_id }));
        §        }
-       §        self.skill_id.set(skill_id);
+       §        self.z_skill_id.set(skill_id);
        §        Ok(())
        §    }
        §}
        §
        §impl Deletable for ${name(base)} {
        §    fn mark_for_deletion(&mut self) {
-       §        self.skill_id.set(skill_object::DELETE);
+       §        self.z_skill_id.set(skill_object::DELETE);
        §    }
        §    fn to_delete(&self) -> bool {
-       §        self.skill_id.get() == skill_object::DELETE
+       §        self.z_skill_id.get() == skill_object::DELETE
        §    }
        §}
        §""".stripMargin('§').trim

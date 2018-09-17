@@ -195,8 +195,6 @@ trait GeneralOutputMaker extends Generator {
 
   final def name(f: LanguageCustomization): String = escaped(f.getName.camel)
 
-  final def internalName(f: Field): String = "u_" + name(f)
-
   final def snakeCase(str: String): String = GeneralOutputMaker.snakeCase(str)
 
   final def camelCase(str: String): String = GeneralOutputMaker.camelCase(str)
