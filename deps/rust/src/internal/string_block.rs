@@ -14,8 +14,6 @@ pub(crate) struct StringBlock {
     literal_keeper: LiteralKeeper,
 }
 
-// TODO improve user interface
-// => split reading to another type
 impl StringBlock {
     pub(crate) fn new() -> StringBlock {
         StringBlock {
@@ -127,7 +125,6 @@ impl StringBlock {
                     s.set_id(i);
                     new_pool.push(s.clone());
                 } else {
-                    // TODO check whether this searching and delete is faster than a bulk add
                     self.set.remove(s);
                 }
             }
@@ -178,7 +175,6 @@ impl StringBlock {
                     s.set_id(i);
                     new_pool.push(s.clone());
                 } else {
-                    // TODO check whether this searching and delete is faster than a bulk add
                     self.set.remove(s);
                 }
             }
