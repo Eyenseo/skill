@@ -9,6 +9,7 @@ use std::cell::Cell;
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 
 #[derive(Debug, Default)]
 pub struct SkillString {
@@ -52,10 +53,18 @@ impl SkillString {
 impl From<std::borrow::Cow<'static, str>> for SkillString {
     fn from(string: std::borrow::Cow<'static, str>) -> Self {
         SkillString {
-            id: Cell::new(0), // TODO is 0 ok or is it reserved for something else?
+            id: Cell::new(0),
             hash: gen_hash(string.as_ref()),
             string: String::from(string),
         }
+    }
+}
+
+impl Deref for SkillString {
+    type Target = String;
+
+    fn deref(&self) -> &String {
+        &self.string
     }
 }
 
