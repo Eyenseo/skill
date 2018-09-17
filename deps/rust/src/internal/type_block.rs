@@ -447,7 +447,7 @@ impl TypeBlock {
                     }
 
                     let mut id = 1;
-                    for i in type_order::Iter::new(p.clone())? {
+                    for i in type_order_instances::Iter::new(p.clone())? {
                         if !i.borrow().to_delete() {
                             i.borrow().set_skill_id(id)?;
                             vec[id - 1] = i;
@@ -507,7 +507,7 @@ impl TypeBlock {
         for p in self.pools.iter() {
             offset = p.borrow().pool().write_field_meta(
                 writer,
-                dynamic_data::Iter::new(p.clone())?,
+                dynamic_instances::Iter::new(p.clone())?,
                 offset,
             )?;
         }
@@ -521,7 +521,7 @@ impl TypeBlock {
         for p in self.pools.iter() {
             p.borrow()
                 .pool()
-                .write_field_data(&mut writer, dynamic_data::Iter::new(p.clone())?)?;
+                .write_field_data(&mut writer, dynamic_instances::Iter::new(p.clone())?)?;
         }
 
         debug!(

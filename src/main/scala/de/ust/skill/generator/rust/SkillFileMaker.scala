@@ -40,8 +40,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
     ret.append(
                 e"""use common::internal::*;
                    §use common::internal::io::*;
-                   §use common::*;
+                   §use common::iterator::*;
                    §use common::error::*;
+                   §use common::*;
                    §
                    §use memmap::Mmap;
                    §
@@ -130,6 +131,19 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §}
            §pub fn ${pool(base)}_mut(&self) -> std::cell::RefMut<${storagePool(base)}> {
            §    self.${pool(base)}.borrow_mut()
+           §}
+           §pub fn ${pool(base)}_static_instances(&self) -> static_instances::Iter {
+           §    static_instances::Iter::new(self.${pool(base)}.clone())
+           §}
+           §pub fn ${pool(base)}_dynamic_instances(&self)
+           §    -> Result<dynamic_instances::Iter, SkillFail>
+           §{
+           §    dynamic_instances::Iter::new(self.${pool(base)}.clone())
+           §}
+           §pub fn ${pool(base)}_type_order_instances(&self)
+           §    -> Result<type_order_instances::Iter, SkillFail>
+           §{
+           §    type_order_instances::Iter::new(self.${pool(base)}.clone())
            §}
            §
            §""".stripMargin('§')

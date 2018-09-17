@@ -1,7 +1,7 @@
 use common::error::*;
 use common::internal::io::*;
 use common::internal::*;
-use common::iterator::dynamic_data;
+use common::iterator::dynamic_instances;
 use common::*;
 
 use std::cell::RefCell;
@@ -112,18 +112,18 @@ pub(crate) trait FieldDeclaration {
     fn add_chunk(&mut self, chunk: FieldChunk);
 
     fn compress_chunks(&mut self, total_count: usize);
-    fn offset(&self, iter: dynamic_data::Iter) -> Result<usize, SkillFail>;
+    fn offset(&self, iter: dynamic_instances::Iter) -> Result<usize, SkillFail>;
 
     /// This call will also update the offsets of the chunk
     fn write_meta(
         &mut self,
         writer: &mut FileWriter,
-        iter: dynamic_data::Iter,
+        iter: dynamic_instances::Iter,
         offset: usize,
     ) -> Result<usize, SkillFail>;
     fn write_data(
         &self,
         writer: &mut FileWriter,
-        iter: dynamic_data::Iter,
+        iter: dynamic_instances::Iter,
     ) -> Result<(), SkillFail>;
 }

@@ -1,7 +1,7 @@
 use common::error::*;
 use common::internal::io::*;
 use common::internal::*;
-use common::iterator::dynamic_data;
+use common::iterator::dynamic_instances;
 use common::*;
 use SkillFile;
 use SkillFileBuilder;
@@ -472,7 +472,7 @@ impl Pool {
     pub(crate) fn write_field_meta(
         &self,
         writer: &mut FileWriter,
-        iter: dynamic_data::Iter,
+        iter: dynamic_instances::Iter,
         mut offset: usize,
     ) -> Result<usize, SkillFail> {
         debug!(
@@ -489,7 +489,7 @@ impl Pool {
     pub(crate) fn write_field_data(
         &self,
         writer: &mut FileWriter,
-        iter: dynamic_data::Iter,
+        iter: dynamic_instances::Iter,
     ) -> Result<(), SkillFail> {
         debug!(
             target: "SkillWriting",

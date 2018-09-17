@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Clone)]
-pub(crate) struct Iter {
+pub struct Iter {
     pool: Rc<RefCell<PoolProxy>>,
     instance_index: usize,
     instance_end: usize,

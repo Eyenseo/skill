@@ -1079,10 +1079,10 @@ trait PoolsMaker extends GeneralOutputMaker {
        §                appearance: BlockIndex::from(1),
        §            }));
        §    }
-       §    fn offset(&self, iter: dynamic_data::Iter) -> Result<usize, SkillFail> {
+       §    fn offset(&self, iter: dynamic_instances::Iter) -> Result<usize, SkillFail> {
        §        ${genFieldDeclarationImplFieldDeclarationOffset(base, f)}
        §    }
-       §    fn write_meta(&mut self, writer: &mut FileWriter, iter: dynamic_data::Iter, offset: usize) -> Result<usize, SkillFail> {
+       §    fn write_meta(&mut self, writer: &mut FileWriter, iter: dynamic_instances::Iter, offset: usize) -> Result<usize, SkillFail> {
        §        debug!(
        §            target:"SkillWriting",
        §            "~~~~Write Field Meta Data for Field:{}",
@@ -1115,7 +1115,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    fn write_data(
        §        &self,
        §        writer: &mut FileWriter,
-       §        iter: dynamic_data::Iter
+       §        iter: dynamic_instances::Iter
        §    ) -> Result<(), SkillFail> {
        §       debug!(
        §            target:"SkillWriting",

@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Default, Clone)]
-pub(crate) struct Iter {
+pub struct Iter {
     type_hierarchy: type_hierarchy::Iter,
     current: Option<Rc<RefCell<PoolProxy>>>,
     instance_index: usize,

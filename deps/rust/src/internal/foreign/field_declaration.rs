@@ -2,7 +2,7 @@ use common::error::*;
 use common::internal::foreign::object::ForeignObject;
 use common::internal::io::*;
 use common::internal::*;
-use common::iterator::dynamic_data;
+use common::iterator::dynamic_instances;
 use common::*;
 
 use std::cell::RefCell;
@@ -690,7 +690,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                 appearance: BlockIndex::from(1),
             }));
     }
-    fn offset(&self, iter: dynamic_data::Iter) -> Result<usize, SkillFail> {
+    fn offset(&self, iter: dynamic_instances::Iter) -> Result<usize, SkillFail> {
         let mut offset = 0;
         match &self.field_type {
             FieldType::BuildIn(field) => match field {
@@ -852,7 +852,7 @@ impl io::FieldDeclaration for FieldDeclaration {
     fn write_meta(
         &mut self,
         writer: &mut FileWriter,
-        iter: dynamic_data::Iter,
+        iter: dynamic_instances::Iter,
         offset: usize,
     ) -> Result<usize, SkillFail> {
         writer.write_v64(self.field_id as i64)?;
@@ -876,7 +876,7 @@ impl io::FieldDeclaration for FieldDeclaration {
     fn write_data(
         &self,
         writer: &mut FileWriter,
-        iter: dynamic_data::Iter,
+        iter: dynamic_instances::Iter,
     ) -> Result<(), SkillFail> {
         let mut writer = match self.chunks.first().unwrap() {
             FieldChunk::Declaration(ref chunk) => writer.rel_view(chunk.begin, chunk.end)?,

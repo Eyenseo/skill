@@ -1,4 +1,4 @@
-pub(crate) mod dynamic_data;
-pub(crate) mod static_data;
+pub mod dynamic_instances;
+pub mod static_instances;
 pub(crate) mod type_hierarchy;
-pub(crate) mod type_order;
+pub mod type_order_instances;
