@@ -17,7 +17,7 @@ trait PoolsMaker extends GeneralOutputMaker {
 
     // one file per base type
     for (base ← IR) {
-      val out = files.open(s"src/${snakeCase(storagePool(base))}.rs")
+      val out = files.open(s"src/${field(base)}.rs")
 
       out.write(
                  e"""${genUsage(base)}
@@ -34,7 +34,7 @@ trait PoolsMaker extends GeneralOutputMaker {
     }
 
     for (base ← IRInterfaces) {
-      val out = files.open(s"src/${snakeCase(interface(base))}.rs")
+      val out = files.open(s"src/${field(base)}.rs")
 
       out.write(
                  e"""${genUsage(base)}
@@ -70,7 +70,7 @@ trait PoolsMaker extends GeneralOutputMaker {
     val ret = (IR
                .filterNot(t ⇒ t.equals(base))
                .toArray
-               .map(t ⇒ s"use ${snakeCase(storagePool(t))}::*;\n")
+               .map(t ⇒ s"use ${field(t)}::*;\n")
                .sorted
                .mkString + IRInterfaces
                            .filterNot(t ⇒ t.equals(base))
@@ -803,7 +803,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                   (for (ut ← userTypes) yield {
                     e"""{
                        §    // This is madness ...
-                       §    let tmp = Rc::downgrade(file.${field(ut)}.as_ref().unwrap());
+                       §    let tmp = Rc::downgrade(file.${pool(ut)}.as_ref().unwrap());
                        §    tmp
                        §},
                        §""".stripMargin('§')
@@ -1927,7 +1927,7 @@ trait PoolsMaker extends GeneralOutputMaker {
     case t: UserType                ⇒
       e"""// This is madness ...
          §FieldType::User({
-         §    let tmp = Rc::downgrade(file.${field(t)}.as_ref().unwrap());
+         §    let tmp = Rc::downgrade(file.${pool(t)}.as_ref().unwrap());
          §    tmp
          §})""".stripMargin('§')
     case t: InterfaceType           ⇒
@@ -1935,7 +1935,7 @@ trait PoolsMaker extends GeneralOutputMaker {
         case _: UserType ⇒
           e"""// This is madness ...
              §FieldType::User({
-             §    let tmp = Rc::downgrade(file.${field(t)}.as_ref().unwrap());
+             §    let tmp = Rc::downgrade(file.${pool(t)}.as_ref().unwrap());
              §    tmp
              §})""".stripMargin('§')
         case _           ⇒ e"FieldType::BuildIn(BuildInType::Tannotation)"

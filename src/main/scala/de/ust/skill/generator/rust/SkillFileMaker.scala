@@ -53,7 +53,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
               )
 
     for (base ← IR) {
-      val mod = snakeCase(storagePool(base))
+      val mod = field(base)
 
       ret.append(
                   e"""use $mod::${storagePool(base)};
@@ -99,7 +99,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §    string_pool: StringPool,${
       (for (base ← IR) yield {
         e"""
-           §${field(base)}: Rc<RefCell<${storagePool(base)}>>,""".stripMargin('§')
+           §${pool(base)}: Rc<RefCell<${storagePool(base)}>>,""".stripMargin('§')
       }).mkString
     }
        §    foreign_pools: Vec<Rc<RefCell<foreign::Pool>>>
@@ -125,11 +125,11 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §
        §    ${
       (for (base ← IR) yield {
-        e"""pub fn ${field(base)}(&self) -> std::cell::Ref<${storagePool(base)}> {
-           §    self.${field(base)}.borrow()
+        e"""pub fn ${pool(base)}(&self) -> std::cell::Ref<${storagePool(base)}> {
+           §    self.${pool(base)}.borrow()
            §}
-           §pub fn ${field(base)}_mut(&self) -> std::cell::RefMut<${storagePool(base)}> {
-           §    self.${field(base)}.borrow_mut()
+           §pub fn ${pool(base)}_mut(&self) -> std::cell::RefMut<${storagePool(base)}> {
+           §    self.${pool(base)}.borrow_mut()
            §}
            §
            §""".stripMargin('§')
@@ -251,7 +251,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §            string_pool: StringPool::new(string_pool),${
       (for (base ← IR) yield {
         e"""
-           §${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin('§')
+           §${pool(base)}: file_builder.${pool(base)}.unwrap(),""".stripMargin('§')
       }).mkString
     }
        §            foreign_pools: file_builder.foreign_pools,
@@ -300,7 +300,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §            string_pool: StringPool::new(string_pool),${
       (for (base ← IR) yield {
         e"""
-           §${field(base)}: file_builder.${field(base)}.unwrap(),""".stripMargin('§')
+           §${pool(base)}: file_builder.${pool(base)}.unwrap(),""".stripMargin('§')
       }).mkString
     }
        §            foreign_pools: file_builder.foreign_pools,
@@ -410,7 +410,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
     e"""pub(crate) struct SkillFileBuilder {
        §    ${
       (for (base ← IR) yield {
-        e"""pub(crate) ${field(base)}: Option<Rc<RefCell<${storagePool(base)}>>>,
+        e"""pub(crate) ${pool(base)}: Option<Rc<RefCell<${storagePool(base)}>>>,
            §""".stripMargin('§')
       }).mkString.trim
     }
@@ -425,7 +425,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        SkillFileBuilder {
        §            ${
       (for (base ← IR) yield {
-        e"""${field(base)}: None,
+        e"""${pool(base)}: None,
            §""".stripMargin('§')
       }).mkString.trim
     }
@@ -438,7 +438,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        self.string_pool.borrow_mut().finalize();
        §        ${
       (for (base ← IR) yield {
-        e"""if self.${field(base)}.is_none() {
+        e"""if self.${pool(base)}.is_none() {
            §    let name = self.string_pool.borrow().lit().${field(base)};
            §    let name = self.string_pool.borrow_mut().add(name);
            §    let pool = Rc::new(RefCell::new(
@@ -450,20 +450,20 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §    ));${
           if (base.getSuperType != null) {
             e"""
-               §self.${field(base.getSuperType)}.as_ref().unwrap().borrow_mut().pool_mut().add_sub(&{
+               §self.${pool(base.getSuperType)}.as_ref().unwrap().borrow_mut().pool_mut().add_sub(&{
                §    // Utter madness...
                §    pool.clone() as Rc<RefCell<PoolProxy>>
                §});
                §pool.borrow_mut().pool_mut().set_super(&{
                §    // Utter madness...
-               §    self.${field(base.getSuperType)}.as_ref().unwrap().clone() as Rc<RefCell<PoolProxy>>
+               §    self.${pool(base.getSuperType)}.as_ref().unwrap().clone() as Rc<RefCell<PoolProxy>>
                §});"""
               .stripMargin('§')
           } else {
             ""
           }
         }
-           §    self.${field(base)} = Some(pool.clone());
+           §    self.${pool(base)} = Some(pool.clone());
            §    type_pool.add(pool);
            §}
            §""".stripMargin('§')
@@ -471,10 +471,10 @@ trait SkillFileMaker extends GeneralOutputMaker {
     }
        §        ${
       (for (base ← IR) yield {
-        e"""self.${field(base)}.as_ref().unwrap().borrow_mut().pool_mut().allocate();${
+        e"""self.${pool(base)}.as_ref().unwrap().borrow_mut().pool_mut().allocate();${
           if (base.getBaseType.equals(base)) {
             e"""
-               §self.${field(base)}.as_ref().unwrap().borrow_mut().pool_mut().set_next_pool(None);""".stripMargin('§')
+               §self.${pool(base)}.as_ref().unwrap().borrow_mut().pool_mut().set_next_pool(None);""".stripMargin('§')
           } else {
             ""
           }
@@ -504,7 +504,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §    fn complete(&mut self) {
        §        ${
       (for (base ← IR) yield {
-        e"""self.${field(base)}.as_ref().unwrap().borrow_mut().complete(&self);
+        e"""self.${pool(base)}.as_ref().unwrap().borrow_mut().complete(&self);
            §""".stripMargin('§')
       }).mkString.trim
     }
@@ -523,8 +523,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        ${
       (for (base ← IR) yield {
         e"""if type_name.as_str() == self.string_pool.borrow().lit().${field(base)}  {
-           §    if self.${field(base)}.is_none() {
-           §        self.${field(base)} = Some(Rc::new(RefCell::new(
+           §    if self.${pool(base)}.is_none() {
+           §        self.${pool(base)} = Some(Rc::new(RefCell::new(
            §            ${storagePool(base)}::new(
            §                self.string_pool.clone(),
            §                type_name.clone(),
@@ -554,9 +554,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
                §} else {
                §    super_pool.borrow_mut().pool_mut().add_sub(&{
                §        // Utter madness...
-               §        self.${field(base)}.as_ref().unwrap().clone() as Rc<RefCell<PoolProxy>>
+               §        self.${pool(base)}.as_ref().unwrap().clone() as Rc<RefCell<PoolProxy>>
                §    });
-               §    self.${field(base)}.as_ref().unwrap().borrow_mut().pool_mut().set_super(&{
+               §    self.${pool(base)}.as_ref().unwrap().borrow_mut().pool_mut().set_super(&{
                §        // Utter madness...
                §        super_pool as Rc<RefCell<PoolProxy>>
                §    });
@@ -578,7 +578,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
           }
         }
            §    }
-           §    Ok(self.${field(base)}.as_ref().unwrap().clone())
+           §    Ok(self.${pool(base)}.as_ref().unwrap().clone())
            §} else """.stripMargin('§')
       }).mkString
     }{
@@ -610,10 +610,10 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §    fn get_pool(&self, type_name_index: usize) -> Option<Rc<RefCell<PoolProxy>>> {
        §        ${
       (for (base ← IR) yield {
-        e"""if self.${field(base)}.is_some()
-           §    && type_name_index == self.${field(base)}.as_ref().unwrap().borrow().pool().name().get_id()
+        e"""if self.${pool(base)}.is_some()
+           §    && type_name_index == self.${pool(base)}.as_ref().unwrap().borrow().pool().name().get_id()
            §{
-           §    return Some(self.${field(base)}.as_ref().unwrap().clone());
+           §    return Some(self.${pool(base)}.as_ref().unwrap().clone());
            §} else """.stripMargin('§')
       }).mkString
     }{

@@ -48,7 +48,7 @@ trait PtrMaker extends GeneralOutputMaker {
               )
 
     for (base ← IR) {
-      val mod = snakeCase(storagePool(base))
+      val mod = field(base)
 
       ret.append(
                   e"""use $mod::${name(base)};
@@ -57,7 +57,7 @@ trait PtrMaker extends GeneralOutputMaker {
                 )
     }
     for (base ← IRInterfaces) {
-      val mod = snakeCase(interface(base))
+      val mod = field(base)
 
       ret.append(
                   e"""use $mod::${traitName(base)};

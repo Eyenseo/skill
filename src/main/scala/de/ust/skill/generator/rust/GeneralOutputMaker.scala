@@ -159,7 +159,7 @@ trait GeneralOutputMaker extends Generator {
 
   protected def poolPartsMaker(t: Type): String = escaped(t.getName.capital + "PartsMaker")
 
-  protected def interface(t: Type): String = escaped(t.getName.capital + "Interface")
+  protected def interface(t: Type): String = escaped(t.getName.capital)
 
   protected def fieldDeclaration(t: Type, f: Field): String = escaped(t.getName.capital + f.getName.capital()) +
                                                               "FieldDeclaration"
@@ -180,7 +180,9 @@ trait GeneralOutputMaker extends Generator {
 
   final def field(f: Field): String = field(f.getName.camel())
 
-  final def field(t: Type): String = t match {
+  final def field(t: Type): String = field(t.getName.camel())
+
+  final def pool(t: Type): String = t match {
     case t: InterfaceType ⇒ field(t.getBaseType.getName.camel())
     case _                ⇒ field(t.getName.camel())
   }

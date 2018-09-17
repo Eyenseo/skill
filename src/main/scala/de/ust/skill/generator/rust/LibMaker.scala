@@ -71,7 +71,7 @@ trait LibMaker extends GeneralOutputMaker {
     val ret = new StringBuilder()
 
     for (base ← IR) {
-      val low_base = snakeCase(storagePool(base))
+      val low_base = field(base)
 
       ret.append(
                   e"""pub mod $low_base;
@@ -80,7 +80,7 @@ trait LibMaker extends GeneralOutputMaker {
                 )
     }
     for (base ← IRInterfaces) {
-      val low_base = snakeCase(interface(base))
+      val low_base = field(base)
 
       ret.append(
                   e"""pub mod $low_base;
