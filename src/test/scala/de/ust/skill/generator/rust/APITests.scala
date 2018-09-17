@@ -244,7 +244,6 @@ class APITests extends common.GenericAPITests {
   }
 
   override def makeSkipTest(out: PrintWriter, kind: String, name: String, testName: String, accept: Boolean) {
-    throw new GeneratorException("SKIP is not implemented for Rust")
   }
 
   override def makeRegularTest(out: PrintWriter, kind: String, name: String, testName: String, accept: Boolean,
