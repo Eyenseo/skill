@@ -39,39 +39,39 @@ class APITests extends common.GenericAPITests {
 
   // NOTE cyclic dependencies are not allowed
   var extraTests = Array[ExtraTest](
-                          new ExtraTest(
-                                         new File("deps/rust/tests/undefined_read_write_read.rs"),
-                                         Array(
-                                                "unknown",
-                                              )
-                                       ),
-                          new ExtraTest(
-                                         new File("deps/rust/tests/subtypes_undefined_subtypes.rs"),
-                                         Array(
-                                                "unknown",
-                                                "subtypes",
-                                              )
-                                       ),
-                          new ExtraTest(
-                                         new File("deps/rust/tests/basic_types_undefined_basic_types.rs"),
-                                         Array(
-                                                "unknown",
-                                                "basicTypes",
-                                              )
-                                       ),
-                          new ExtraTest(
-                                         new File("deps/rust/tests/subtypes_delete.rs"),
-                                         Array(
-                                                "subtypes",
-                                              )
-                                       ),
-                          new ExtraTest(
-                                         new File("deps/rust/tests/custom.rs"),
-                                         Array(
-                                                "custom",
-                                              )
-                                       ),
-                        )
+                                     new ExtraTest(
+                                                    new File("deps/rust/tests/undefined_read_write_read.rs"),
+                                                    Array(
+                                                           "unknown",
+                                                         )
+                                                  ),
+                                     new ExtraTest(
+                                                    new File("deps/rust/tests/subtypes_undefined_subtypes.rs"),
+                                                    Array(
+                                                           "unknown",
+                                                           "subtypes",
+                                                         )
+                                                  ),
+                                     new ExtraTest(
+                                                    new File("deps/rust/tests/basic_types_undefined_basic_types.rs"),
+                                                    Array(
+                                                           "unknown",
+                                                           "basicTypes",
+                                                         )
+                                                  ),
+                                     new ExtraTest(
+                                                    new File("deps/rust/tests/subtypes_delete.rs"),
+                                                    Array(
+                                                           "subtypes",
+                                                         )
+                                                  ),
+                                     new ExtraTest(
+                                                    new File("deps/rust/tests/custom.rs"),
+                                                    Array(
+                                                           "custom",
+                                                         )
+                                                  ),
+                                   )
 
   var skipTestCases  = Array(
                               "restr", // FIXME restrictions are not implemented
@@ -82,6 +82,22 @@ class APITests extends common.GenericAPITests {
                               "poly_fail_2", // NOTE this would fail to compile!
                               "boolean", // NOTE this would fail to compile!
                               "bool", // NOTE this would fail to compile!
+                              "nonnull", // FIXME restrictions are not implemented
+                              "nonnull2", // FIXME restrictions are not implemented
+                              "oneof", // FIXME restrictions are not implemented
+                              "oneof2", // FIXME restrictions are not implemented
+                              "range1", // FIXME restrictions are not implemented
+                              "range2", // FIXME restrictions are not implemented
+                              "range3", // FIXME restrictions are not implemented
+                              "range4", // FIXME restrictions are not implemented
+                              "range5", // FIXME restrictions are not implemented
+                              "range6", // FIXME restrictions are not implemented
+                              "range8", // FIXME restrictions are not implemented
+                              "range9", // FIXME restrictions are not implemented
+                              "duplicate", // FIXME restrictions are not implemented
+                              "unique", // FIXME restrictions are not implemented
+                              "restrictionscore_fail_2", // FIXME restrictions are not implemented
+                              "instances", // FIXME restrictions are not implemented
                             )
   val skipGeneration = Array(
                               // "age",
@@ -92,6 +108,7 @@ class APITests extends common.GenericAPITests {
                               // "container",
                               // "custom",
                               // "empty",
+                              // "enums",
                               // "escaping",
                               // "fancy",
                               // "floats",
@@ -100,14 +117,13 @@ class APITests extends common.GenericAPITests {
                               // "hintsAll", // TODO -  is this really successful?
                               // "map3",
                               // "number",
+                              // "restrictionsAll",
+                              // "restrictionsCore",
                               // "subtypes",
                               // "unicode",
                               // "user",
                               // "unknown", // NOTE in this test there happens nothing "unknown"
 
-                              "enums", // FIXME test fail
-                              "restrictionsAll", // FIXME broken generation
-                              "restrictionsCore", // FIXME broken generation
                               "",
                             )
 

@@ -43,13 +43,13 @@ class GenericTests extends common.GenericTests {
                               // "nodeFirstBlockOnly",
                               // "nullAsFieldName",
                               // "partial", // TODO - is this really successful?
+                              // "restrictionsAll",
                               // "trivialType",
                               // "twoNodeBlocks",
                               // "twoTypes",
                               // "unicode-reference",
 
-                              "restrictionsAll",
-                              "nullInNonNullNode",
+                              "nullInNonNullNode", // FIXME probably restrictions
                               "",
                             )
   var generatedTests = new Array[String](0)
@@ -72,8 +72,8 @@ class GenericTests extends common.GenericTests {
                               // "hintsAll", // TODO - is this really successful?
                               // "map3",
                               // "number",
-                              // "restrictionsAll", // TODO - is this really successful?
-                              // "restrictionsCore", // TODO - is this really successful?
+                              // "restrictionsAll",
+                              // "restrictionsCore",
                               // "subtypes",
                               // "unicode",
                               // "unknown",

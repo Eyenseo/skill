@@ -70,11 +70,11 @@ impl FieldDeclaration {
     ) -> Result<foreign::FieldData, SkillFail> {
         Ok(match field {
             FieldType::BuildIn(ref field) => match field {
-                BuildInType::ConstTi8 => foreign::FieldData::I8(reader.read_i8()?),
-                BuildInType::ConstTi16 => foreign::FieldData::I16(reader.read_i16()?),
-                BuildInType::ConstTi32 => foreign::FieldData::I32(reader.read_i32()?),
-                BuildInType::ConstTi64 => foreign::FieldData::I64(reader.read_i64()?),
-                BuildInType::ConstTv64 => foreign::FieldData::I64(reader.read_v64()?),
+                BuildInType::ConstTi8 => foreign::FieldData::I8(0), // TODO check
+                BuildInType::ConstTi16 => foreign::FieldData::I16(0), // TODO check
+                BuildInType::ConstTi32 => foreign::FieldData::I32(0), // TODO check
+                BuildInType::ConstTi64 => foreign::FieldData::I64(0), // TODO check
+                BuildInType::ConstTv64 => foreign::FieldData::I64(0), // TODO check
                 BuildInType::Tbool => foreign::FieldData::Bool(reader.read_bool()?),
                 BuildInType::Ti8 => foreign::FieldData::I8(reader.read_i8()?),
                 BuildInType::Ti16 => foreign::FieldData::I16(reader.read_i16()?),

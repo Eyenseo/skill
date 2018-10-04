@@ -252,98 +252,84 @@ impl TypeBlock {
 
                     let field_restrictions = reader.read_v64()?; // restrictions
                     debug!(target: "SkillParsing", "~~~FieldRestrictions: {:?}", field_restrictions);
-                    match field_type {
-                        FieldType::User(_) => (), // NOTE this might be wrong
-                        _ => {
-                            for restriction in 0..field_restrictions {
-                                // TODO call real function / match
-                                let restriction_type = reader.read_v64()?; // restriction type
 
-                                debug!(
-                                    target: "SkillParsing",
-                                    "~~~~FieldRestriction: #{:?} as {:?}",
-                                    restriction,
-                                    restriction_type
-                                );
+                    for restriction in 0..field_restrictions {
+                        // TODO call real function / match
+                        let restriction_type = reader.read_v64()?; // restriction type
 
-                                match restriction_type {
-                                    0x0 => (), // Non Null
-                                    0x1 => {
-                                        //Default
-                                        match field_type {
-                                            FieldType::BuildIn(BuildInType::Tannotation)
-                                            | FieldType::User(_) => {
-                                                // TODO This is the id of the user object that is used
-                                                // as defualt value / initialization
-                                                reader.read_v64()?;
-                                            }
-                                            _ => {
-                                                // TODO this reads a v64 that is also a id to a object,
-                                                // that is strored in a Pool ... and is then thrown
-                                                // away in the c++ implementatino
-                                                reader.read_v64()?;
-                                            }
-                                        }
-                                    }
-                                    0x3 => match field_type {
-                                        // Range
-                                        FieldType::BuildIn(BuildInType::Ti8) => {
-                                            let min = reader.read_i8();
-                                            let max = reader.read_i8();
-                                        }
-                                        FieldType::BuildIn(BuildInType::Ti16) => {
-                                            let min = reader.read_i16();
-                                            let max = reader.read_i16();
-                                        }
-                                        FieldType::BuildIn(BuildInType::Ti32) => {
-                                            let min = reader.read_i32();
-                                            let max = reader.read_i32();
-                                        }
-                                        FieldType::BuildIn(BuildInType::Ti64) => {
-                                            let min = reader.read_i64();
-                                            let max = reader.read_i64();
-                                        }
-                                        FieldType::BuildIn(BuildInType::Tv64) => {
-                                            let min = reader.read_v64();
-                                            let max = reader.read_v64();
-                                        }
-                                        FieldType::BuildIn(BuildInType::Tf32) => {
-                                            let min = reader.read_f32();
-                                            let max = reader.read_f32();
-                                        }
-                                        FieldType::BuildIn(BuildInType::Tf64) => {
-                                            let min = reader.read_f64();
-                                            let max = reader.read_f64();
-                                        }
-                                        _ => {
-                                            return Err(SkillFail::internal(
-                                                InternalFail::BadRangeRestriction,
-                                            ));
-                                        }
-                                    },
-                                    0x5 => {
-                                        //Coding
-                                        let coding_str_index = reader.read_v64()?;
-                                        string_pool.borrow().get(coding_str_index as usize)?;
-                                    }
-                                    0x7 => (), // Constant LengthPointer
-                                    0x9 => {
-                                        // One of
-                                        for _ in 0..(reader.read_v64()? as u64) {
-                                            let one_of_type_index = reader.read_v64()?;
-                                        }
-                                    }
-                                    i => {
-                                        error!(target: "SkillParsing", "Unknown field restiction: {:?}", i);
-                                        return Err(SkillFail::internal(
-                                            InternalFail::UnknownFieldRestriction {
-                                                id: i as usize,
-                                            },
-                                        ));
-                                    }
-                                }
+                        debug!(
+                            target: "SkillParsing",
+                            "~~~~FieldRestriction: #{:?} as {:?}",
+                            restriction,
+                            restriction_type
+                        );
+
+                        match restriction_type {
+                            0x0 => Ok(()), // Non Null
+                            0x1 => {
+                                //Default
+                                field_type.read(reader)
                             }
-                        }
+                            0x3 => match field_type {
+                                // Range
+                                FieldType::BuildIn(BuildInType::Ti8) => {
+                                    let min = reader.read_i8()?;
+                                    let max = reader.read_i8()?;
+                                    Ok(())
+                                }
+                                FieldType::BuildIn(BuildInType::Ti16) => {
+                                    let min = reader.read_i16()?;
+                                    let max = reader.read_i16()?;
+                                    Ok(())
+                                }
+                                FieldType::BuildIn(BuildInType::Ti32) => {
+                                    let min = reader.read_i32()?;
+                                    let max = reader.read_i32()?;
+                                    Ok(())
+                                }
+                                FieldType::BuildIn(BuildInType::Ti64) => {
+                                    let min = reader.read_i64()?;
+                                    let max = reader.read_i64()?;
+                                    Ok(())
+                                }
+                                FieldType::BuildIn(BuildInType::Tv64) => {
+                                    let min = reader.read_v64()?;
+                                    let max = reader.read_v64()?;
+                                    Ok(())
+                                }
+                                FieldType::BuildIn(BuildInType::Tf32) => {
+                                    let min = reader.read_f32()?;
+                                    let max = reader.read_f32()?;
+                                    Ok(())
+                                }
+                                FieldType::BuildIn(BuildInType::Tf64) => {
+                                    let min = reader.read_f64()?;
+                                    let max = reader.read_f64()?;
+                                    Ok(())
+                                }
+                                _ => Err(SkillFail::internal(InternalFail::BadRangeRestriction)),
+                            },
+                            0x5 => {
+                                //Coding
+                                let coding_str_index = reader.read_v64()?;
+                                string_pool.borrow().get(coding_str_index as usize)?;
+                                Ok(())
+                            }
+                            0x7 => Ok(()), // Constant LengthPointer
+                            0x9 => {
+                                // One of
+                                for _ in 0..(reader.read_v64()? as u64) {
+                                    let one_of_type_index = reader.read_v64()?;
+                                }
+                                Ok(())
+                            }
+                            i => {
+                                error!(target: "SkillParsing", "Unknown field restiction: {:?}", i);
+                                Err(SkillFail::internal(InternalFail::UnknownFieldRestriction {
+                                    id: i as usize,
+                                }))
+                            }
+                        }?;
                     }
                     let data_end = reader.read_v64()? as usize;
 

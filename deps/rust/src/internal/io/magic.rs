@@ -2,6 +2,8 @@
  * @author Roland Jaeger
  */
 
+use common::error::*;
+use common::internal::io::*;
 use common::internal::PoolProxy;
 
 use std::cell::RefCell;
@@ -63,6 +65,195 @@ impl fmt::Display for BuildInType {
 pub(crate) enum FieldType {
     BuildIn(BuildInType),
     User(Weak<RefCell<PoolProxy>>),
+}
+
+impl FieldType {
+    pub(crate) fn read(&self, reader: &mut FileReader) -> Result<(), SkillFail> {
+        match self {
+            FieldType::BuildIn(ref field) => match field {
+                BuildInType::ConstTi8 => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read ConstTi8 "
+                    );
+                    Ok(())
+                }
+                BuildInType::ConstTi16 => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read ConstTi16 "
+                    );
+                    Ok(())
+                }
+                BuildInType::ConstTi32 => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read ConstTi32 "
+                    );
+                    Ok(())
+                }
+                BuildInType::ConstTi64 => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read ConstTi64 "
+                    );
+                    Ok(())
+                }
+                BuildInType::ConstTv64 => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read ConstTv64 "
+                    );
+                    Ok(())
+                }
+                BuildInType::Tbool => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Tbool "
+                    );
+                    reader.read_bool()?;
+                    Ok(())
+                }
+                BuildInType::Ti8 => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Ti8 "
+                    );
+                    reader.read_i8()?;
+                    Ok(())
+                }
+                BuildInType::Ti16 => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Ti16 "
+                    );
+                    reader.read_i16()?;
+                    Ok(())
+                }
+                BuildInType::Ti32 => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Ti32 "
+                    );
+                    reader.read_i32()?;
+                    Ok(())
+                }
+                BuildInType::Ti64 => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Ti64 "
+                    );
+                    reader.read_i64()?;
+                    Ok(())
+                }
+                BuildInType::Tv64 => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Tv64 "
+                    );
+                    reader.read_v64()?;
+                    Ok(())
+                }
+                BuildInType::Tf32 => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Tf32 "
+                    );
+                    reader.read_f32()?;
+                    Ok(())
+                }
+                BuildInType::Tf64 => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Tf64 "
+                    );
+                    reader.read_f64()?;
+                    Ok(())
+                }
+                BuildInType::Tannotation => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Tannotation "
+                    );
+                    reader.read_v64()?;
+                    reader.read_v64()?;
+                    Ok(())
+                }
+                BuildInType::Tstring => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Tstring "
+                    );
+                    reader.read_v64()?;
+                    Ok(())
+                }
+                BuildInType::ConstTarray(length, box_v) => {
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read ConstTarray length:{}",
+                        length
+                    );
+                    for i in 0..*length as usize {
+                        box_v.read(reader)?;
+                    }
+                    Ok(())
+                }
+                BuildInType::Tarray(box_v) => {
+                    let elements = reader.read_v64()? as usize;
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Tarray length:{}",
+                        elements
+                    );
+                    for _ in 0..elements {
+                        box_v.read(reader)?;
+                    }
+                    Ok(())
+                }
+                BuildInType::Tlist(box_v) => {
+                    let elements = reader.read_v64()? as usize;
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Tlist length:{}",
+                        elements
+                    );
+                    for _ in 0..elements {
+                        box_v.read(reader)?;
+                    }
+                    Ok(())
+                }
+                BuildInType::Tset(box_v) => {
+                    let elements = reader.read_v64()? as usize;
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Tset length:{}",
+                        elements
+                    );
+                    for _ in 0..elements {
+                        box_v.read(reader)?;
+                    }
+                    Ok(())
+                }
+                BuildInType::Tmap(key_box_v, box_v) => {
+                    let elements = reader.read_v64()? as usize;
+                    debug!(
+                        target: "SkillParsing",
+                        "~~~~~FieldRestriction::read Tmap length:{}",
+                        elements
+                    );
+                    for _ in 0..elements {
+                        key_box_v.read(reader)?;
+                        box_v.read(reader)?;
+                    }
+                    Ok(())
+                }
+            },
+            FieldType::User(ref pool) => {
+                reader.read_v64()?;
+                Ok(())
+            }
+        }
+    }
 }
 
 pub(crate) fn bytes_v64(what: i64) -> usize {
