@@ -117,37 +117,65 @@ pub(crate) fn read_i64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<
 }
 
 pub(crate) fn read_v64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, SkillFail> {
-    let mut byte_val: i64 = 0;
-    let mut val: i64 = 0;
-    {
-        let mut read_byte = |v: &mut i64| {
+    let mut val: i64;
+
+    // TODO check if the unrolled loop is indeed needed or the loop is as optimized
+    // TODO check if this can be optimized by removing the lambda
+
+    if *position < end && end - *position > 8 {
+        let mut read_byte = || read_byte_unchecked(position, mmap).into();
+
+        val = read_byte();
+        if val >= 0x80 {
+            val = (val & 0x80 - 1) | read_byte() << 7;
+            if val >= 0x4000 {
+                val = (val & 0x4000 - 1) | read_byte() << 14;
+                if val >= 0x200000 {
+                    val = (val & 0x200000 - 1) | read_byte() << 21;
+                    if val >= 0x10000000 {
+                        val = (val & 0x10000000 - 1) | read_byte() << 28;
+                        if val >= 0x800000000 {
+                            val = (val & 0x800000000 - 1) | read_byte() << 35;
+                            if val >= 0x40000000000 {
+                                val = (val & 0x40000000000 - 1) | read_byte() << 42;
+                                if val >= 0x2000000000000 {
+                                    val = (val & 0x2000000000000 - 1) | read_byte() << 49;
+                                    if val >= 0x100000000000000 {
+                                        val = (val & 0x100000000000000 - 1) | read_byte() << 56;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        let mut read_byte = || {
             if *position < end {
-                *v = read_byte_unchecked(position, mmap).into();
-                Ok(*v)
+                Ok(read_byte_unchecked(position, mmap).into())
             } else {
                 Err(SkillFail::internal(InternalFail::UnexpectedEndOfInput))
             }
         };
 
-        // TODO check if the unrolled loop is indeed needed or the loop is as optimized
-        // TODO check if this can be optimized by removing the lambda
-        val = read_byte(&mut val)?;
-        if val & 0x80 != 0 {
-            val = (val & 0x7f) | (read_byte(&mut byte_val)? & 0x7f) << 7;
-            if byte_val & 0x80 != 0 {
-                val |= (read_byte(&mut byte_val)? & 0x7f) << 14;
-                if byte_val & 0x80 != 0 {
-                    val |= (read_byte(&mut byte_val)? & 0x7f) << 21;
-                    if byte_val & 0x80 != 0 {
-                        val |= (read_byte(&mut byte_val)? & 0x7f) << 28;
-                        if byte_val & 0x80 != 0 {
-                            val |= (read_byte(&mut byte_val)? & 0x7f) << 35;
-                            if byte_val & 0x80 != 0 {
-                                val |= (read_byte(&mut byte_val)? & 0x7f) << 42;
-                                if byte_val & 0x80 != 0 {
-                                    val |= (read_byte(&mut byte_val)? & 0x7f) << 49;
-                                    if byte_val & 0x80 != 0 {
-                                        val |= read_byte(&mut byte_val)? << 56;
+        val = read_byte()?;
+        if val >= 0x80 {
+            val = (val & 0x80 - 1) | read_byte()? << 7;
+            if val >= 0x4000 {
+                val = (val & 0x4000 - 1) | read_byte()? << 14;
+                if val >= 0x200000 {
+                    val = (val & 0x200000 - 1) | read_byte()? << 21;
+                    if val >= 0x10000000 {
+                        val = (val & 0x10000000 - 1) | read_byte()? << 28;
+                        if val >= 0x800000000 {
+                            val = (val & 0x800000000 - 1) | read_byte()? << 35;
+                            if val >= 0x40000000000 {
+                                val = (val & 0x40000000000 - 1) | read_byte()? << 42;
+                                if val >= 0x2000000000000 {
+                                    val = (val & 0x2000000000000 - 1) | read_byte()? << 49;
+                                    if val >= 0x100000000000000 {
+                                        val = (val & 0x100000000000000 - 1) | read_byte()? << 56;
                                     }
                                 }
                             }
