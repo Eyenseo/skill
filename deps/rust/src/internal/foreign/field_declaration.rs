@@ -539,20 +539,20 @@ impl io::FieldDeclaration for FieldDeclaration {
             "~~~Deserialize field {}",
             self.name.as_str(),
         );
-        let mut block_index = BlockIndex::from(0);
+        let mut block_index = 0;
 
         for chunk in self.chunks.iter() {
             match chunk {
                 FieldChunk::Declaration(chunk) => {
                     block_index += chunk.appearance - 1;
 
-                    let block = &blocks[block_index.block];
+                    let block = &blocks[block_index];
                     let mut reader =
-                        block_reader[block.block.block].rel_view(chunk.begin, chunk.end);
+                        block_reader[block.block].rel_view(chunk.begin, chunk.end);
                     block_index += 1;
 
                     if chunk.count > 0 {
-                        for block in blocks.iter().take(chunk.appearance.block) {
+                        for block in blocks.iter().take(chunk.appearance) {
                             let mut o = 0;
 
                             for obj in instances.iter().skip(block.bpo).take(block.dynamic_count) {
@@ -596,9 +596,9 @@ impl io::FieldDeclaration for FieldDeclaration {
                     }
                 }
                 FieldChunk::Continuation(chunk) => {
-                    let block = &blocks[block_index.block];
+                    let block = &blocks[block_index];
                     let mut reader =
-                        block_reader[block.block.block].rel_view(chunk.begin, chunk.end);
+                        block_reader[block.block].rel_view(chunk.begin, chunk.end);
                     block_index += 1;
 
                     if chunk.count > 0 {
@@ -663,7 +663,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                 begin: 0,
                 end: 0,
                 count: total_count,
-                appearance: BlockIndex::from(1),
+                appearance: 1,
             }));
     }
     fn offset(&self, iter: dynamic_instances::Iter) -> Result<usize, SkillFail> {

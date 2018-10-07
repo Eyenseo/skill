@@ -13,6 +13,7 @@ use memmap::Mmap;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// struct that provides the means to read from a mmap file
 #[derive(Debug)]
 pub(crate) struct FileReader {
     position: usize,
@@ -32,6 +33,10 @@ impl From<Rc<Mmap>> for FileReader {
 }
 
 impl FileReader {
+    /// jumps over the given number of bytes
+    ///
+    /// returns a FileReader object that reads from the current position a
+    /// maximum of the given number of bytes.
     pub(crate) fn jump(&mut self, len: usize) -> FileReader {
         let reader = FileReader {
             position: self.position,
@@ -41,7 +46,8 @@ impl FileReader {
         self.position += len;
         reader
     }
-
+    /// Returns a FileReader object that reads from the given offset until
+    /// the second given offset from the current position.
     pub(crate) fn rel_view(&self, from: usize, to: usize) -> FileReader {
         FileReader {
             position: self.position + from,
@@ -110,7 +116,6 @@ impl FileReader {
     ) -> Result<FieldType, SkillFail> {
         let field_type = self.read_v64()?; // type of field
 
-        //TODO add from for the enum and use that to match and throw an error?
         match field_type {
             0x0 => {
                 let val = self.read_i8()?;

@@ -19,13 +19,17 @@ use std::rc::{Rc, Weak};
 
 const BUFFER_SIZE: usize = 4096;
 
+/// enum that contains the different types of outputs
 #[derive(Debug)]
 enum Out<'v> {
     Buffer(Box<[u8]>),
+    // Buffer for small writes
     MMap(MmapMut),
-    View(&'v mut [u8]),
+    // mmap directly into the file
+    View(&'v mut [u8]), // view to jump over bits
 }
 
+// The kind of output doesn't matter, all provide a slice / array to write into
 impl<'v> Deref for Out<'v> {
     type Target = [u8];
 
@@ -48,6 +52,7 @@ impl<'v> DerefMut for Out<'v> {
     }
 }
 
+/// struct that provides the means to write to a file
 #[derive(Debug)]
 pub(crate) struct FileWriter<'v> {
     file: Rc<RefCell<std::fs::File>>,
@@ -64,6 +69,10 @@ impl<'v> FileWriter<'v> {
         }
     }
 
+    /// Jumps over the given number of bytes
+    ///
+    /// Returns a FileWriter object that writes from the current position a
+    /// maximum of the given number of bytes.
     pub(crate) fn jump<'vv>(&'vv mut self, len: usize) -> Result<FileWriter<'v>, SkillFail> {
         self.flush()?;
 
@@ -85,7 +94,8 @@ impl<'v> FileWriter<'v> {
         let mmap = match unsafe {
             MmapOptions::new()
                 .len(new_pos)
-                // TODO use offset?
+                // offset could be used but that would make the position in
+                // the log even more useless
                 .map_mut(&self.file.borrow())
         } {
             Ok(map) => Ok(map),
@@ -102,6 +112,10 @@ impl<'v> FileWriter<'v> {
         Ok(writer)
     }
 
+    /// Returns a FileWriter object that writes from the given offset until
+    /// the second given offset from the current position.
+    ///
+    /// In case the FileWriter uses the buffer this method fails
     pub(crate) fn rel_view(&mut self, from: usize, to: usize) -> Result<FileWriter, SkillFail> {
         match self.out {
             Out::Buffer(_) => Err(SkillFail::internal(InternalFail::ViewOnBuffer)),
@@ -118,6 +132,7 @@ impl<'v> FileWriter<'v> {
         }
     }
 
+    /// Makes sure that at least the given number of bytes are free to write in the buffer
     fn require_buffer(&mut self, space: usize) -> Result<(), SkillFail> {
         // double matching can't be prevented because borrowing rules
         match self.out {
@@ -142,6 +157,7 @@ impl<'v> FileWriter<'v> {
         Ok(())
     }
 
+    /// Flushes the backend
     pub(crate) fn flush(&mut self) -> Result<usize, SkillFail> {
         match self.out {
             Out::Buffer(ref mut buf) => {

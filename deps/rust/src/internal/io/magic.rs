@@ -10,6 +10,7 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::{Rc, Weak};
 
+/// Enum that represents the different build-in types
 pub(crate) enum BuildInType {
     ConstTi8(i8),
     ConstTi16(i16),
@@ -62,12 +63,18 @@ impl fmt::Display for BuildInType {
     }
 }
 
+/// enum that is used to deserialize data, in case of Build in types the
+/// right methods have to be selected. In case a user type has to be read
+/// the correct Pool to get the instance from is provided
 pub(crate) enum FieldType {
     BuildIn(BuildInType),
     User(Weak<RefCell<PoolProxy>>),
 }
 
 impl FieldType {
+    /// used to parse restrictions correctly -- this code only reads without
+    /// creating usable information about the restrictions. To implement
+    /// restrictions the read data has to be processed further...
     pub(crate) fn read(&self, reader: &mut FileReader) -> Result<(), SkillFail> {
         match self {
             FieldType::BuildIn(ref field) => match field {
@@ -261,6 +268,7 @@ impl FieldType {
     }
 }
 
+/// calculates the bytes a v64 needs to be written to file
 pub(crate) fn bytes_v64(what: i64) -> usize {
     if (what as u64) < 0x80 {
         1
@@ -305,6 +313,8 @@ impl fmt::Display for FieldType {
     }
 }
 
+/// enum that represents type restrictions in case restrictions are
+/// implemented this will have to be adjusted
 enum TypeRestrictions {
     Runique,
     Rsingleton,
@@ -313,6 +323,8 @@ enum TypeRestrictions {
     Rdefault,
 }
 
+/// enum that represents field restrictions in case restrictions are
+/// implemented this will have to be adjusted
 enum FieldRestrictions {
     RnonNull,
     Rdefault,

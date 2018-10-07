@@ -10,13 +10,14 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::rc::Rc;
 
 // TODO fastpath for bigedian?
-// writing
+
+/// Lowest level write function that is unchecked -- apart from Rusts checks that panic
 pub(crate) fn write_byte_unchecked(position: &mut usize, out: &mut [u8], what: u8) {
     out[*position] = what;
     *position += 1;
 }
 
-// boolean
+/// Function to write a boolean
 pub(crate) fn write_bool(position: &mut usize, out: &mut [u8], what: bool) {
     trace!(
         target: "SkillBaseTypewriting",
@@ -28,7 +29,7 @@ pub(crate) fn write_bool(position: &mut usize, out: &mut [u8], what: bool) {
     write_byte_unchecked(position, out, what as u8);
 }
 
-// integer types
+/// Function to write a i8/u8
 pub(crate) fn write_i8(position: &mut usize, out: &mut [u8], what: i8) {
     trace!(
         target: "SkillBaseTypewriting",
@@ -40,6 +41,7 @@ pub(crate) fn write_i8(position: &mut usize, out: &mut [u8], what: i8) {
     write_byte_unchecked(position, out, what as u8);
 }
 
+/// Function to write a i16/u16
 pub(crate) fn write_i16(position: &mut usize, out: &mut [u8], what: i16) {
     trace!(
         target: "SkillBaseTypewriting",
@@ -52,6 +54,7 @@ pub(crate) fn write_i16(position: &mut usize, out: &mut [u8], what: i16) {
     write_byte_unchecked(position, out, (what) as u8);
 }
 
+/// Function to write a i32/u32
 pub(crate) fn write_i32(position: &mut usize, out: &mut [u8], what: i32) {
     trace!(
         target: "SkillBaseTypewriting",
@@ -66,6 +69,7 @@ pub(crate) fn write_i32(position: &mut usize, out: &mut [u8], what: i32) {
     write_byte_unchecked(position, out, what as u8);
 }
 
+/// Function to write a i64/u64
 pub(crate) fn write_i64(position: &mut usize, out: &mut [u8], what: i64) {
     trace!(
         target: "SkillBaseTypewriting",
@@ -84,6 +88,7 @@ pub(crate) fn write_i64(position: &mut usize, out: &mut [u8], what: i64) {
     write_byte_unchecked(position, out, what as u8);
 }
 
+/// Function to write a v64
 pub(crate) fn write_v64(position: &mut usize, out: &mut [u8], what: i64) {
     trace!(
         target: "SkillBaseTypewriting",
@@ -142,7 +147,7 @@ pub(crate) fn write_v64(position: &mut usize, out: &mut [u8], what: i64) {
     }
 }
 
-// float types
+/// Function to write a f32
 pub(crate) fn write_f32(position: &mut usize, out: &mut [u8], what: f32) {
     trace!(
         target: "SkillBaseTypewriting",
@@ -159,6 +164,7 @@ pub(crate) fn write_f32(position: &mut usize, out: &mut [u8], what: f32) {
     write_i32(position, out, unsafe { U { f: what }.i });
 }
 
+/// Function to write a f64
 pub(crate) fn write_f64(position: &mut usize, out: &mut [u8], what: f64) {
     trace!(
         target: "SkillBaseTypewriting",
@@ -175,7 +181,7 @@ pub(crate) fn write_f64(position: &mut usize, out: &mut [u8], what: f64) {
     write_i64(position, out, unsafe { U { f: what }.i });
 }
 
-// string
+/// Function to write a string
 pub(crate) fn write_string(
     position: &mut usize,
     out: &mut [u8],

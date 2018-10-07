@@ -11,14 +11,15 @@ use std::error::Error;
 use std::rc::Rc;
 
 // TODO fastpath for bigedian?
-// Reading
-pub(crate) fn read_byte_unchecked(position: &mut usize, mmap: &Mmap) -> u8 {
+
+/// Lowest level read function that is unchecked -- apart from Rusts checks that panic
+fn read_byte_unchecked(position: &mut usize, mmap: &Mmap) -> u8 {
     let ret = unsafe { *mmap.get_unchecked(*position) };
     *position += 1;
     ret
 }
 
-// boolean
+/// Function to read a boolean
 pub(crate) fn read_bool(position: &mut usize, end: usize, mmap: &Mmap) -> Result<bool, SkillFail> {
     if *position < end {
         let val = read_byte_unchecked(position, mmap) != 0;
@@ -36,7 +37,7 @@ pub(crate) fn read_bool(position: &mut usize, end: usize, mmap: &Mmap) -> Result
     }
 }
 
-// integer types
+/// Function to read a i8/u8
 pub(crate) fn read_i8(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i8, SkillFail> {
     if *position < end {
         let val = read_byte_unchecked(position, mmap) as i8;
@@ -54,6 +55,7 @@ pub(crate) fn read_i8(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i
     }
 }
 
+/// Function to read a i16/u16
 pub(crate) fn read_i16(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i16, SkillFail> {
     if *position + 1 < end {
         let mut val: i16 = (i16::from(read_byte_unchecked(position, mmap))) << 8;
@@ -72,6 +74,7 @@ pub(crate) fn read_i16(position: &mut usize, end: usize, mmap: &Mmap) -> Result<
     }
 }
 
+/// Function to read a i32/u32
 pub(crate) fn read_i32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i32, SkillFail> {
     if *position + 3 < end {
         let mut val: i32 = (i32::from(read_byte_unchecked(position, mmap))) << 24;
@@ -92,6 +95,7 @@ pub(crate) fn read_i32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<
     }
 }
 
+/// Function to read a i64/u64
 pub(crate) fn read_i64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, SkillFail> {
     if *position + 7 < end {
         let mut val: i64 = (i64::from(read_byte_unchecked(position, mmap))) << 56;
@@ -116,6 +120,7 @@ pub(crate) fn read_i64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<
     }
 }
 
+/// Function to read a v64
 pub(crate) fn read_v64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<i64, SkillFail> {
     let mut val: i64;
 
@@ -196,7 +201,7 @@ pub(crate) fn read_v64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<
     Ok(val)
 }
 
-// float types
+/// Function to read a f32
 pub(crate) fn read_f32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<f32, SkillFail> {
     #[repr(C)]
     union U {
@@ -220,6 +225,7 @@ pub(crate) fn read_f32(position: &mut usize, end: usize, mmap: &Mmap) -> Result<
     }
 }
 
+/// Function to read a f64
 pub(crate) fn read_f64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<f64, SkillFail> {
     #[repr(C)]
     union U {
@@ -242,8 +248,7 @@ pub(crate) fn read_f64(position: &mut usize, end: usize, mmap: &Mmap) -> Result<
     }
 }
 
-// string
-// TODO replace String with lazy loading
+/// Function to read a string
 pub(crate) fn read_string(
     position: &mut usize,
     end: usize,

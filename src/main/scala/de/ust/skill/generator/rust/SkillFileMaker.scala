@@ -228,7 +228,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §                })),
        §            }?;
        §            let rmmap = Rc::new(mmap);
-       §            let mut block_index = BlockIndex::from(0);
+       §            let mut block_index = 0;
        §            {
        §                let mut reader = FileReader::from(rmmap.clone());
        §

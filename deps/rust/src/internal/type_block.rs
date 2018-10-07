@@ -28,7 +28,7 @@ impl TypeBlock {
 
     pub(crate) fn read_type_pool(
         &mut self,
-        block: BlockIndex,
+        block: usize,
         reader: &mut FileReader,
         pool_maker: &mut PoolMaker,
         string_pool: &Rc<RefCell<StringBlock>>,
@@ -354,7 +354,7 @@ impl TypeBlock {
                                 begin: data_start,
                                 end: data_end,
                                 count: tmp_count,
-                                appearance: BlockIndex::from(tmp_blocks),
+                                appearance: tmp_blocks,
                             }),
                         )?;
                     }

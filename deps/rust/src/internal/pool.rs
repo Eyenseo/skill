@@ -376,7 +376,7 @@ impl Pool {
         self.blocks = Vec::with_capacity(1);
         let static_size = self.static_size();
         self.blocks.push(Block {
-            block: BlockIndex::from(0), // TODO remove strong type
+            block: 0,
             bpo: local_bpo[self.type_id - 32],
             static_count: static_size,
             dynamic_count: self.cached_count,
