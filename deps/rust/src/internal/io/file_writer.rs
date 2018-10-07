@@ -284,25 +284,30 @@ impl<'v> FileWriter<'v> {
 
     pub(crate) fn write_field_type(&mut self, field_type: &FieldType) -> Result<(), SkillFail> {
         match field_type {
-            FieldType::BuildIn(BuildInType::ConstTi8) => {
+            FieldType::BuildIn(BuildInType::ConstTi8(val)) => {
                 trace!(target: "SkillWriting", "~~~~FieldType = const i8");
                 self.write_i8(0x0)?;
+                self.write_i8(*val)?;
             }
-            FieldType::BuildIn(BuildInType::ConstTi16) => {
+            FieldType::BuildIn(BuildInType::ConstTi16(val)) => {
                 trace!(target: "SkillWriting", "~~~~FieldType = const i16");
                 self.write_i8(0x1)?;
+                self.write_i16(*val)?;
             }
-            FieldType::BuildIn(BuildInType::ConstTi32) => {
+            FieldType::BuildIn(BuildInType::ConstTi32(val)) => {
                 trace!(target: "SkillWriting", "~~~~FieldType = const i32");
                 self.write_i8(0x2)?;
+                self.write_i32(*val)?;
             }
-            FieldType::BuildIn(BuildInType::ConstTi64) => {
+            FieldType::BuildIn(BuildInType::ConstTi64(val)) => {
                 trace!(target: "SkillWriting", "~~~~FieldType = const i64");
                 self.write_i8(0x3)?;
+                self.write_i64(*val)?;
             }
-            FieldType::BuildIn(BuildInType::ConstTv64) => {
+            FieldType::BuildIn(BuildInType::ConstTv64(val)) => {
                 trace!(target: "SkillWriting", "~~~~FieldType = const v64");
                 self.write_i8(0x4)?;
+                self.write_v64(*val)?;
             }
             FieldType::BuildIn(BuildInType::Tannotation) => {
                 trace!(target: "SkillWriting", "~~~~FieldType = annotation");

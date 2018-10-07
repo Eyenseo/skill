@@ -11,11 +11,11 @@ use std::fmt;
 use std::rc::{Rc, Weak};
 
 pub(crate) enum BuildInType {
-    ConstTi8,
-    ConstTi16,
-    ConstTi32,
-    ConstTi64,
-    ConstTv64,
+    ConstTi8(i8),
+    ConstTi16(i16),
+    ConstTi32(i32),
+    ConstTi64(i64),
+    ConstTv64(i64),
     Tannotation,
     Tbool,
     Ti8,
@@ -38,11 +38,11 @@ pub(crate) enum BuildInType {
 impl fmt::Display for BuildInType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            BuildInType::ConstTi8 => f.write_str("ConstTi8"),
-            BuildInType::ConstTi16 => f.write_str("ConstTi16"),
-            BuildInType::ConstTi32 => f.write_str("ConstTi32"),
-            BuildInType::ConstTi64 => f.write_str("ConstTi64"),
-            BuildInType::ConstTv64 => f.write_str("ConstTv64"),
+            BuildInType::ConstTi8(val) => write!(f, "ConstTi8:{}", val),
+            BuildInType::ConstTi16(val) => write!(f, "ConstTi16:{}", val),
+            BuildInType::ConstTi32(val) => write!(f, "ConstTi32:{}", val),
+            BuildInType::ConstTi64(val) => write!(f, "ConstTi64:{}", val),
+            BuildInType::ConstTv64(val) => write!(f, "ConstTv64:{}", val),
             BuildInType::Tannotation => f.write_str("Tannotation"),
             BuildInType::Tbool => f.write_str("Tbool"),
             BuildInType::Ti8 => f.write_str("Ti8"),
@@ -71,38 +71,43 @@ impl FieldType {
     pub(crate) fn read(&self, reader: &mut FileReader) -> Result<(), SkillFail> {
         match self {
             FieldType::BuildIn(ref field) => match field {
-                BuildInType::ConstTi8 => {
+                BuildInType::ConstTi8(val) => {
                     debug!(
                         target: "SkillParsing",
-                        "~~~~~FieldRestriction::read ConstTi8 "
+                        "~~~~~FieldRestriction::read ConstTi8:{}",
+                        val
                     );
                     Ok(())
                 }
-                BuildInType::ConstTi16 => {
+                BuildInType::ConstTi16(val) => {
                     debug!(
                         target: "SkillParsing",
-                        "~~~~~FieldRestriction::read ConstTi16 "
+                        "~~~~~FieldRestriction::read ConstTi16:{}",
+                        val
                     );
                     Ok(())
                 }
-                BuildInType::ConstTi32 => {
+                BuildInType::ConstTi32(val) => {
                     debug!(
                         target: "SkillParsing",
-                        "~~~~~FieldRestriction::read ConstTi32 "
+                        "~~~~~FieldRestriction::read ConstTi32:{}",
+                        val
                     );
                     Ok(())
                 }
-                BuildInType::ConstTi64 => {
+                BuildInType::ConstTi64(val) => {
                     debug!(
                         target: "SkillParsing",
-                        "~~~~~FieldRestriction::read ConstTi64 "
+                        "~~~~~FieldRestriction::read ConstTi64:{}",
+                        val
                     );
                     Ok(())
                 }
-                BuildInType::ConstTv64 => {
+                BuildInType::ConstTv64(val) => {
                     debug!(
                         target: "SkillParsing",
-                        "~~~~~FieldRestriction::read ConstTv64 "
+                        "~~~~~FieldRestriction::read ConstTv64:{}",
+                        val
                     );
                     Ok(())
                 }

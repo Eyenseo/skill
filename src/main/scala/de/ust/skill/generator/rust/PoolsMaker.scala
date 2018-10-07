@@ -504,9 +504,9 @@ trait PoolsMaker extends GeneralOutputMaker {
              §    ${
             if (userType.isEmpty) {
               e"""match field_type {
-                 §    ${genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(f.getType)},
+                 §    ${genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(f)},
                  §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
-                 §        expected: "${mapTypeToUser(f.getType)}",
+                 §        expected: "${mapTypeToUser(f.getType, f.isConstant)}",
                  §        found: format!("{}", field_type)
                  §    })),
                  §}?;
@@ -523,9 +523,9 @@ trait PoolsMaker extends GeneralOutputMaker {
               e"""let mut object_readers: Vec<Weak<RefCell<PoolProxy>>> = Vec::new();
                  §object_readers.reserve(${userType.size});
                  §match field_type {
-                 §    ${genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(f.getType)},
+                 §    ${genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(f)},
                  §    _ => Err(SkillFail::internal(InternalFail::BadFieldType {
-                 §        expected: "${mapTypeToUser(f.getType)}",
+                 §        expected: "${mapTypeToUser(f.getType, f.isConstant)}",
                  §        found: format!("{}", field_type)
                  §    })),
                  §}?;
@@ -555,31 +555,31 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            match &field_type {
        §                FieldType::BuildIn(field_type) =>{
        §                    match field_type {
-       §                        BuildInType::ConstTi8 => Err(SkillFail::internal(
+       §                        BuildInType::ConstTi8(_) => Err(SkillFail::internal(
        §                            InternalFail::UnknownConstantField{
        §                                field: field_name.string().clone(),
        §                                type_name: self.type_name.string().clone(),
        §                            }
        §                        ))?,
-       §                        BuildInType::ConstTi16 => Err(SkillFail::internal(
+       §                        BuildInType::ConstTi16(_) => Err(SkillFail::internal(
        §                            InternalFail::UnknownConstantField{
        §                                field: field_name.string().clone(),
        §                                type_name: self.type_name.string().clone(),
        §                            }
        §                        ))?,
-       §                        BuildInType::ConstTi32 => Err(SkillFail::internal(
+       §                        BuildInType::ConstTi32(_) => Err(SkillFail::internal(
        §                            InternalFail::UnknownConstantField{
        §                                field: field_name.string().clone(),
        §                                type_name: self.type_name.string().clone(),
        §                            }
        §                        ))?,
-       §                        BuildInType::ConstTi64 => Err(SkillFail::internal(
+       §                        BuildInType::ConstTi64(_) => Err(SkillFail::internal(
        §                            InternalFail::UnknownConstantField{
        §                                field: field_name.string().clone(),
        §                                type_name: self.type_name.string().clone(),
        §                            }
        §                        ))?,
-       §                        BuildInType::ConstTv64 => Err(SkillFail::internal(
+       §                        BuildInType::ConstTv64(_) => Err(SkillFail::internal(
        §                            InternalFail::UnknownConstantField{
        §                                field: field_name.string().clone(),
        §                                type_name: self.type_name.string().clone(),
@@ -613,6 +613,39 @@ trait PoolsMaker extends GeneralOutputMaker {
   }.trim
 
   // TODO do something about these stupid names
+  private final def genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(f: Field): String = {
+    if (f.isConstant) {
+      f.getType match {
+        case t: GroundType ⇒
+          e"""${mapTypeToMagicMatch(t, const = true)} => {
+             §    if val != unsafe { std::mem::transmute::<${
+            mapType(f.getType).replace('i', 'u')
+          }, ${
+            mapType(f.getType)
+          }>(${f.constantValue()})} {
+             §        Err(SkillFail::internal(InternalFail::BadConstantValue{
+             §            field: field_name.string().clone(),
+             §            expected: format!("{}", unsafe {
+             §                std::mem::transmute::<${
+            mapType(f.getType).replace('i', 'u')
+          }, ${
+            mapType(f.getType)
+          }>(${f.constantValue()})
+             §            }),
+             §            found: format!("{}", val),
+             §        }))
+             §    } else {
+             §        Ok(())
+             §    }
+             §}
+             §""".stripMargin('§')
+        case _             ⇒ throw new GeneratorException("Non integer const field");
+      }
+    } else {
+      genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(f.getType)
+    }
+  }.trim
+
   private final def genPoolPartsMakerImplPoolPartsMakerMakeFieldValidate(tt: Type): String = {
     tt match {
       case t: ConstantLengthArrayType ⇒
@@ -801,7 +834,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                §        ${fieldDeclaration(base, ft)}::new(
                §            string_pool.add(name),
                §            index,
-               §            ${mapTypeToMagicDef(ft.getType)},${
+               §            ${mapTypeToMagicDef(ft)},${
               val userTypes = collectUserTypes(ft.getType)
               if (userTypes.nonEmpty) {
                 e"""
@@ -930,128 +963,109 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        type_pools: &Vec<Rc<RefCell<PoolProxy>>>,
        §        instances: &[Ptr<SkillObject>],
        §    ) -> Result<(), SkillFail> {
-       §        let mut block_index = BlockIndex::from(0);
-       §
-       §        for chunk in self.chunks.iter() {
-       §            match chunk {
-       §                FieldChunk::Declaration(chunk) => {
-       §                    block_index += chunk.appearance - 1;
-       §
-       §                    let block = &blocks[block_index.block];
-       §                    let mut reader = block_reader[block.block.block].rel_view(chunk.begin, chunk.end);
-       §                    block_index += 1;
-       §
-       §                    if chunk.count > 0 {
-       §                        for block in blocks.iter().take(chunk.appearance.block) {
-       §                            let mut o = 0;
-       §
-       §                            for obj in instances.iter()
-       §                                .skip(block.bpo)
-       §                                .take(block.dynamic_count)
-       §                            {
-       §                                trace!(
-       §                                    target:"SkillParsing",
-       §                                    "Block:{:?} ObjectProper:{}",
-       §                                    block,
-       §                                    o + block.bpo,
-       §                                );
-       §                                o += 1;
-       §                                ${
+       §        ${
       if (f.isConstant) {
-        e"""let val = ${
-          genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
-        };
-           §if unsafe {
-           §    std::mem::transmute::<${
-          mapType(f.getType).replace('i', 'u')
-        }, ${
-          mapType(f.getType)
-        }>(${f.constantValue()})
-           §} != val {
-           §    return Err(SkillFail::internal(InternalFail::BadConstantValue{
-           §        field: self.name.string().clone(),
-           §        expected: format!("{}", unsafe {
-           §            std::mem::transmute::<${
-          mapType(f.getType).replace('i', 'u')
-        }, ${
-          mapType(f.getType)
-        }>(${f.constantValue()})
-           §        }),
-           §        found: format!("{}", val),
-           §    }));
-           §}""".stripMargin('§')
+        "// Nothing to do here"
       } else {
-        e"""match obj.cast::<${name(base)}>() {
-           §    Some(obj) =>
-           §        obj.borrow_mut().set_${name(f)}(${
+        e"""
+           §let mut block_index = BlockIndex::from(0);
+           §
+           §for chunk in self.chunks.iter() {
+           §    match chunk {
+           §        FieldChunk::Declaration(chunk) => {
+           §            block_index += chunk.appearance - 1;
+           §
+           §            let block = &blocks[block_index.block];
+           §            let mut reader = block_reader[block.block.block].rel_view(chunk.begin, chunk.end);
+           §            block_index += 1;
+           §
+           §            if chunk.count > 0 {
+           §                for block in blocks.iter().take(chunk.appearance.block) {
+           §                    let mut o = 0;
+           §
+           §                    for obj in instances.iter()
+           §                        .skip(block.bpo)
+           §                        .take(block.dynamic_count)
+           §                    {
+           §                        trace!(
+           §                            target:"SkillParsing",
+           §                            "Block:{:?} ObjectProper:{}",
+           §                            block,
+           §                            o + block.bpo,
+           §                        );
+           §                        o += 1;
+           §                        ${
+          if (f.isConstant) {
+            e"""let val = ${
+              genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
+            };
+               §if unsafe {
+               §    std::mem::transmute::<${
+              mapType(f.getType).replace('i', 'u')
+            }, ${
+              mapType(f.getType)
+            }>(${f.constantValue()})
+               §} != val {
+               §    return Err(SkillFail::internal(InternalFail::BadConstantValue{
+               §        field: self.name.string().clone(),
+               §        expected: format!("{}", unsafe {
+               §            std::mem::transmute::<${
+              mapType(f.getType).replace('i', 'u')
+            }, ${
+              mapType(f.getType)
+            }>(${f.constantValue()})
+               §        }),
+               §        found: format!("{}", val),
+               §    }));
+               §}""".stripMargin('§')
+          } else {
+            e"""match obj.cast::<${name(base)}>() {
+               §    Some(obj) =>
+               §        obj.borrow_mut().set_${name(f)}(${
+              genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
+            }),
+               §    None => return Err(SkillFail::internal(InternalFail::BadCast)),
+               §}""".stripMargin('§')
+          }
+        }
+           §                    }
+           §                }
+           §            }
+           §        },
+           §        FieldChunk::Continuation(chunk) => {
+           §            let block = &blocks[block_index.block];
+           §            let mut reader = block_reader[block.block.block].rel_view(chunk.begin, chunk.end);
+           §            block_index += 1;
+           §
+           §            if chunk.count > 0 {
+           §                let mut o = 0;
+           §
+           §                for obj in instances.iter()
+           §                    .skip(chunk.bpo)
+           §                    .take(chunk.count)
+           §                {
+           §                    trace!(
+           §                        target:"SkillParsing",
+           §                        "Block:{:?} ObjectProper:{}",
+           §                        block,
+           §                        o + chunk.bpo,
+           §                    );
+           §                    o += 1;
+           §                    match obj.cast::<${name(base)}>() {
+           §                        Some(obj) =>
+           §                            obj.borrow_mut().set_${name(f)}(${
           genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
         }),
-           §    None => return Err(SkillFail::internal(InternalFail::BadCast)),
-           §}""".stripMargin('§')
+           §                        None => return Err(SkillFail::internal(InternalFail::BadCast)),
+           §                    }
+           §                }
+           §            }
+           §        }
+           §    }
+           §}
+           §""".stripMargin('§')
       }
     }
-       §                            }
-       §                        }
-       §                    }
-       §                },
-       §                FieldChunk::Continuation(chunk) => {
-       §                    let block = &blocks[block_index.block];
-       §                    let mut reader = block_reader[block.block.block].rel_view(chunk.begin, chunk.end);
-       §                    block_index += 1;
-       §
-       §                    if chunk.count > 0 {
-       §                        let mut o = 0;
-       §
-       §                        for obj in instances.iter()
-       §                            .skip(chunk.bpo)
-       §                            .take(chunk.count)
-       §                        {
-       §                            trace!(
-       §                                target:"SkillParsing",
-       §                                "Block:{:?} ObjectProper:{}",
-       §                                block,
-       §                                o + chunk.bpo,
-       §                            );
-       §                            o += 1;
-       §                            ${
-      if (f.isConstant) {
-        e"""let val = ${
-          genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
-        };
-           §if unsafe {
-           §    std::mem::transmute::<${
-          mapType(f.getType).replace('i', 'u')
-        }, ${
-          mapType(f.getType)
-        }>(${f.constantValue()})
-           §} != val {
-           §    return Err(SkillFail::internal(InternalFail::BadConstantValue{
-           §        field: self.name.string().clone(),
-           §        expected: format!("{}", unsafe {
-           §            std::mem::transmute::<${
-          mapType(f.getType).replace('i', 'u')
-        }, ${
-          mapType(f.getType)
-        }>(${f.constantValue()})
-           §        }),
-           §        found: format!("{}", val),
-           §    }));
-           §}""".stripMargin('§')
-      } else {
-        e"""match obj.cast::<${name(base)}>() {
-           §    Some(obj) =>
-           §        obj.borrow_mut().set_${name(f)}(${
-          genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
-        }),
-           §    None => return Err(SkillFail::internal(InternalFail::BadCast)),
-           §}""".stripMargin('§')
-      }
-    }
-       §                        }
-       §                    }
-       §                }
-       §            }
-       §        }
        §        Ok(())
        §    }
        §
@@ -1883,8 +1897,11 @@ trait PoolsMaker extends GeneralOutputMaker {
   }
 
   // TODO better names
-  private final def mapTypeToMagic(t: Type): String = t match {
-    case t: GroundType ⇒ s"BuildInType::T${t.getName.lower}"
+  private final def mapTypeToMagic(t: Type, const: Boolean = false): String = t match {
+    case t: GroundType if t.isInteger && const ⇒
+      s"BuildInType::ConstT${t.getName.lower}"
+    case _: GroundType                         ⇒
+      s"BuildInType::T${t.getName.lower}"
 
     case _: ConstantLengthArrayType ⇒ s"BuildInType::ConstTarray"
     case _: VariableLengthArrayType ⇒ s"BuildInType::Tarray"
@@ -1895,7 +1912,7 @@ trait PoolsMaker extends GeneralOutputMaker {
     case _ ⇒ throw new GeneratorException(s"Unknown type $t")
   }
 
-  private final def mapTypeToMagicMatch(t: Type): String = t match {
+  private final def mapTypeToMagicMatch(t: Type, const: Boolean = false): String = t match {
     case _: ConstantLengthArrayType                                ⇒
       s"FieldType::BuildIn(${mapTypeToMagic(t)}(length, ref box_v))"
     case _: MapType                                                ⇒
@@ -1909,8 +1926,28 @@ trait PoolsMaker extends GeneralOutputMaker {
         case _: UserType ⇒ e"""FieldType::User(ref pool)"""
         case t           ⇒ e"""FieldType::BuildIn(BuildInType::Tannotation)"""
       }
+    case t: GroundType if t.isInteger && const                     ⇒
+      e"""FieldType::BuildIn(${mapTypeToMagic(t, const = true)}(val))"""
     case _                                                         ⇒
       e"""FieldType::BuildIn(${mapTypeToMagic(t)})"""
+
+  }
+
+  private final def mapTypeToMagicDef(f: Field): String = {
+    if (f.isConstant) {
+      f.getType match {
+        case t: GroundType if t.isInteger ⇒
+          e"""FieldType::BuildIn(${mapTypeToMagic(t, true)}(unsafe { std::mem::transmute::<${
+            mapType(f.getType).replace('i', 'u')
+          }, ${
+            mapType(f.getType)
+          }>(${f.constantValue()}) }))""".stripMargin('§')
+        case _                            ⇒
+          throw new GeneratorException("Non integer const field");
+      }
+    } else {
+      mapTypeToMagicDef(f.getType)
+    }
   }
 
   private final def mapTypeToMagicDef(t: Type): String = t match {
@@ -1999,15 +2036,17 @@ trait PoolsMaker extends GeneralOutputMaker {
     }
   }
 
-  private final def mapTypeToUser(t: Type): String = t match {
-    case t: ConstantLengthArrayType ⇒ s"${t.getLength}[${mapTypeToUser(t.getBaseType)}]"
-    case t: VariableLengthArrayType ⇒ s"v[${mapTypeToUser(t.getBaseType)}]"
-    case t: ListType                ⇒ s"List[${mapTypeToUser(t.getBaseType)}]"
-    case t: SetType                 ⇒ s"Set{{${mapTypeToUser(t.getBaseType)}}}"
-    case t: MapType                 ⇒ s"${mapTypeToUserMap(t.getBaseTypes.asScala.toList)}"
-    case _: GroundType              ⇒ s"T${t.getName.lower}"
-    case _: UserType                ⇒ s"UserType"
-    case _: InterfaceType           ⇒ s"InterfaceType"
+  private final def mapTypeToUser(t: Type, const: Boolean = false): String = t match {
+    case t: ConstantLengthArrayType            ⇒ s"${t.getLength}[${mapTypeToUser(t.getBaseType)}]"
+    case t: VariableLengthArrayType            ⇒ s"v[${mapTypeToUser(t.getBaseType)}]"
+    case t: ListType                           ⇒ s"List[${mapTypeToUser(t.getBaseType)}]"
+    case t: SetType                            ⇒ s"Set{{${mapTypeToUser(t.getBaseType)}}}"
+    case t: MapType                            ⇒ s"${mapTypeToUserMap(t.getBaseTypes.asScala.toList)}"
+    case t: GroundType if t.isInteger && const ⇒ s"ConstT${t.getName.lower}"
+    case _: GroundType                         ⇒ s"T${t.getName.lower}"
+
+    case _: UserType      ⇒ s"UserType"
+    case _: InterfaceType ⇒ s"InterfaceType"
 
     case _ ⇒ throw new GeneratorException(s"Unknown type $t")
   }

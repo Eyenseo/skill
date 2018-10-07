@@ -113,29 +113,29 @@ impl FileReader {
         //TODO add from for the enum and use that to match and throw an error?
         match field_type {
             0x0 => {
-                self.read_i8()?;
-                trace!(target: "SkillParsing", "~~~~FieldType = const i8");
-                Ok(FieldType::BuildIn(BuildInType::ConstTi8))
+                let val = self.read_i8()?;
+                trace!(target: "SkillParsing", "~~~~FieldType = const i8:{}", val);
+                Ok(FieldType::BuildIn(BuildInType::ConstTi8(val)))
             }
             0x1 => {
-                self.read_i16()?;
-                trace!(target: "SkillParsing", "~~~~FieldType = const i16");
-                Ok(FieldType::BuildIn(BuildInType::ConstTi16))
+                let val = self.read_i16()?;
+                trace!(target: "SkillParsing", "~~~~FieldType = const i16:{}", val);
+                Ok(FieldType::BuildIn(BuildInType::ConstTi16(val)))
             }
             0x2 => {
-                self.read_i32()?;
-                trace!(target: "SkillParsing", "~~~~FieldType = const i32");
-                Ok(FieldType::BuildIn(BuildInType::ConstTi32))
+                let val = self.read_i32()?;
+                trace!(target: "SkillParsing", "~~~~FieldType = const i32:{}", val);
+                Ok(FieldType::BuildIn(BuildInType::ConstTi32(val)))
             }
             0x3 => {
-                self.read_i64()?;
-                trace!(target: "SkillParsing", "~~~~FieldType = const i64");
-                Ok(FieldType::BuildIn(BuildInType::ConstTi64))
+                let val = self.read_i64()?;
+                trace!(target: "SkillParsing", "~~~~FieldType = const i64:{}", val);
+                Ok(FieldType::BuildIn(BuildInType::ConstTi64(val)))
             }
             0x4 => {
-                self.read_v64()?;
-                trace!(target: "SkillParsing", "~~~~FieldType = const v64");
-                Ok(FieldType::BuildIn(BuildInType::ConstTv64))
+                let val = self.read_v64()?;
+                trace!(target: "SkillParsing", "~~~~FieldType = const v64:{}", val);
+                Ok(FieldType::BuildIn(BuildInType::ConstTv64(val)))
             }
             0x5 => {
                 trace!(target: "SkillParsing", "~~~~FieldType = annotation");

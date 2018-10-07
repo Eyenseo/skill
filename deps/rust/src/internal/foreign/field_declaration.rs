@@ -28,7 +28,8 @@ impl<'a> SingleItemIter<'a> {
 
 impl<'a> Iterator for SingleItemIter<'a> {
     type Item = &'a foreign::FieldData;
-    fn next(&mut self) -> Option<&'a foreign::FieldData> {
+
+    fn next(&mut self) -> Option<Self::Item> {
         if let Some(item) = self.item {
             self.item = None;
             Some(item)
@@ -61,7 +62,6 @@ impl FieldDeclaration {
         }
     }
 
-    // TODO this should also produce an offset for fields that do not contain user types / strings
     fn read_foreign_field(
         field: &FieldType,
         reader: &mut FileReader,
@@ -70,11 +70,11 @@ impl FieldDeclaration {
     ) -> Result<foreign::FieldData, SkillFail> {
         Ok(match field {
             FieldType::BuildIn(ref field) => match field {
-                BuildInType::ConstTi8 => foreign::FieldData::I8(0), // TODO check
-                BuildInType::ConstTi16 => foreign::FieldData::I16(0), // TODO check
-                BuildInType::ConstTi32 => foreign::FieldData::I32(0), // TODO check
-                BuildInType::ConstTi64 => foreign::FieldData::I64(0), // TODO check
-                BuildInType::ConstTv64 => foreign::FieldData::I64(0), // TODO check
+                BuildInType::ConstTi8(val) => foreign::FieldData::I8(*val),
+                BuildInType::ConstTi16(val) => foreign::FieldData::I16(*val),
+                BuildInType::ConstTi32(val) => foreign::FieldData::I32(*val),
+                BuildInType::ConstTi64(val) => foreign::FieldData::I64(*val),
+                BuildInType::ConstTv64(val) => foreign::FieldData::I64(*val),
                 BuildInType::Tbool => foreign::FieldData::Bool(reader.read_bool()?),
                 BuildInType::Ti8 => foreign::FieldData::I8(reader.read_i8()?),
                 BuildInType::Ti16 => foreign::FieldData::I16(reader.read_i16()?),
@@ -201,16 +201,11 @@ impl FieldDeclaration {
         let mut offset = 0;
         match field_type {
             FieldType::BuildIn(field) => match field {
-                BuildInType::ConstTi8 => offset = iter.count(),
-                BuildInType::ConstTi16 => offset = 2 * iter.count(),
-                BuildInType::ConstTi32 => offset = 4 * iter.count(),
-                BuildInType::ConstTi64 => offset = 8 * iter.count(),
-                BuildInType::ConstTv64 => for data in iter {
-                    match data {
-                        foreign::FieldData::I64(val) => offset += bytes_v64(*val),
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
+                BuildInType::ConstTi8(_) => {}
+                BuildInType::ConstTi16(_) => {}
+                BuildInType::ConstTi32(_) => {}
+                BuildInType::ConstTi64(_) => {}
+                BuildInType::ConstTv64(_) => {}
                 BuildInType::Tannotation => for data in iter {
                     match data {
                         foreign::FieldData::User(obj) => {
@@ -340,36 +335,11 @@ impl FieldDeclaration {
     {
         match field_type {
             FieldType::BuildIn(field) => match field {
-                BuildInType::ConstTi8 => for data in iter {
-                    match data {
-                        foreign::FieldData::I8(val) => writer.write_i8(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::ConstTi16 => for data in iter {
-                    match data {
-                        foreign::FieldData::I16(val) => writer.write_i16(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::ConstTi32 => for data in iter {
-                    match data {
-                        foreign::FieldData::I32(val) => writer.write_i32(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::ConstTi64 => for data in iter {
-                    match data {
-                        foreign::FieldData::I64(val) => writer.write_i64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::ConstTv64 => for data in iter {
-                    match data {
-                        foreign::FieldData::I64(val) => writer.write_i64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
+                BuildInType::ConstTi8(_) => {}
+                BuildInType::ConstTi16(_) => {}
+                BuildInType::ConstTi32(_) => {}
+                BuildInType::ConstTi64(_) => {}
+                BuildInType::ConstTv64(_) => {}
                 BuildInType::Tannotation => for data in iter {
                     match data {
                         foreign::FieldData::User(obj) => {
@@ -698,19 +668,11 @@ impl io::FieldDeclaration for FieldDeclaration {
         let mut offset = 0;
         match &self.field_type {
             FieldType::BuildIn(field) => match field {
-                BuildInType::ConstTi8 => offset = iter.count(),
-                BuildInType::ConstTi16 => offset = 2 * iter.count(),
-                BuildInType::ConstTi32 => offset = 4 * iter.count(),
-                BuildInType::ConstTi64 => offset = 8 * iter.count(),
-                BuildInType::ConstTv64 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
-                        foreign::FieldData::I64(val) => offset += bytes_v64(*val),
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
+                BuildInType::ConstTi8(_) => {}
+                BuildInType::ConstTi16(_) => {}
+                BuildInType::ConstTi32(_) => {}
+                BuildInType::ConstTi64(_) => {}
+                BuildInType::ConstTv64(_) => {}
                 BuildInType::Tannotation => for obj in iter {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
@@ -888,51 +850,11 @@ impl io::FieldDeclaration for FieldDeclaration {
         };
         match &self.field_type {
             FieldType::BuildIn(field) => match field {
-                BuildInType::ConstTi8 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
-                        foreign::FieldData::I8(val) => writer.write_i8(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::ConstTi16 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
-                        foreign::FieldData::I16(val) => writer.write_i16(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::ConstTi32 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
-                        foreign::FieldData::I32(val) => writer.write_i32(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::ConstTi64 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
-                        foreign::FieldData::I64(val) => writer.write_i64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::ConstTv64 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
-                        foreign::FieldData::I64(val) => writer.write_i64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
+                BuildInType::ConstTi8(_) => {}
+                BuildInType::ConstTi16(_) => {}
+                BuildInType::ConstTi32(_) => {}
+                BuildInType::ConstTi64(_) => {}
+                BuildInType::ConstTv64(_) => {}
                 BuildInType::Tannotation => for obj in iter {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
