@@ -10,6 +10,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
+/// Used to manage field values that where not known at compile time
 pub(crate) enum FieldData {
     Bool(bool),
     I8(i8),
@@ -79,13 +80,10 @@ impl PartialEq for FieldData {
             },
         }
     }
-    #[inline(always)]
-    fn ne(&self, other: &FieldData) -> bool {
-        !(self == other)
-    }
 }
 
 impl Eq for FieldData {}
+
 impl Hash for FieldData {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match &self {

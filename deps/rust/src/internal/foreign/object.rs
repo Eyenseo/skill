@@ -8,6 +8,8 @@ use common::*;
 
 use std::cell::Cell;
 
+/// Struct that is used to represent instances of types that where not known
+/// at generation time and that do not have a known super type
 #[derive(Default, Debug)]
 #[repr(C)]
 pub(crate) struct Foreign {
@@ -16,7 +18,7 @@ pub(crate) struct Foreign {
     skill_type_id: usize,
     foreign_data: Vec<foreign::FieldData>,
 }
-
+/// Accessor trait
 pub(crate) trait ForeignObject: SkillObject {
     fn foreign_fields(&self) -> &Vec<foreign::FieldData>;
     fn foreign_fields_mut(&mut self) -> &mut Vec<foreign::FieldData>;

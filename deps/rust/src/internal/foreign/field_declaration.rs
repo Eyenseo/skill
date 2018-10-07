@@ -39,6 +39,8 @@ impl<'a> Iterator for SingleItemIter<'a> {
     }
 }
 
+/// Struct that contains information about a field declaration of a type that
+/// was not known at compile time.
 pub(crate) struct FieldDeclaration {
     name: Rc<SkillString>,
     field_id: usize,
@@ -105,7 +107,7 @@ impl FieldDeclaration {
                     let mut arr = Vec::with_capacity(*length as usize);
                     for i in 0..*length as usize {
                         arr[i] = FieldDeclaration::read_foreign_field(
-                            &*box_v,
+                            box_v,
                             reader,
                             string_pool,
                             type_pools,
@@ -118,7 +120,7 @@ impl FieldDeclaration {
                     let mut vec = Vec::with_capacity(elements);
                     for _ in 0..elements {
                         vec.push(FieldDeclaration::read_foreign_field(
-                            &*box_v,
+                            box_v,
                             reader,
                             string_pool,
                             type_pools,
@@ -131,7 +133,7 @@ impl FieldDeclaration {
                     let mut vec = Vec::with_capacity(elements);
                     for _ in 0..elements {
                         vec.push(FieldDeclaration::read_foreign_field(
-                            &*box_v,
+                            box_v,
                             reader,
                             string_pool,
                             type_pools,
@@ -145,7 +147,7 @@ impl FieldDeclaration {
                     set.reserve(elements);
                     for _ in 0..elements {
                         set.insert(FieldDeclaration::read_foreign_field(
-                            &*box_v,
+                            box_v,
                             reader,
                             string_pool,
                             type_pools,
@@ -166,7 +168,7 @@ impl FieldDeclaration {
                                 type_pools,
                             )?,
                             FieldDeclaration::read_foreign_field(
-                                &*box_v,
+                                box_v,
                                 reader,
                                 string_pool,
                                 type_pools,
@@ -257,7 +259,7 @@ impl FieldDeclaration {
                 BuildInType::ConstTarray(length, box_v) => for data in iter {
                     match data {
                         foreign::FieldData::Array(array) => {
-                            offset += FieldDeclaration::offset(&*box_v, array.iter())?
+                            offset += FieldDeclaration::offset(box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -266,7 +268,7 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::Array(array) => {
                             offset += bytes_v64(array.len() as i64)
-                                + FieldDeclaration::offset(&*box_v, array.iter())?
+                                + FieldDeclaration::offset(box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -275,7 +277,7 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::Array(array) => {
                             offset += bytes_v64(array.len() as i64)
-                                + FieldDeclaration::offset(&*box_v, array.iter())?
+                                + FieldDeclaration::offset(box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -284,7 +286,7 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::Set(set) => {
                             offset += bytes_v64(set.len() as i64)
-                                + FieldDeclaration::offset(&*box_v, set.iter())?
+                                + FieldDeclaration::offset(box_v, set.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -294,7 +296,7 @@ impl FieldDeclaration {
                         foreign::FieldData::Map(map) => {
                             offset += bytes_v64(map.len() as i64)
                                 + FieldDeclaration::offset(&*key_box_v, map.keys())?
-                                + FieldDeclaration::offset(&*box_v, map.values())?
+                                + FieldDeclaration::offset(box_v, map.values())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -431,7 +433,7 @@ impl FieldDeclaration {
                 BuildInType::ConstTarray(_length, box_v) => for data in iter {
                     match data {
                         foreign::FieldData::Array(array) => {
-                            FieldDeclaration::write(writer, &*box_v, array.iter())?
+                            FieldDeclaration::write(writer, box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -440,7 +442,7 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::Array(array) => {
                             writer.write_v64(array.len() as i64)?;
-                            FieldDeclaration::write(writer, &*box_v, array.iter())?
+                            FieldDeclaration::write(writer, box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -449,7 +451,7 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::Array(array) => {
                             writer.write_v64(array.len() as i64)?;
-                            FieldDeclaration::write(writer, &*box_v, array.iter())?
+                            FieldDeclaration::write(writer, box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -458,7 +460,7 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::Set(set) => {
                             writer.write_v64(set.len() as i64)?;
-                            FieldDeclaration::write(writer, &*box_v, set.iter())?
+                            FieldDeclaration::write(writer, box_v, set.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -473,7 +475,7 @@ impl FieldDeclaration {
                                     &*key_box_v,
                                     SingleItemIter::new(key),
                                 )?;
-                                FieldDeclaration::write(writer, &*box_v, SingleItemIter::new(val))?;
+                                FieldDeclaration::write(writer, box_v, SingleItemIter::new(val))?;
                             }
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
@@ -734,7 +736,7 @@ impl io::FieldDeclaration for FieldDeclaration {
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::Array(array) => {
-                            offset += FieldDeclaration::offset(&*box_v, array.iter())?;
+                            offset += FieldDeclaration::offset(box_v, array.iter())?;
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -746,7 +748,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::Array(array) => {
                             offset += bytes_v64(array.len() as i64)
-                                + FieldDeclaration::offset(&*box_v, array.iter())?;
+                                + FieldDeclaration::offset(box_v, array.iter())?;
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -758,7 +760,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::Array(array) => {
                             offset += bytes_v64(array.len() as i64)
-                                + FieldDeclaration::offset(&*box_v, array.iter())?;
+                                + FieldDeclaration::offset(box_v, array.iter())?;
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -770,7 +772,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::Set(set) => {
                             offset += bytes_v64(set.len() as i64)
-                                + FieldDeclaration::offset(&*box_v, set.iter())?;
+                                + FieldDeclaration::offset(box_v, set.iter())?;
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -783,7 +785,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                         foreign::FieldData::Map(map) => {
                             offset += bytes_v64(map.len() as i64)
                                 + FieldDeclaration::offset(&*key_box_v, map.keys())?
-                                + FieldDeclaration::offset(&*box_v, map.values())?;
+                                + FieldDeclaration::offset(box_v, map.values())?;
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -976,7 +978,7 @@ impl io::FieldDeclaration for FieldDeclaration {
 
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::Array(array) => {
-                            FieldDeclaration::write(&mut writer, &*box_v, array.iter())?
+                            FieldDeclaration::write(&mut writer, box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -988,7 +990,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::Array(array) => {
                             writer.write_v64(array.len() as i64)?;
-                            FieldDeclaration::write(&mut writer, &*box_v, array.iter())?
+                            FieldDeclaration::write(&mut writer, box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -1000,7 +1002,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::Array(array) => {
                             writer.write_v64(array.len() as i64)?;
-                            FieldDeclaration::write(&mut writer, &*box_v, array.iter())?
+                            FieldDeclaration::write(&mut writer, box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -1012,7 +1014,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     match &obj.foreign_fields()[self.foreign_vec_index] {
                         foreign::FieldData::Set(set) => {
                             writer.write_v64(set.len() as i64)?;
-                            FieldDeclaration::write(&mut writer, &*box_v, set.iter())?
+                            FieldDeclaration::write(&mut writer, box_v, set.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -1032,7 +1034,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                                 )?;
                                 FieldDeclaration::write(
                                     &mut writer,
-                                    &*box_v,
+                                    box_v,
                                     SingleItemIter::new(val),
                                 )?;
                             }
