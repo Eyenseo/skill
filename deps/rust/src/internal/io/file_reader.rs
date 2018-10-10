@@ -35,8 +35,11 @@ impl From<Rc<Mmap>> for FileReader {
 impl FileReader {
     /// jumps over the given number of bytes
     ///
-    /// returns a FileReader object that reads from the current position a
-    /// maximum of the given number of bytes.
+    /// # Arguments
+    /// * `len` - number of bytes to jump over
+    ///
+    /// # Returns
+    /// `FileReader` object that reads from the current position a maximum of the given number of bytes.
     pub(crate) fn jump(&mut self, len: usize) -> FileReader {
         let reader = FileReader {
             position: self.position,
@@ -46,8 +49,12 @@ impl FileReader {
         self.position += len;
         reader
     }
-    /// Returns a FileReader object that reads from the given offset until
-    /// the second given offset from the current position.
+    /// # Arguments
+    /// * `from` - number of bytes to jump over from the current position
+    /// * `to` - number of bytes to jump over from the current position
+    ///
+    /// # Returns
+    /// `FileReader` object that reads from the given offset until the second given offset from the current position.
     pub(crate) fn rel_view(&self, from: usize, to: usize) -> FileReader {
         FileReader {
             position: self.position + from,
@@ -110,6 +117,8 @@ impl FileReader {
         read_string(&mut self.position, self.end, &*self.mmap, length)
     }
 
+    /// # Arguments
+    /// * `pools` - all known type pools - needed to setup `FieldType` in case a `UserType` shall be read
     pub(crate) fn read_field_type(
         &mut self,
         pools: &Vec<Rc<RefCell<PoolProxy>>>,

@@ -101,7 +101,6 @@ trait LibMaker extends GeneralOutputMaker {
   // Cargo.toml
   //----------------------------------------
   private final def genCargo(): Unit = {
-    // TODO replace hardcoded path to dependency
     val out = files.openRaw("Cargo.toml")
     out.write(
                e"""[package]

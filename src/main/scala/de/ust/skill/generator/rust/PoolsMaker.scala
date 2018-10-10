@@ -22,7 +22,7 @@ trait PoolsMaker extends GeneralOutputMaker {
   abstract override def make {
     super.make
 
-    // one file per base type
+    // one file per type
     for (base ← IR) {
       val out = files.open(s"src/${field(base)}.rs")
 
@@ -234,7 +234,7 @@ trait PoolsMaker extends GeneralOutputMaker {
           }).mkString +
            (for (c ← gatherCustoms(base)) yield {
              var com = c.getComment
-                       // NOTE 4 spaces indent
+                       // 4 spaces indent
                        .format("", "/// ", lineLength - 4, "")
                        .trim
              if (com != "") {
@@ -827,9 +827,7 @@ trait PoolsMaker extends GeneralOutputMaker {
           (for (ft ← fields) yield {
             e"""if set.contains(string_pool.lit().${name(ft)}) {
                §    let index = self.pool.fields().len() + 1;
-               §    let name = string_pool.lit().${name(ft)};${
-              "" // FIXME accessing the fields of lit will create _copies_! else this would be illegal
-            }
+               §    let name = string_pool.lit().${name(ft)};
                §    self.pool.fields_mut().push(Box::new(RefCell::new(
                §        ${fieldDeclaration(base, ft)}::new(
                §            string_pool.add(name),
@@ -1769,7 +1767,6 @@ trait PoolsMaker extends GeneralOutputMaker {
         e"""reader.read_${readName(t)}()?
            §""".stripMargin('§')
       case t: ConstantLengthArrayType             ⇒
-        // TODO check that everything was read?
         e"""{
            §    let mut arr:${mapType(t)} = ${defaultValue(t)};
            §    for i in 0..${t.getLength} {
@@ -1896,7 +1893,6 @@ trait PoolsMaker extends GeneralOutputMaker {
     }
   }
 
-  // TODO better names
   private final def mapTypeToMagic(t: Type, const: Boolean = false): String = t match {
     case t: GroundType if t.isInteger && const ⇒
       s"BuildInType::ConstT${t.getName.lower}"

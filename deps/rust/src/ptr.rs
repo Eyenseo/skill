@@ -30,6 +30,7 @@ use std::ptr::NonNull;
 use ptr::VALID_CASTS;
 
 // NOTE std code adapted from 1.29.0
+// NOTE depends on generated vtable lookup table
 
 //////////////////////////////////////////
 // Ptr - custom
@@ -52,6 +53,7 @@ where
 
 impl<T> Ptr<T>
 where
+    // needed to obtain vtable lookup table index of original type
     T: 'static + CastAble,
 {
     pub(crate) fn new(value: T) -> Ptr<T> {
@@ -108,8 +110,7 @@ mod diggsey {
         }
     }
 
-    /// Represents a trait object's layout. You shouldn't need to use this as a
-    /// consumer of the crate but it is required for macro expansion.
+    /// Represents a trait object's layout.
     #[doc(hidden)]
     #[repr(C)]
     #[derive(Copy, Clone, Debug)]
@@ -122,6 +123,8 @@ mod diggsey {
 pub(crate) use self::diggsey::*;
 
 pub trait CastAble {
+    /// # Returns
+    /// id / index into the vtable lookup table
     fn cast_id() -> usize;
 }
 
@@ -129,30 +132,47 @@ impl<T> Ptr<T>
 where
     T: ?Sized,
 {
+    /// Casts any `Ptr<T>` to `Ptr<U>` if the csat is valid base on the vtable lookup table
     pub fn cast<U>(&self) -> Option<Ptr<U>>
     where
+        // Bound of U;
+        //   U can be Sized, or Unsized
+        //   U may only have references that live as long as the whole program
+        //   U has to implement CastAble which is needed to call cast_id()
         U: ?Sized + 'static + CastAble,
     {
+        // Obtain the lookup table index of Self
         let own_id = unsafe { self.meta.as_ref() }.cast_id;
+        // Access the lookup table with the index of Self and U
         if let Some(vtable) = VALID_CASTS[own_id][U::cast_id()] {
             unsafe {
                 let mut t = TraitObject {
+                    // value is either a pointer to a Sized type e.g. Struct or of a trait object.
+                    // In both cases points the pointer to data, a Sized type
                     data: self.value.as_ptr() as *const (),
-                    vtable,
+                    vtable, // Set the vtable of U
                 };
                 let value = NonNull::new_unchecked(
+                    // Reinterpret the memory pointed to by ts reference;
+                    //   If U is Unsized, a Trait, then the type of the reference will
+                    //     be reinterpreted to a real trait object of type U
+                    //   If U is a Sized type, e.g. Struct the reference will be
+                    //     reinterpreted as reference to U
+                    //     The vtable pointer will be 'cut off' in this case
                     // NOTE mut-ref-ptr-to T to mut-ref-ptr-to U
                     *::std::mem::transmute::<_, &mut *mut U>(&mut t),
                 );
                 let meta = self.meta.as_ref();
+                // Increase the strong counter for the reference counting
                 meta.strong.set(meta.strong.get() + 1);
+                // Construct a new Ptr<U> with the newly casted value and shared meta data
                 Some(Ptr {
                     meta: self.meta,
                     value,
                 })
             }
         } else {
-            None
+            None // Return None to indicate a invalid cast
         }
     }
 }
@@ -177,6 +197,7 @@ impl<T: ?Sized> Clone for Ptr<T> {
 }
 
 impl<T: ?Sized> !Sync for Ptr<T> {}
+impl<T: ?Sized> !Send for Ptr<T> {}
 
 impl<T: ?Sized> PartialEq for Ptr<T> {
     /// Equality for two `Ptr`s.

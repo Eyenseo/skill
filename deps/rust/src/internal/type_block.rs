@@ -12,6 +12,8 @@ use common::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// Type to read and write types and thier instances
+// NOTE this has to be reworked so it really is one StringBlock per block - that is needed fpr multi block writing
 #[derive(Default)]
 pub(crate) struct TypeBlock {
     pools: Vec<Rc<RefCell<PoolProxy>>>,
@@ -25,8 +27,13 @@ impl TypeBlock {
     pub(crate) fn pools(&self) -> &Vec<Rc<RefCell<PoolProxy>>> {
         &self.pools
     }
-
-    pub(crate) fn read_type_pool(
+    /// # Arguments
+    /// * `block` - current block to deserialize
+    /// * `reader` - used to read
+    /// * `pool_maker` - that is needed to make `UserTypePools`
+    /// * `string_pool` - to access strings
+    /// * `field_data` - vector of `FileReaders` that have a view of a field data section
+    pub(crate) fn read_type_block(
         &mut self,
         block: usize,
         reader: &mut FileReader,
@@ -90,7 +97,7 @@ impl TypeBlock {
                     }
                 }
 
-                let super_type = reader.read_v64()?; // super type index? id?
+                let super_type = reader.read_v64()?;
                 let super_pool = if super_type as usize > self.pools.len() {
                     return Err(SkillFail::internal(InternalFail::UnknownType {
                         id: super_type as usize,
@@ -102,7 +109,6 @@ impl TypeBlock {
                         self.pools[(super_type - 1) as usize].borrow().pool().get_type_id(),
                         type_id
                     );
-                    // TODO check that this is the expected super type?
                     Some(self.pools[(super_type - 1) as usize].clone())
                 } else {
                     None
@@ -177,7 +183,6 @@ impl TypeBlock {
             block_local_pools.push((type_pool, field_declarations));
         }
 
-        // TODO resize stuff ...
         debug!(target: "SkillParsing", "~Resize Pools~");
         for (ref pool, ref _field_count) in block_local_pools.iter() {
             let mut pool = pool.borrow_mut();
@@ -233,7 +238,7 @@ impl TypeBlock {
 
                 if field_id as usize == field_id_limit {
                     field_id_limit += 1;
-                    let field_name_id = reader.read_v64()? as usize; // field name id
+                    let field_name_id = reader.read_v64()? as usize;
 
                     debug!(target: "SkillParsing", "~~~Field id: {:?}", field_id);
                     debug!(target: "SkillParsing", "~~~Field name id: {:?}", field_name_id);
@@ -250,12 +255,11 @@ impl TypeBlock {
                     //TODO add from for the enum and use that to match and throw an error?
                     let field_type = reader.read_field_type(&self.pools)?;
 
-                    let field_restrictions = reader.read_v64()?; // restrictions
+                    let field_restrictions = reader.read_v64()?;
                     debug!(target: "SkillParsing", "~~~FieldRestrictions: {:?}", field_restrictions);
 
                     for restriction in 0..field_restrictions {
-                        // TODO call real function / match
-                        let restriction_type = reader.read_v64()?; // restriction type
+                        let restriction_type = reader.read_v64()?;
 
                         debug!(
                             target: "SkillParsing",
@@ -400,6 +404,11 @@ impl TypeBlock {
         self.pools.len()
     }
 
+    /// initializes the fields after reading the skill binary file - necessary for all non foreign fields
+    ///
+    /// # Arguments
+    /// * `reader` - vector where each element is a reader for a specific block
+    /// * `strings` - string access
     pub(crate) fn initialize(
         &self,
         strings: &StringBlock,
@@ -418,6 +427,7 @@ impl TypeBlock {
         Ok(())
     }
 
+    /// remove instances that are marked for deletion and collapse all blocks into one
     pub(crate) fn compress(&mut self) -> Result<Vec<usize>, SkillFail> {
         let mut local_bpos = Vec::new();
         local_bpos.reserve(self.pools.len());
@@ -446,12 +456,11 @@ impl TypeBlock {
                     }
                 }
 
-                // TODO does the reorder work?
                 let mut next = 0;
                 for p in type_hierarchy::Iter::new(p.clone())? {
                     local_bpos[p.borrow().pool().get_type_id() - 32] = next;
                     next += p.borrow().pool().static_size() - p.borrow().pool().deleted_instances();
-                    p.borrow_mut().pool_mut().compress_field_chunks(&local_bpos);
+                    p.borrow_mut().pool_mut().compress_field_chunks();
                 }
 
                 for p in type_hierarchy::Iter::new(p.clone())? {
@@ -464,6 +473,11 @@ impl TypeBlock {
         Ok(local_bpos)
     }
 
+    /// writes the type block
+    /// # Arguments
+    /// * `writer` - used to write
+    /// * `local_bpos` - base pool offsets to use
+    // NOTE currently only one block is supported
     pub(crate) fn write_block(
         &self,
         writer: &mut FileWriter,
@@ -521,6 +535,8 @@ impl TypeBlock {
         Ok(())
     }
 
+    /// # Arguments
+    /// * `invariant` - if `true` the dynamic instance amount is calculated and cached by all pools, if `false` this will be reversed
     pub(crate) fn set_invariant(&self, invariant: bool) {
         for p in self.pools.iter() {
             p.borrow_mut().pool_mut().set_invariant(invariant);

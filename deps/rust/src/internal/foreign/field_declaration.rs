@@ -547,8 +547,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     block_index += chunk.appearance - 1;
 
                     let block = &blocks[block_index];
-                    let mut reader =
-                        block_reader[block.block].rel_view(chunk.begin, chunk.end);
+                    let mut reader = block_reader[block.block].rel_view(chunk.begin, chunk.end);
                     block_index += 1;
 
                     if chunk.count > 0 {
@@ -597,8 +596,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                 }
                 FieldChunk::Continuation(chunk) => {
                     let block = &blocks[block_index];
-                    let mut reader =
-                        block_reader[block.block].rel_view(chunk.begin, chunk.end);
+                    let mut reader = block_reader[block.block].rel_view(chunk.begin, chunk.end);
                     block_index += 1;
 
                     if chunk.count > 0 {

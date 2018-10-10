@@ -8,6 +8,7 @@ use common::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// Iterator that iterates over all instances of a single type
 #[derive(Clone)]
 pub struct Iter {
     pool: Rc<RefCell<PoolProxy>>,

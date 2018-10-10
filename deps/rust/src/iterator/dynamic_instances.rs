@@ -10,6 +10,7 @@ use common::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// Iterator that iterates over all instances of a type hierarchy
 #[derive(Default, Clone)]
 pub struct Iter {
     type_hierarchy: type_hierarchy::Iter,

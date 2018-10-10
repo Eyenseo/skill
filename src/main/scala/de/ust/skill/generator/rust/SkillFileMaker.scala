@@ -241,7 +241,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §
        §                    // TODO implement blocks
        §                    string_pool.borrow_mut().read_string_pool(&mut reader)?;
-       §                    type_pool.read_type_pool(
+       §                    type_pool.read_type_block(
        §                        block_index,
        §                        &mut reader,
        §                        &mut file_builder,

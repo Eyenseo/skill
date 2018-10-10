@@ -13,7 +13,14 @@ use SkillFileBuilder;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
+/// Used by `TypeBlock` to make the appropriate pools - implemented by `SkillFileBuilder`
 pub(crate) trait PoolMaker {
+    /// # Arguments
+    /// * `type_name` - name of the type / pool
+    /// * `type_id` - id of the type / pool
+    /// * `super_pool` - super pool of the type / pool
+    ///
+    /// If no specific `UserTypePool` of the given name exists a `ForeignPool` will be create instead
     fn make_pool(
         &mut self,
         type_name: &Rc<SkillString>,
@@ -21,16 +28,34 @@ pub(crate) trait PoolMaker {
         super_pool: Option<Rc<RefCell<PoolProxy>>>,
     ) -> Result<Rc<RefCell<PoolProxy>>, SkillFail>;
 
+    /// # Returns
+    /// `PoolProxy` the given index
     fn get_pool(&self, type_name_index: usize) -> Option<Rc<RefCell<PoolProxy>>>;
 }
 
+/// used as interface for the specific `UserTypePools`
 pub(crate) trait PoolProxy {
+    /// # Returns
+    /// Borrow to the general `Pool`
     fn pool(&self) -> &Pool;
+    /// # Returns
+    /// Borrow to the mutable general `Pool`
     fn pool_mut(&mut self) -> &mut Pool;
+    /// completes the `UserTypePool` - missing fields are created
+    ///
+    /// # Arguments
+    /// * `file` - state to use to create the missing FieldDeclarations
     fn complete(&mut self, file: &SkillFileBuilder);
 }
 
+/// used to pass `Pool` specific functions from `UserTypePools`
 pub(crate) trait PoolPartsMaker {
+    /// makes a FieldDeclaration
+    /// # Arguments
+    /// * `index` - index of the field declaration to be created
+    /// * `name` - name of the field declaration to be created
+    /// * `field_type` - type of the field declaration to be created
+    /// * `string_pool` - string access
     fn make_field(
         &self,
         index: usize,
@@ -38,13 +63,22 @@ pub(crate) trait PoolPartsMaker {
         field_type: FieldType,
         string_pool: &StringBlock,
     ) -> Result<(bool, Box<RefCell<FieldDeclaration>>), SkillFail>;
+    /// creates a `UserType` instance
+    ///
+    /// # Arguments
+    /// * `skill_id` - object id / index into the type hierarchy array
+    /// * `type_id` - type id / index into the pool array
     fn make_instance(&self, skill_id: usize, type_id: usize) -> Ptr<SkillObject>;
 }
 
+/// General pool - this is specification independent code
 pub(crate) struct Pool {
     parts_maker: Box<PoolPartsMaker>,
+    // NOTE PoolPartsMaker is needed for specification specific functions
     instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
+    // type hierarchy array of "old" instances
     own_new_instances: Vec<Ptr<SkillObject>>,
+    // only of the specific UserType
     fields: Vec<Box<RefCell<FieldDeclaration>>>,
     name: Rc<SkillString>,
     type_id: usize,
@@ -52,17 +86,27 @@ pub(crate) struct Pool {
     super_pool: Option<Weak<RefCell<PoolProxy>>>,
     sub_pools: Vec<Weak<RefCell<PoolProxy>>>,
     base_pool: Option<Weak<RefCell<PoolProxy>>>,
+    // used for iterators
     next_pool: Option<Weak<RefCell<PoolProxy>>>,
+    // used for iterators
     static_count: usize,
+    // instances of the specific UserType
     dynamic_count: usize,
+    // instances of type hierarchy
     cached_count: usize,
+    // cached dynamic count
     deleted_count: usize,
+    // instances that will be deleted at flush / write
     type_hierarchy_height: usize,
     invariant: bool,
     foreign_fields: bool,
 }
 
 impl Pool {
+    /// # Arguments
+    /// * `name` - name of the type / pool
+    /// * `type_id` - type id / index into the pool array
+    /// * `pool_proxy` - needed to use specification dependent functions
     pub(crate) fn new(
         name: Rc<SkillString>,
         type_id: usize,
@@ -90,6 +134,8 @@ impl Pool {
         }
     }
 
+    /// # Returns
+    /// `true` if the type has already a `FieldDeclaration` with the string id `name_id`
     fn has_field(&self, name_id: usize) -> bool {
         for f in self.fields.iter() {
             if f.borrow().name().get_id() == name_id {
@@ -105,6 +151,15 @@ impl Pool {
     pub(crate) fn fields(&self) -> &Vec<Box<RefCell<FieldDeclaration>>> {
         &self.fields
     }
+
+    /// adds a field to the type
+    ///
+    /// # Arguments
+    /// * `string_pool` - needed to access strings
+    /// * `index` - index of the `FieldDeclaration` to be created
+    /// * `field_name` - name of the `FieldDeclaration`
+    /// * `field_type` - the `FieldDeclaration` shall have
+    /// * `chunk` - the `FieldDeclaration` appeared in
     pub(crate) fn add_field(
         &mut self,
         string_pool: &StringBlock,
@@ -132,6 +187,12 @@ impl Pool {
         Ok(())
     }
 
+    /// initializes the fields after reading the skill binary file - necessary for all non foreign fields
+    ///
+    /// # Arguments
+    /// * `block_reader` - vector where each element is a reader for a specific block
+    /// * `string_pool` - string access
+    /// * `type_pools` - all type pools -- usd to read a specific instance
     pub(crate) fn initialize(
         &self,
         block_reader: &Vec<FileReader>,
@@ -151,6 +212,12 @@ impl Pool {
         Ok(())
     }
 
+    /// initializes the fields after before writing the skill binary file - necessary for foreign fields
+    ///
+    /// # Arguments
+    /// * `block_reader` - vector where each element is a reader for a specific block
+    /// * `string_pool` - string access
+    /// * `type_pools` - all type pools -- usd to read a specific instance
     pub(crate) fn deserialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail> {
         debug!(
             target: "SkillWriting",
@@ -174,6 +241,7 @@ impl Pool {
         Ok(())
     }
 
+    /// allocates all instances without initialization of fields
     pub(crate) fn allocate(&mut self) {
         let mut vec = self.instances.borrow_mut();
         if self.is_base() {
@@ -215,7 +283,9 @@ impl Pool {
             }
         }
     }
-
+    /// # Arguments
+    /// * `field_id` - field to add the chunk for
+    /// * `chunk` - chunk to add
     pub(crate) fn add_chunk_to(
         &mut self,
         field_id: usize,
@@ -241,6 +311,8 @@ impl Pool {
         &self.name
     }
 
+    /// # Returns
+    /// vector of the type hierarchy
     pub(crate) fn get_base_vec(&self) -> Rc<RefCell<Vec<Ptr<SkillObject>>>> {
         self.instances.clone()
     }
@@ -249,6 +321,7 @@ impl Pool {
         instance.borrow_mut().mark_for_deletion();
         self.deleted_count += 1;
     }
+    /// "Reads" a object from the type hierarchy vector
     pub(crate) fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillFail> {
         if index == 0 {
             return Err(SkillFail::internal(InternalFail::ReservedID { id: 0 }));
@@ -261,18 +334,21 @@ impl Pool {
         );
         Ok(self.instances.borrow()[index - 1].clone())
     }
-
+    /// # Arguments
+    /// * `block` - to add to the type to get data and instances from
     pub(crate) fn add_block(&mut self, block: Block) {
         self.blocks.push(block);
     }
     pub(crate) fn blocks(&self) -> &Vec<Block> {
         &self.blocks
     }
-
+    /// # Arguments
+    /// * `pool` - to add as sub pool
     pub(crate) fn add_sub(&mut self, pool: &Rc<RefCell<PoolProxy>>) {
         self.sub_pools.push(Rc::downgrade(pool));
     }
-
+    /// # Arguments
+    /// * `pool` - to add as super pool to this pool - this will also add this pool as sub pool to the super pool
     pub(crate) fn set_super(&mut self, pool: &Rc<RefCell<PoolProxy>>) {
         if pool.borrow().pool().is_base() {
             self.base_pool = Some(Rc::downgrade(pool));
@@ -301,22 +377,31 @@ impl Pool {
     pub(crate) fn is_base(&self) -> bool {
         self.super_pool.is_none()
     }
-
+    /// # Returns
+    /// Amount of instances of this pools type in the last block
     pub(crate) fn get_local_static_count(&self) -> usize {
         return self.blocks.last().unwrap().static_count;
     }
+    /// # Arguments
+    /// * `count` - of instances of this pools type in the last block
     pub(crate) fn set_local_static_count(&mut self, count: usize) {
         self.blocks.last_mut().unwrap().static_count = count
     }
 
+    /// # Returns
+    /// Amount of instances of the type hierarchy in the last block
     pub(crate) fn get_local_dynamic_count(&self) -> usize {
         return self.blocks.last().unwrap().dynamic_count;
     }
 
+    /// # Returns
+    /// base pool offset of the last block
     pub(crate) fn get_local_bpo(&self) -> usize {
         self.blocks.last().unwrap().bpo
     }
 
+    /// # Arguments
+    /// * `invariant` - if `true` the dynamic instance amount is calculated and cached, if `false` this will be reversed
     pub(crate) fn set_invariant(&mut self, invariant: bool) {
         if self.invariant != invariant {
             self.invariant = invariant;
@@ -342,29 +427,43 @@ impl Pool {
         }
     }
 
+    /// # Returns
+    /// Amount of instances of the type hierarchy
     pub(crate) fn get_global_static_count(&self) -> usize {
         self.static_count
     }
+    /// # Arguments
+    /// * `count` - of instances of this pools type
     pub(crate) fn set_global_static_count(&mut self, count: usize) {
         self.static_count = count;
     }
 
+    /// # Returns
+    /// Amount of cached dynamic instances of the type hierarchy
     pub(crate) fn get_global_cached_count(&self) -> usize {
         self.cached_count
     }
+    /// # Arguments
+    /// * `count` - of cached dynamic instances of this pools type
     pub(crate) fn set_global_cached_count(&mut self, count: usize) {
         self.cached_count = count;
     }
 
-    pub(crate) fn make_instance(&self, skill_id: usize, skill_type_id: usize) -> Ptr<SkillObject> {
+    /// # Arguments
+    /// * `skill_id` - object id / index into the type hierarchy array
+    /// * `type_id` - type id / index into the pool array
+    pub(crate) fn make_instance(&self, skill_id: usize, type_id: usize) -> Ptr<SkillObject> {
         trace!(
             target: "SkillParsing",
             "Create new foreign::{}",
             self.name.as_str()
         );
-        self.parts_maker.make_instance(skill_id, skill_type_id)
+        self.parts_maker.make_instance(skill_id, type_id)
     }
 
+    /// # Arguments
+    /// * `local_bpo` - base pool offsets to use
+    /// * `vec` - new instance vector with all instances of this type hierarchy
     pub(crate) fn update_after_compress(
         &mut self,
         local_bpo: &Vec<usize>,
@@ -403,7 +502,8 @@ impl Pool {
     pub(crate) fn add(&mut self, instance: Ptr<SkillObject>) {
         self.own_new_instances.push(instance);
     }
-
+    /// # Arguments
+    /// * `pool` - to be set as next for iterators - is propagated to sub pools
     pub(crate) fn set_next_pool(&mut self, pool: Option<Rc<RefCell<PoolProxy>>>) {
         if self.sub_pools.len() > 0 {
             self.next_pool = Some(self.sub_pools.first().unwrap().clone());
@@ -438,12 +538,16 @@ impl Pool {
         self.type_hierarchy_height
     }
 
-    pub(crate) fn compress_field_chunks(&mut self, local_bpo: &Vec<usize>) {
+    pub(crate) fn compress_field_chunks(&mut self) {
         let total_count = self.get_global_cached_count();
         for f in self.fields.iter() {
             f.borrow_mut().compress_chunks(total_count);
         }
     }
+
+    /// # Arguments
+    /// * `writer` - to write
+    /// * `local_bpos` - base pool offsets to use
     pub(crate) fn write_type_meta(
         &self,
         writer: &mut FileWriter,
@@ -473,6 +577,14 @@ impl Pool {
         writer.write_v64(self.fields().len() as i64)?;
         Ok(())
     }
+
+    /// # Arguments
+    /// * `writer` - to write
+    /// * `iter` - iterator to traverse all instances. Can't be created by this type as a wrapper is needed
+    /// * `offset` - into the data section
+    ///
+    /// # Returns
+    /// advanced offset into the data section
     pub(crate) fn write_field_meta(
         &self,
         writer: &mut FileWriter,
@@ -490,6 +602,9 @@ impl Pool {
         }
         Ok(offset)
     }
+    /// # Arguments
+    /// * `writer` - to write
+    /// * `iter` - iterator to traverse all instances. Can't be created by this type as a wrapper is needed
     pub(crate) fn write_field_data(
         &self,
         writer: &mut FileWriter,

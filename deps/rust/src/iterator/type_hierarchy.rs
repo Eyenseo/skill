@@ -8,6 +8,7 @@ use common::internal::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// Iterator that iterates over all pools of a type hierarchy
 #[derive(Default, Clone)]
 pub(crate) struct Iter {
     current: Option<Rc<RefCell<PoolProxy>>>,

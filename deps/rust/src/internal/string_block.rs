@@ -11,6 +11,8 @@ use common::*;
 use std::collections::HashSet;
 use std::rc::Rc;
 
+/// Type to manage strings
+// NOTE this has to be reworked so it really is one StringBlock per block - that is needed fpr multi block writing
 #[derive(Default, Debug)]
 pub(crate) struct StringBlock {
     pool: Vec<Rc<SkillString>>,
@@ -39,6 +41,10 @@ impl StringBlock {
         let reserve = self.pool.len();
         self.reserve(reserve + size);
     }
+    /// Adds a "raw" string if it has not jet been added
+    ///
+    /// # Arguments
+    /// * `s` - string to add
     fn add_raw(&mut self, s: &str) -> Result<(), SkillFail> {
         let ss = Rc::new(SkillString::new(self.pool.len() + 1, s));
         let ss = if let Some(v) = self.literal_keeper.get(&ss) {
@@ -57,6 +63,14 @@ impl StringBlock {
         self.set.insert(ss);
         Ok(())
     }
+
+    /// Adds a string if it has not jet been added
+    ///
+    /// # Arguments
+    /// * `s` - string to add
+    ///
+    /// # Returns
+    /// string equals the given string
     pub(crate) fn add(&mut self, s: &str) -> Rc<SkillString> {
         // this is bad ...
         let v = Rc::new(SkillString::new(self.pool.len() + 1, s));
@@ -67,13 +81,21 @@ impl StringBlock {
         self.set.insert(v.clone());
         v
     }
-    pub(crate) fn get(&self, i: usize) -> Result<Option<Rc<SkillString>>, SkillFail> {
-        if i == 0 {
+    /// # Arguments
+    /// * `id` - id of the string to get
+    ///
+    /// # Returns
+    /// string of given id
+    pub(crate) fn get(&self, id: usize) -> Result<Option<Rc<SkillString>>, SkillFail> {
+        if id == 0 {
             return Ok(None);
         }
-        Ok(Some(self.pool[i - 1].clone()))
+        Ok(Some(self.pool[id - 1].clone()))
     }
-
+    /// Reads the string section of a block
+    ///
+    /// # Arguments
+    /// * `reader` - used for reading
     pub(crate) fn read_string_pool(&mut self, reader: &mut FileReader) -> Result<(), SkillFail> {
         debug!(target: "SkillParsing", "~Block Start~");
         let string_amount = reader.read_v64()? as usize; // amount
@@ -93,6 +115,7 @@ impl StringBlock {
         Ok(())
     }
 
+    /// Adds all missing string literals
     pub(crate) fn finalize(&mut self) {
         for s in self.literal_keeper.get_set().iter() {
             if Rc::strong_count(s) < 2 {
@@ -107,6 +130,7 @@ impl StringBlock {
         &self.literal_keeper
     }
 
+    /// Removes all strings that are only kept alive through this class
     pub(crate) fn compress(&mut self) -> Result<(), SkillFail> {
         let amount: usize = {
             let mut amout = 0;
@@ -140,6 +164,10 @@ impl StringBlock {
         Ok(())
     }
 
+    /// Writes all strings to file
+    ///
+    /// # Arguments
+    /// * `writer` - used for writing
     pub(crate) fn write_block(&mut self, writer: &mut FileWriter) -> Result<(), SkillFail> {
         debug!(
             target: "SkillWriting",

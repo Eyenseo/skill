@@ -53,6 +53,7 @@ impl From<ContinuationFieldChunk> for FieldChunk {
         FieldChunk::Continuation(val)
     }
 }
+
 impl From<DeclarationFieldChunk> for FieldChunk {
     fn from(val: DeclarationFieldChunk) -> FieldChunk {
         FieldChunk::Declaration(val)
@@ -64,10 +65,17 @@ pub(crate) trait FieldDeclaration {
     /// This function should implement the deserialization logic for all non
     /// foreign types
     ///
+    /// # Arguments
+    /// * `block_reader` - vector where each element is a reader for a specific block
+    /// * `string_pool` - to "read" strings
+    /// * `blocks` - in the binary file
+    /// * `type_pools` - all type pools -- usd to read a specific instance
+    /// * `instances` - instances that have this field
+    ///
     /// see deserialize()
     fn read(
         &self,
-        file_reader: &Vec<FileReader>,
+        block_reader: &Vec<FileReader>,
         string_pool: &StringBlock,
         blocks: &Vec<Block>,
         type_pools: &Vec<Rc<RefCell<PoolProxy>>>,
@@ -78,9 +86,17 @@ pub(crate) trait FieldDeclaration {
     /// This function should implement the deserialization logic for all
     /// foreign types
     ///
-    /// NOTE if full reflection has to be implemented this behaviour has
+    /// # NOTE
+    /// If full reflection has to be implemented this behaviour has
     /// to change as deserialization has to happen right before the first
     /// access
+    ///
+    /// # Arguments
+    /// * `block_reader` - vector where each element is a reader for a specific block
+    /// * `string_pool` - to "read" strings
+    /// * `blocks` - in the binary file
+    /// * `type_pools` - all type pools -- usd to read a specific instance
+    /// * `instances` - instances that have this field
     ///
     /// see read()
     fn deserialize(
@@ -98,16 +114,34 @@ pub(crate) trait FieldDeclaration {
     /// is stored in
     fn field_id(&self) -> usize;
 
-    /// Adds another field chunk to be deserialized
+    /// # Arguments
+    /// * `chunk` - to be deserialized
     fn add_chunk(&mut self, chunk: FieldChunk);
     /// Compresses saved chunks into one contiguous one
+    ///
+    /// # Arguments
+    /// * `total_count` - total count of instances
     fn compress_chunks(&mut self, total_count: usize);
 
     /// Calculates the offset / length for the field data of all instances
     /// this declaration manages
+    ///
+    /// # Arguments
+    /// * `iter` - iterator to traverse all instances. Can't be created by this type as a wrapper is needed
+    ///
+    /// # Returns
+    /// Size needed to serialize this field for all instances
     fn offset(&self, iter: dynamic_instances::Iter) -> Result<usize, SkillFail>;
 
     /// Writes the metadata part of this declaration
+    ///
+    /// # Arguments
+    /// * `writer` - used for writing
+    /// * `iter` - iterator to traverse all instances. Can't be created by this type as a wrapper is needed
+    /// * `offset` - current data section offset
+    ///
+    /// # Returns
+    /// `offset` + the needed size to serialize this field for all instances
     fn write_meta(
         &mut self,
         writer: &mut FileWriter,
@@ -115,6 +149,10 @@ pub(crate) trait FieldDeclaration {
         offset: usize,
     ) -> Result<usize, SkillFail>;
     /// Writes the field data of all instances managed by this declaration
+    ///
+    /// # Arguments
+    /// * `writer` - used for writing
+    /// * `iter` - iterator to traverse all instances. Can't be created by this type as a wrapper is needed
     fn write_data(
         &self,
         writer: &mut FileWriter,

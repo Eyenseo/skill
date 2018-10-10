@@ -45,6 +45,12 @@ object GeneralOutputMaker {
     go(Nil, text.toList).mkString.toLowerCase
   }
 
+  /**
+    * Takes a snake cased identifier name and returns camel cased name
+    *
+    * Example:
+    * camelCase("this_is_a_1_test") == "thisIsA1Test"
+    */
   final def camelCase(text: String): String = {
     @tailrec
     def go(accDone: List[Char], acc: List[Char]): List[Char] = acc match {
@@ -253,6 +259,10 @@ trait GeneralOutputMaker extends Generator {
     */
   protected def packagePrefix(): String
 
+  /**
+    * @param base type to get all super interfaces for
+    * @return a List of all super interfaces of the given type
+    */
   protected final def allSuperInterfaces(base: Declaration with WithInheritance): List[InterfaceType] = {
     var ret: List[InterfaceType] = base.getSuperInterfaces.asScala.toList
     for (i ← base.getSuperInterfaces.asScala) {
@@ -261,7 +271,10 @@ trait GeneralOutputMaker extends Generator {
     ret.distinct
   }
 
-
+  /**
+    * @param base type to get all customisations for
+    * @return a List of all customisations of the given type
+    */
   protected final def gatherCustoms(base: WithFields): Seq[LanguageCustomization] = {
     if (base != null && base.getCustomizations != null) {
       val x = base.getCustomizations.asScala.filter(c ⇒ c.language.equals("rust")).flatMap {
@@ -282,6 +295,10 @@ trait GeneralOutputMaker extends Generator {
     }
   }
 
+  /**
+    * @param base type to generate the id for
+    * @return type id, used for the vtable lookup table
+    */
   protected final def genTypeId(base: Declaration): Int = {
     val id = IR.indexOf(base)
     if (id == -1) {
