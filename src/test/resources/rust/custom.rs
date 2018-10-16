@@ -34,7 +34,7 @@ mod tests {
     impl Drop for CleanupApiCustomAcceptCustom {
         fn drop(&mut self) {
             let _ignore = ::std::fs::remove_file(
-                "/tmp/api_custom_accept_custom_6993977d-76a6-4ea6-9996-861de3589b68.sf",
+                "api_custom_accept_custom_6993977d-76a6-4ea6-9996-861de3589b68.sf",
             );
         }
     }
@@ -47,7 +47,7 @@ mod tests {
         let mut c_id = 0;
 
         match SkillFile::create(
-            "/tmp/api_custom_accept_custom_6993977d-76a6-4ea6-9996-861de3589b68.sf",
+            "api_custom_accept_custom_6993977d-76a6-4ea6-9996-861de3589b68.sf",
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -101,7 +101,7 @@ mod tests {
         };
 
         match SkillFile::open(
-            "/tmp/api_custom_accept_custom_6993977d-76a6-4ea6-9996-861de3589b68.sf",
+            "api_custom_accept_custom_6993977d-76a6-4ea6-9996-861de3589b68.sf",
             FileMode::R,
         ) {
             Ok(mut sf) => match sf.check() {

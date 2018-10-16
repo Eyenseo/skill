@@ -27,7 +27,7 @@ mod tests {
     impl Drop for CleanupApiSubtypesUnknownSubtypes {
         fn drop(&mut self) {
             let _ignore = ::std::fs::remove_file(
-                "/tmp/api_unknown_accept_subtypes_unknown_subtypes_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
+                "api_unknown_accept_subtypes_unknown_subtypes_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
             );
         }
     }
@@ -47,7 +47,7 @@ mod tests {
             use subtypes::*;
 
             match SkillFile::create(
-                "/tmp/api_unknown_accept_subtypes_unknown_subtypes_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
+                "api_unknown_accept_subtypes_unknown_subtypes_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
             ) {
                 Ok(sf) => match || -> Result<(), SkillFail> {
                     sf.check()?;
@@ -103,7 +103,7 @@ mod tests {
             use unknown::*;
 
             match SkillFile::open(
-                "/tmp/api_unknown_accept_subtypes_unknown_subtypes_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
+                "api_unknown_accept_subtypes_unknown_subtypes_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
                 FileMode::RW) {
                 Ok(mut sf) => match || -> Result<(), SkillFail> {
                     sf.check()?;
@@ -320,7 +320,7 @@ mod tests {
             use subtypes::*;
 
             match SkillFile::open(
-                "/tmp/api_unknown_accept_subtypes_unknown_subtypes_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
+                "api_unknown_accept_subtypes_unknown_subtypes_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
                 FileMode::R) {
                 Ok(sf) => match sf.check() {
                     Ok(_) => {

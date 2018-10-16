@@ -31,7 +31,7 @@ mod tests {
     impl Drop for CleanupApiUnknownReadWriteRead {
         fn drop(&mut self) {
             let _ignore = ::std::fs::remove_file(
-                "/tmp/api_unknown_accept_read_write_read_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
+                "api_unknown_accept_read_write_read_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
             );
         }
     }
@@ -43,7 +43,7 @@ mod tests {
 
         match fs::copy(
             "../../../src/test/resources/genbinary/[[empty]]/accept/localBasePoolOffset.sf",
-            "/tmp/api_unknown_accept_read_write_read_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
+            "api_unknown_accept_read_write_read_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
         ) {
             Ok(_) => {}
             Err(e) => panic!("Unable to copy test file!"),
@@ -53,7 +53,7 @@ mod tests {
         let c_id = 6;
 
         match SkillFile::open(
-            "/tmp/api_unknown_accept_read_write_read_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
+            "api_unknown_accept_read_write_read_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
             FileMode::RW,
         ) {
             Ok(sf) => match || -> Result<(), SkillFail> {
@@ -115,7 +115,7 @@ mod tests {
         let c_id = 12; // NOTE Blocks were merged
 
         match SkillFile::open(
-            "/tmp/api_unknown_accept_read_write_read_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
+            "api_unknown_accept_read_write_read_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
             FileMode::R,
         ) {
             Ok(sf) => match || -> Result<(), SkillFail> {

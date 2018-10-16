@@ -273,13 +273,12 @@ class APITests extends common.GenericAPITests {
     }"
 
     out.write(
-               // FIXME hardcoded tmp file
                e"""
                   §    struct Cleanup${gen.camelCase(funName.capitalize)};
                   §
                   §    impl Drop for Cleanup${gen.camelCase(funName.capitalize)} {
                   §        fn drop(&mut self) {
-                  §            let _ignore = ::std::fs::remove_file("/tmp/${funName}_$uuid.sf");
+                  §            let _ignore = ::std::fs::remove_file("${funName}_$uuid.sf");
                   §        }
                   §    }
                   §
@@ -290,7 +289,7 @@ class APITests extends common.GenericAPITests {
                   §
                   §        ${objectIDs(root)}
                   §
-                  §        match SkillFile::create("/tmp/${funName}_$uuid.sf") {
+                  §        match SkillFile::create("${funName}_$uuid.sf") {
                   §            Ok(mut sf) => match || -> Result<(), SkillFail> {
                   §                sf.check()?;
                   §                // create objects
@@ -319,7 +318,7 @@ class APITests extends common.GenericAPITests {
                   §            },
                   §        };
                   §
-                  §        match SkillFile::open("/tmp/${funName}_$uuid.sf", FileMode::R) {
+                  §        match SkillFile::open("${funName}_$uuid.sf", FileMode::R) {
                   §            Ok(mut sf) => match sf.check() {
                   §                Ok(_) => {
                   §                    // get objects

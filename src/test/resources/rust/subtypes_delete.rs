@@ -34,7 +34,7 @@ mod tests {
     impl Drop for CleanupApiSubtypesAcceptDelete {
         fn drop(&mut self) {
             let _ignore = ::std::fs::remove_file(
-                "/tmp/api_subtypes_accept_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+                "api_subtypes_accept_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
             );
         }
     }
@@ -50,7 +50,7 @@ mod tests {
         let mut d_id = 0;
 
         match SkillFile::create(
-            "/tmp/api_subtypes_accept_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            "api_subtypes_accept_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -200,7 +200,7 @@ mod tests {
         assert_eq!(a_2_id, 1);
 
         match SkillFile::open(
-            "/tmp/api_subtypes_accept_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            "api_subtypes_accept_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
             FileMode::R,
         ) {
             Ok(mut sf) => match sf.check() {
@@ -335,7 +335,7 @@ mod tests {
     impl Drop for CleanupApiSubtypesRejectUseAfterDelete {
         fn drop(&mut self) {
             let _ignore = ::std::fs::remove_file(
-                "/tmp/api_subtypes_reject_use_after_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+                "api_subtypes_reject_use_after_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
             );
         }
     }
@@ -346,7 +346,7 @@ mod tests {
         let _cleanup = CleanupApiSubtypesRejectUseAfterDelete;
 
         match SkillFile::create(
-            "/tmp/api_subtypes_reject_use_after_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            "api_subtypes_reject_use_after_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -402,7 +402,7 @@ mod tests {
     impl Drop for CleanupApiSubtypesRejectUseAfterDeleteAfterWrite {
         fn drop(&mut self) {
             let _ignore = ::std::fs::remove_file(
-                "/tmp/api_subtypes_reject_use_after_delete_after_write_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+                "api_subtypes_reject_use_after_delete_after_write_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
             );
         }
     }
@@ -413,7 +413,7 @@ mod tests {
         let _cleanup = CleanupApiSubtypesRejectUseAfterDeleteAfterWrite;
 
         match SkillFile::create(
-            "/tmp/api_subtypes_reject_use_after_delete_after_write_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            "api_subtypes_reject_use_after_delete_after_write_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -464,7 +464,7 @@ mod tests {
     impl Drop for CleanupApiSubtypesRejectUseAfterDeleteAfterRead {
         fn drop(&mut self) {
             let _ignore = ::std::fs::remove_file(
-                "/tmp/api_subtypes_reject_use_after_delete_after_read_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+                "api_subtypes_reject_use_after_delete_after_read_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
             );
         }
     }
@@ -477,7 +477,7 @@ mod tests {
         let mut a_id = 0;
 
         match SkillFile::create(
-            "/tmp/api_subtypes_reject_use_after_delete_after_read_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            "api_subtypes_reject_use_after_delete_after_read_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -516,7 +516,7 @@ mod tests {
         };
 
         match SkillFile::open(
-            "/tmp/api_subtypes_reject_use_after_delete_after_read_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            "api_subtypes_reject_use_after_delete_after_read_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
             FileMode::R) {
             Ok(mut sf) => match sf.check() {
                 Ok(_) => {
@@ -562,7 +562,7 @@ mod tests {
     impl Drop for CleanupApiSubtypesAcceptForceDelete {
         fn drop(&mut self) {
             let _ignore = ::std::fs::remove_file(
-                "/tmp/api_subtypes_accept_force_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+                "api_subtypes_accept_force_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
             );
         }
     }
@@ -578,7 +578,7 @@ mod tests {
         let mut d_id = 0;
 
         match SkillFile::create(
-            "/tmp/api_subtypes_accept_force_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            "api_subtypes_accept_force_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
@@ -725,7 +725,7 @@ mod tests {
         assert_eq!(b_id, 1); // NOTE a is not around anymore so b should have id 1
 
         match SkillFile::open(
-            "/tmp/api_subtypes_accept_force_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            "api_subtypes_accept_force_delete_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
             FileMode::R,
         ) {
             Ok(mut sf) => match sf.check() {
@@ -815,7 +815,7 @@ mod tests {
     impl Drop for CleanupApiSubtypesAcceptMemoryFreed {
         fn drop(&mut self) {
             let _ignore = ::std::fs::remove_file(
-                "/tmp/api_subtypes_accept_memory_freed_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+                "api_subtypes_accept_memory_freed_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
             );
         }
     }
@@ -826,7 +826,7 @@ mod tests {
         let _cleanup = CleanupApiSubtypesAcceptMemoryFreed;
 
         match SkillFile::create(
-            "/tmp/api_subtypes_accept_memory_freed_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
+            "api_subtypes_accept_memory_freed_74c1be11-af16-4f2a-bcd4-d26f43267bb7.sf",
         ) {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
