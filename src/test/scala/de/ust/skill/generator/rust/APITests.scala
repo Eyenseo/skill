@@ -40,33 +40,33 @@ class APITests extends common.GenericAPITests {
   // NOTE cyclic dependencies are not allowed
   var extraTests = Array[ExtraTest](
                                      new ExtraTest(
-                                                    new File("deps/rust/tests/undefined_read_write_read.rs"),
+                                                    new File("src/test/resources/rust/undefined_read_write_read.rs"),
                                                     Array(
                                                            "unknown",
                                                          )
                                                   ),
                                      new ExtraTest(
-                                                    new File("deps/rust/tests/subtypes_undefined_subtypes.rs"),
+                                                    new File("src/test/resources/rust/subtypes_undefined_subtypes.rs"),
                                                     Array(
                                                            "unknown",
                                                            "subtypes",
                                                          )
                                                   ),
                                      new ExtraTest(
-                                                    new File("deps/rust/tests/basic_types_undefined_basic_types.rs"),
+                                                    new File("src/test/resources/rust/basic_types_undefined_basic_types.rs"),
                                                     Array(
                                                            "unknown",
                                                            "basicTypes",
                                                          )
                                                   ),
                                      new ExtraTest(
-                                                    new File("deps/rust/tests/subtypes_delete.rs"),
+                                                    new File("src/test/resources/rust/subtypes_delete.rs"),
                                                     Array(
                                                            "subtypes",
                                                          )
                                                   ),
                                      new ExtraTest(
-                                                    new File("deps/rust/tests/custom.rs"),
+                                                    new File("src/test/resources/rust/custom.rs"),
                                                     Array(
                                                            "custom",
                                                          )
@@ -213,7 +213,6 @@ class APITests extends common.GenericAPITests {
 
     f.getParentFile.mkdirs
     if (f.exists) {
-      // TODO is this ... "ok"
       f.delete
     }
     f.createNewFile
