@@ -42,7 +42,6 @@ trait LibMaker extends GeneralOutputMaker {
                   §#![feature(box_into_raw_non_null)]
                   §#![feature(specialization)]
                   §#![feature(core_intrinsics)]
-                  §#![feature(extern_prelude)]
                   §#![feature(optin_builtin_traits)]
                   §
                   §#[macro_use]
