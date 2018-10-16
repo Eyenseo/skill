@@ -768,6 +768,7 @@ trait TypesMaker extends GeneralOutputMaker {
        §    ) -> ${storagePool(base)} {
        §        ${storagePool(base)} {
        §            pool: Pool::new(
+       §                string_pool.clone(),
        §                name.clone(),
        §                type_id,
        §                Box::new(${poolPartsMaker(base)}::new(name))
@@ -795,6 +796,25 @@ trait TypesMaker extends GeneralOutputMaker {
        §        let ret = Ptr::new(${name(base)}::new(0, self.pool.get_type_id()));
        §        self.pool.add(ret.clone());
        §        ret
+       §    }
+       §
+       §    /// Used to explicitly deserialize foreign fields or obtain field information
+       §    ///
+       §    /// # Returns
+       §    /// All FieldDeclarations that this type has
+       §    pub fn fields(&self) -> &Vec<Box<RefCell<FieldDeclaration>>> {
+       §        self.pool.fields()
+       §    }
+       §
+       §    pub fn initialize_field(&self, name: &str) -> Result<(), SkillFail> {
+       §        // NOTE name is required to be a value to break borrow cycles
+       §        self.pool.initialize_field(&name)
+       §    }
+       §    pub fn initialize_all(&self) -> Result<(), SkillFail> {
+       §        self.pool.initialize_all_fields()
+       §    }
+       §    pub fn name(&self) -> &Rc<SkillString> {
+       §        self.pool.name()
        §    }
        §}""".stripMargin('§')
   }

@@ -16,12 +16,14 @@ use std::rc::Rc;
 // NOTE this has to be reworked so it really is one StringBlock per block - that is needed fpr multi block writing
 #[derive(Default)]
 pub(crate) struct TypeBlock {
-    pools: Vec<Rc<RefCell<PoolProxy>>>,
+    pools: Rc<Vec<Rc<RefCell<PoolProxy>>>>,
 }
 
 impl TypeBlock {
     pub(crate) fn new() -> TypeBlock {
-        TypeBlock { pools: Vec::new() }
+        TypeBlock {
+            pools: Rc::default(),
+        }
     }
 
     pub(crate) fn pools(&self) -> &Vec<Rc<RefCell<PoolProxy>>> {
@@ -48,7 +50,7 @@ impl TypeBlock {
         debug!(target: "SkillParsing", "~Block Start~");
         let type_amount = reader.read_v64()? as usize;
         debug!(target: "SkillParsing", "~Types: {:?}", type_amount);
-        self.pools.reserve(type_amount);
+        Rc::get_mut(&mut self.pools).unwrap().reserve(type_amount);
 
         debug!(target: "SkillParsing", "~TypeData~");
         for _ in 0..type_amount {
@@ -115,7 +117,9 @@ impl TypeBlock {
                 };
 
                 let type_pool = pool_maker.make_pool(&type_name, type_id as usize, super_pool)?;
-                self.pools.push(type_pool.clone());
+                Rc::get_mut(&mut self.pools)
+                    .unwrap()
+                    .push(type_pool.clone());
                 type_pool
             };
 
@@ -344,13 +348,11 @@ impl TypeBlock {
                         data_end
                     );
                     {
-                        let string_pool = string_pool.borrow();
                         let mut pool = pool.borrow_mut();
                         let mut pool = pool.pool_mut();
                         let tmp_count = pool.get_global_cached_count();
                         let tmp_blocks = pool.blocks().len();
                         pool.add_field(
-                            &string_pool,
                             field_id as usize,
                             field_name,
                             field_type,
@@ -397,7 +399,7 @@ impl TypeBlock {
     }
 
     pub(crate) fn add(&mut self, pool: Rc<RefCell<PoolProxy>>) {
-        self.pools.push(pool);
+        Rc::get_mut(&mut self.pools).unwrap().push(pool);
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -411,18 +413,21 @@ impl TypeBlock {
     /// * `strings` - string access
     pub(crate) fn initialize(
         &self,
-        strings: &StringBlock,
-        reader: &Vec<FileReader>,
+        reader: &Rc<RefCell<Vec<FileReader>>>,
     ) -> Result<(), SkillFail> {
+        for pool in self.pools.iter() {
+            pool.borrow_mut()
+                .pool_mut()
+                .initialize_state(reader, &self.pools);
+        }
+
         for pool in self.pools.iter() {
             debug!(
                 target: "SkillParsing",
                 "Initializing Pool {}",
                 pool.borrow().pool().name().as_str(),
             );
-            pool.borrow()
-                .pool()
-                .lazy_initialize(reader, strings, &self.pools)?;
+            pool.borrow().pool().lazy_initialize_fields()?;
         }
         Ok(())
     }

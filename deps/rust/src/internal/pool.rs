@@ -73,8 +73,9 @@ pub(crate) trait PoolPartsMaker {
 
 /// General pool - this is specification independent code
 pub(crate) struct Pool {
-    parts_maker: Box<PoolPartsMaker>,
     // NOTE PoolPartsMaker is needed for specification specific functions
+    parts_maker: Box<PoolPartsMaker>,
+    string_block: Rc<RefCell<StringBlock>>,
     instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
     // type hierarchy array of "old" instances
     own_new_instances: Vec<Ptr<SkillObject>>,
@@ -100,6 +101,9 @@ pub(crate) struct Pool {
     type_hierarchy_height: usize,
     invariant: bool,
     foreign_fields: bool,
+    // needed for late initialization of foreign fields
+    block_reader: Weak<RefCell<Vec<FileReader>>>,
+    type_pools: Weak<Vec<Rc<RefCell<PoolProxy>>>>,
 }
 
 impl Pool {
@@ -108,11 +112,13 @@ impl Pool {
     /// * `type_id` - type id / index into the pool array
     /// * `pool_proxy` - needed to use specification dependent functions
     pub(crate) fn new(
+        string_block: Rc<RefCell<StringBlock>>,
         name: Rc<SkillString>,
         type_id: usize,
         pool_proxy: Box<PoolPartsMaker>,
     ) -> Pool {
         Pool {
+            string_block,
             parts_maker: pool_proxy,
             instances: Rc::default(),
             own_new_instances: Vec::new(),
@@ -131,6 +137,8 @@ impl Pool {
             type_hierarchy_height: 0,
             invariant: false,
             foreign_fields: false,
+            block_reader: Weak::new(),
+            type_pools: Weak::new(),
         }
     }
 
@@ -155,14 +163,12 @@ impl Pool {
     /// adds a field to the type
     ///
     /// # Arguments
-    /// * `string_pool` - needed to access strings
     /// * `index` - index of the `FieldDeclaration` to be created
     /// * `field_name` - name of the `FieldDeclaration`
     /// * `field_type` - the `FieldDeclaration` shall have
     /// * `chunk` - the `FieldDeclaration` appeared in
     pub(crate) fn add_field(
         &mut self,
-        string_pool: &StringBlock,
         index: usize,
         field_name: Rc<SkillString>,
         mut field_type: FieldType,
@@ -176,9 +182,11 @@ impl Pool {
                 }))?;
             }
         }
+
+        let string_block = self.string_block.borrow();
         let (foreign, field) =
             self.parts_maker
-                .make_field(index, field_name, field_type, string_pool)?;
+                .make_field(index, field_name, field_type, &string_block)?;
         field.borrow_mut().io.add_chunk(chunk);
         self.fields.push(field);
         if foreign {
@@ -187,25 +195,62 @@ impl Pool {
         Ok(())
     }
 
-    /// initializes the fields after reading the skill binary file - necessary for all non foreign fields
+    /// Initializes dependencies for the initialization of fields
     ///
     /// # Arguments
     /// * `block_reader` - vector where each element is a reader for a specific block
-    /// * `string_pool` - string access
     /// * `type_pools` - all type pools -- usd to read a specific instance
-    pub(crate) fn lazy_initialize(
-        &self,
-        block_reader: &Vec<FileReader>,
-        string_pool: &StringBlock,
-        type_pools: &Vec<Rc<RefCell<PoolProxy>>>,
-    ) -> Result<(), SkillFail> {
+    pub(crate) fn initialize_state(
+        &mut self,
+        block_reader: &Rc<RefCell<Vec<FileReader>>>,
+        type_pools: &Rc<Vec<Rc<RefCell<PoolProxy>>>>,
+    ) {
+        self.block_reader = Rc::downgrade(block_reader);
+        self.type_pools = Rc::downgrade(type_pools);
+    }
+
+    /// initializes the fields after reading the skill binary file - necessary for all non foreign fields
+    pub(crate) fn lazy_initialize_fields(&self) -> Result<(), SkillFail> {
+        let type_pools = Weak::upgrade(&self.type_pools)
+            .ok_or(SkillFail::internal(InternalFail::MissingTypePools))?;
+        let block_reader = Weak::upgrade(&self.block_reader)
+            .ok_or(SkillFail::internal(InternalFail::MissingBlockReader))?;
+        let block_reader = block_reader.borrow();
+        let string_block = self.string_block.borrow();
+
         let instances = self.instances.borrow();
         for f in self.fields.iter() {
             f.borrow().io.lazy_read(
-                block_reader,
-                string_pool,
+                &block_reader,
+                &string_block,
                 &self.blocks,
-                type_pools,
+                &type_pools,
+                &instances,
+            )?;
+        }
+        Ok(())
+    }
+
+    /// initializes the fields after before writing the skill binary file - necessary for foreign fields
+    pub fn initialize_all_fields(&self) -> Result<(), SkillFail> {
+        debug!(
+            target: "SkillWriting",
+            "~~~Deserialize foreign data for {}", self.name.as_str(),
+        );
+        let type_pools = Weak::upgrade(&self.type_pools)
+            .ok_or(SkillFail::internal(InternalFail::MissingTypePools))?;
+        let block_reader = Weak::upgrade(&self.block_reader)
+            .ok_or(SkillFail::internal(InternalFail::MissingBlockReader))?;
+        let block_reader = block_reader.borrow();
+        let string_block = self.string_block.borrow();
+
+        let instances = self.instances.borrow();
+        for f in self.fields.iter() {
+            f.borrow_mut().io.force_read(
+                &block_reader,
+                &string_block,
+                &self.blocks,
+                &type_pools,
                 &instances,
             )?;
         }
@@ -215,30 +260,34 @@ impl Pool {
     /// initializes the fields after before writing the skill binary file - necessary for foreign fields
     ///
     /// # Arguments
-    /// * `block_reader` - vector where each element is a reader for a specific block
-    /// * `string_pool` - string access
-    /// * `type_pools` - all type pools -- usd to read a specific instance
-    pub(crate) fn force_initialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail> {
+    /// * `name` - field to initialize
+    pub fn initialize_field(&self, name: &str) -> Result<(), SkillFail> {
         debug!(
             target: "SkillWriting",
             "~~~Deserialize foreign data for {}", self.name.as_str(),
         );
+        let type_pools = Weak::upgrade(&self.type_pools)
+            .ok_or(SkillFail::internal(InternalFail::MissingTypePools))?;
+        let block_reader = Weak::upgrade(&self.block_reader)
+            .ok_or(SkillFail::internal(InternalFail::MissingBlockReader))?;
+        let block_reader = block_reader.borrow();
+        let string_block = self.string_block.borrow();
 
-        let block_reader = skill_file.block_reader();
-        let string_pool = skill_file.strings().string_block();
-        let string_pool = string_pool.borrow();
         let instances = self.instances.borrow();
-
         for f in self.fields.iter() {
-            f.borrow_mut().io.force_read(
-                &block_reader,
-                &string_pool,
-                &self.blocks,
-                skill_file.type_pool().pools(),
-                &instances,
-            )?;
+            if f.borrow().name().as_str() == name {
+                return f.borrow_mut().io.force_read(
+                    &block_reader,
+                    &string_block,
+                    &self.blocks,
+                    &type_pools,
+                    &instances,
+                );
+            }
         }
-        Ok(())
+        Err(SkillFail::user(UserFail::UnknownField {
+            name: name.to_owned(),
+        }))
     }
 
     /// allocates all instances without initialization of fields

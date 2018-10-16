@@ -129,6 +129,10 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        &mut self.string_pool
        §    }
        §
+       §    pub fn foreign_pools(&self) -> &Vec<Rc<RefCell<foreign::Pool>>> {
+       §        &self.foreign_pools
+       §    }
+       §
        §    ${
       (for (base ← IR) yield {
         e"""pub fn ${pool(base)}(&self) -> std::cell::Ref<${storagePool(base)}> {
@@ -255,6 +259,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §                }
        §            }
        §        }
+       §
+       §        let data_chunk_reader = Rc::new(RefCell::new(data_chunk_reader));
+       §
        §        file_builder.allocate(&mut type_pool)?;
        §        file_builder.initialize(
        §            &type_pool,
@@ -265,7 +272,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        let mut sf = SkillFile {
        §            file: Rc::new(RefCell::new(f)),
        §            mode,
-       §            block_reader: Rc::new(RefCell::new(data_chunk_reader)),
+       §            block_reader: data_chunk_reader,
        §            type_pool,
        §            string_pool: StringPool::new(string_pool),${
       (for (base ← IR) yield {
@@ -302,7 +309,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        let string_pool = Rc::new(RefCell::new(StringBlock::new()));
        §        let mut type_pool = TypeBlock::new();
        §        let mut file_builder = SkillFileBuilder::new(string_pool.clone());
-       §        let mut data_chunk_reader = Vec::new();
+       §        let data_chunk_reader = Rc::new(RefCell::new(Vec::new()));
        §
        §        file_builder.allocate(&mut type_pool)?;
        §        file_builder.initialize(
@@ -314,7 +321,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        let mut sf = SkillFile {
        §            file: Rc::new(RefCell::new(f)),
        §            mode: FileMode::RW,
-       §            block_reader: Rc::new(RefCell::new(data_chunk_reader)),
+       §            block_reader: data_chunk_reader,
        §            type_pool,
        §            string_pool: StringPool::new(string_pool),${
       (for (base ← IR) yield {
@@ -364,7 +371,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §
        §        // Load foreign fields
        §        for pool in self.type_pool.pools().iter() {
-       §            pool.borrow().pool().force_initialize(self)?;
+       §            pool.borrow().pool().initialize_all_fields()?;
        §        }
        §
        §        // check
@@ -513,10 +520,10 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §    fn initialize(
        §        &self,
        §        type_pool: &TypeBlock,
-       §        file_reader: &Vec<FileReader>,
+       §        file_reader: &Rc<RefCell<Vec<FileReader>>>,
        §        string_pool: &StringBlock,
        §    ) -> Result<(), SkillFail> {
-       §        type_pool.initialize(string_pool, file_reader)?;
+       §        type_pool.initialize(file_reader)?;
        §        Ok(())
        §    }
        §
@@ -607,6 +614,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §                }
        §            }
        §            let pool = Rc::new(RefCell::new(foreign::Pool::new(
+       §                self.string_pool.clone(),
        §                type_name.clone(),
        §                type_id,
        §                super_pool.clone(),

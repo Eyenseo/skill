@@ -180,6 +180,10 @@ pub enum InternalFail {
     UnknownConstantField { field: String, type_name: String },
     #[fail(display = "Type and field names cant be null.",)]
     TypeOrFieldNameNull,
+    #[fail(display = "Pool is missing the type pools",)]
+    MissingTypePools,
+    #[fail(display = "Pool is missing the block reader",)]
+    MissingBlockReader,
 }
 
 #[derive(Fail, Debug)]
@@ -215,6 +219,8 @@ pub enum UserFail {
     DeleteInUse { id: usize },
     #[fail(display = "The file was in read only mode but it was tried to write to it.")]
     ReadOnly,
+    #[fail(display = "The field:{} is not known.", name)]
+    UnknownField { name: String },
 }
 
 #[derive(Fail, Debug)]

@@ -75,12 +75,18 @@ pub struct Pool {
 
 impl Pool {
     pub(crate) fn new(
+        string_block: Rc<RefCell<StringBlock>>,
         name: Rc<SkillString>,
         type_id: usize,
         super_pool: Option<Rc<RefCell<PoolProxy>>>,
     ) -> Pool {
         Pool {
-            pool: internal::Pool::new(name, type_id, Box::new(Maker::new(super_pool))),
+            pool: internal::Pool::new(
+                string_block,
+                name,
+                type_id,
+                Box::new(Maker::new(super_pool)),
+            ),
         }
     }
 
@@ -90,6 +96,32 @@ impl Pool {
     /// All FieldDeclarations that this type has
     pub fn fields(&self) -> &Vec<Box<RefCell<FieldDeclaration>>> {
         self.pool.fields()
+    }
+
+    pub fn initialize_field(&self, name: &str) -> Result<(), SkillFail> {
+        // NOTE name is required to be a value to break borrow cycles
+        self.pool.initialize_field(&name)
+    }
+    pub fn initialize_all(&self) -> Result<(), SkillFail> {
+        self.pool.initialize_all_fields()
+    }
+    pub fn name(&self) -> &Rc<SkillString> {
+        self.pool.name()
+    }
+
+    pub fn get(&self, index: usize) -> Result<Ptr<foreign::Foreign>, SkillFail> {
+        match self.pool.read_object(index) {
+            Ok(obj) => {
+                if obj.borrow().get_skill_id() == skill_object::DELETE {
+                    return Err(SkillFail::user(UserFail::AccessDeleted));
+                }
+                match obj.cast::<foreign::Foreign>() {
+                    Some(obj) => Ok(obj.clone()),
+                    None => Err(SkillFail::user(UserFail::BadCastID { id: index })),
+                }
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 

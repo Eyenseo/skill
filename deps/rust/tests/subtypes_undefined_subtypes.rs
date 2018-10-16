@@ -98,13 +98,14 @@ mod tests {
         }
         {
             use unknown::common::error::*;
+            use unknown::common::foreign::*;
             use unknown::common::*;
             use unknown::*;
 
             match SkillFile::open(
                 "/tmp/api_unknown_accept_subtypes_unknown_subtypes_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
                 FileMode::RW) {
-                Ok(sf) => match || -> Result<(), SkillFail> {
+                Ok(mut sf) => match || -> Result<(), SkillFail> {
                     sf.check()?;
                     // get objects
                     let a = match sf.a().get(a_id) {
@@ -118,6 +119,184 @@ mod tests {
                     // assert fields
                     assert_eq!(a.borrow_mut().get_a().is_some(), true);
                     assert_eq!(c.borrow_mut().get_a().is_some(), true);
+                    // assert foreign
+                    {
+                        // assert foreign pools
+                        let b = {
+                            let obj = {
+                                || -> Option<Ptr<foreign::Foreign>> {
+                                    for pool in sf.foreign_pools() {
+                                        let pool = pool.borrow();
+                                        if pool.name().as_str() == "b" {
+                                            return Some(match pool.get(b_id) {
+                                                Ok(ptr) => ptr,
+                                                Err(e) => panic!("Foreign b was not retrieved because:{}", e),
+                                            });
+                                        }
+                                    }
+                                    None
+                                }()
+                            };
+                            assert!(obj.is_some());
+                            obj.unwrap()
+                        };
+                        let d = {
+                            let obj = {
+                                || -> Option<Ptr<foreign::Foreign>> {
+                                    for pool in sf.foreign_pools() {
+                                        let pool = pool.borrow();
+                                        if pool.name().as_str() == "d" {
+                                            return Some(match pool.get(d_id) {
+                                                Ok(ptr) => ptr,
+                                                Err(e) => panic!("Foreign d was not retrieved because:{}", e),
+                                            });
+                                        }
+                                    }
+                                    None
+                                }()
+                            };
+                            assert!(obj.is_some());
+                            obj.unwrap()
+                        };
+                        // assert missing fields
+                        assert_eq!(b.borrow().foreign_fields().len(), 0);
+                        assert_eq!(d.borrow().foreign_fields().len(), 0);
+                        assert_eq!(c.borrow().foreign_fields().len(), 0);
+                        // assert inherited fields
+                        assert_eq!(
+                            a.borrow().get_a().as_ref().unwrap().upgrade().unwrap().cast::<SkillObject>(),
+                            d.cast::<SkillObject>()
+                        );
+                        assert_eq!(
+                            {
+                                let tmp = b.cast::<A>().unwrap();
+                                let tmp = tmp.borrow();
+                                tmp.get_a().as_ref().unwrap().upgrade().unwrap().cast::<SkillObject>()
+                            },
+                            d.cast::<SkillObject>()
+                        );
+                        assert_eq!(
+                            c.borrow().get_a().as_ref().unwrap().upgrade().unwrap().cast::<SkillObject>(),
+                            d.cast::<SkillObject>()
+                        );
+                        assert_eq!(
+                            {
+                                let tmp = d.cast::<A>().unwrap();
+                                let tmp = tmp.borrow();
+                                tmp.get_a().as_ref().unwrap().upgrade().unwrap().cast::<SkillObject>()
+                            },
+                            d.cast::<SkillObject>()
+                        );
+                        // assert and initialize foreign fields
+                        assert!({
+                            let mut found = false;
+                            for pool in sf.foreign_pools() {
+                                let pool = pool.borrow();
+                                if pool.name().as_str() == "b" {
+                                    for field in pool.fields() {
+                                        let field = field.borrow();
+                                        if field.name().as_str() == "b" {
+                                            found = true;
+                                        }
+                                    }
+                                    match pool.initialize_field("b") {
+                                        Ok(()) => {}
+                                        Err(e) => panic!("Foreign field b was not initialized because:{}", e),
+                                    }
+                                }
+                            }
+                            found
+                        });
+                        // assert one more field
+                        assert_eq!(b.borrow().foreign_fields().len(), 1);
+                        assert_eq!(d.borrow().foreign_fields().len(), 1);
+                        assert_eq!(c.borrow().foreign_fields().len(), 0);
+                        assert!({
+                            let mut found = false;
+                            for pool in sf.foreign_pools() {
+                                let pool = pool.borrow();
+                                if pool.name().as_str() == "d" {
+                                    for field in pool.fields() {
+                                        let field = field.borrow();
+                                        if field.name().as_str() == "d" {
+                                            found = true;
+                                        }
+                                    }
+                                    match pool.initialize_field("d") {
+                                        Ok(ptr) => ptr,
+                                        Err(e) => panic!("Foreign field d was not initialized because:{}", e),
+                                    };
+                                }
+                            }
+                            found
+                        });
+                        // assert one more field
+                        assert_eq!(b.borrow().foreign_fields().len(), 1);
+                        assert_eq!(d.borrow().foreign_fields().len(), 2);
+                        assert_eq!(c.borrow().foreign_fields().len(), 0);
+                        assert!({
+                            let mut found = false;
+
+                            for field in sf.c().fields() {
+                                let field = field.borrow();
+                                if field.name().as_str() == "c" {
+                                    found = true;
+                                }
+                            }
+                            match sf.c().initialize_field("c") {
+                                Ok(ptr) => ptr,
+                                Err(e) => panic!("Foreign field c was not initialized because:{}", e),
+                            };
+                            found
+                        });
+                        // assert one more field
+                        assert_eq!(b.borrow().foreign_fields().len(), 1);
+                        assert_eq!(d.borrow().foreign_fields().len(), 2);
+                        assert_eq!(c.borrow().foreign_fields().len(), 1);
+                        // assert foreign fields values
+                        {
+                            let bs = sf.strings_mut().add("b");
+                            let ds = sf.strings_mut().add("d");
+                            let cs = sf.strings_mut().add("c");
+
+                            match b.borrow().foreign_fields()[&bs] {
+                                foreign::FieldData::User(ref val) => {
+                                    assert_eq!(
+                                        *val,
+                                        Some(d.cast::<SkillObject>().unwrap().downgrade())
+                                    )
+                                }
+                                _ => panic!("Wrong field type! Expected UserType")
+                            };
+                            match d.borrow().foreign_fields()[&bs] {
+                                foreign::FieldData::User(ref val) => {
+                                    assert_eq!(
+                                        *val,
+                                        Some(d.cast::<SkillObject>().unwrap().downgrade())
+                                    )
+                                }
+                                _ => panic!("Wrong field type! Expected UserType")
+                            };
+                            match d.borrow().foreign_fields()[&ds] {
+                                foreign::FieldData::User(ref val) => {
+                                    assert_eq!(
+                                        *val,
+                                        Some(d.cast::<SkillObject>().unwrap().downgrade())
+                                    )
+                                }
+                                _ => panic!("Wrong field type! Expected UserType")
+                            };
+                            match c.borrow().foreign_fields()[&cs] {
+                                foreign::FieldData::User(ref val) => {
+                                    assert_eq!(
+                                        *val,
+                                        Some(c.cast::<SkillObject>().unwrap().downgrade())
+                                    )
+                                }
+                                _ => panic!("Wrong field type! Expected UserType")
+                            };
+                        }
+                    }
                     sf.close()?;
                     Ok(())
                 }() {
@@ -142,7 +321,7 @@ mod tests {
 
             match SkillFile::open(
                 "/tmp/api_unknown_accept_subtypes_unknown_subtypes_8578bb69-5cc4-466d-93b5-beb823b6299a.sf",
-                FileMode::R   ) {
+                FileMode::R) {
                 Ok(sf) => match sf.check() {
                     Ok(_) => {
                         // get objects
