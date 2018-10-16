@@ -56,7 +56,6 @@ trait TypesMaker extends GeneralOutputMaker {
   // Usage
   //----------------------------------------
   private final def genUsage(base: Type): String = {
-    // TODO Sort
     e"""use common::error::*;
        §use common::internal::*;
        §use common::internal::io::magic::bytes_v64;

@@ -16,7 +16,7 @@ import org.scalatest.junit.JUnitRunner
 
 @RunWith(classOf[JUnitRunner])
 class GenericTests extends common.GenericTests {
-  // FIXME remove
+
   var skipTestCases  = Array(
                               // "age",
                               // "age16",
@@ -109,7 +109,6 @@ class GenericTests extends common.GenericTests {
 
   override def finalizeTests() {
     val pw = new PrintWriter(new File("testsuites/rust/Cargo.toml"))
-    // FIXME hardcoded path
     pw.write(
               """[workspace]
                 §members = [""".stripMargin('§')
@@ -136,7 +135,6 @@ class GenericTests extends common.GenericTests {
 
     f.getParentFile.mkdirs
     if (f.exists) {
-      // TODO is this ... "ok"
       f.delete
     }
     f.createNewFile
