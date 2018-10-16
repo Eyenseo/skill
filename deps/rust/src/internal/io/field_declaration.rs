@@ -12,7 +12,7 @@ use std::cell::RefCell;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::rc::Rc;
 
-/// Struct that contains information about a Block of a Skill binary file
+/// Contains information about a Block of a Skill binary file
 #[derive(Default, Debug, Clone)]
 pub(crate) struct Block {
     pub(crate) block: usize,
@@ -21,7 +21,7 @@ pub(crate) struct Block {
     pub(crate) dynamic_count: usize,
 }
 
-/// Struct that contains information about a chunk of data that appears in
+/// Contains information about a chunk of data that appears in
 /// the same block as the field definition
 #[derive(Default, Debug, Clone)]
 pub(crate) struct DeclarationFieldChunk {
@@ -31,7 +31,7 @@ pub(crate) struct DeclarationFieldChunk {
     pub(crate) appearance: usize,
 }
 
-/// Struct that contains information about a chunk of data that appears in
+/// Contains information about a chunk of data that appears in
 /// another, later block as the field definition does
 #[derive(Default, Debug, Clone)]
 pub(crate) struct ContinuationFieldChunk {
@@ -60,7 +60,7 @@ impl From<DeclarationFieldChunk> for FieldChunk {
     }
 }
 
-pub(crate) trait FieldDeclaration {
+pub(crate) trait FieldIO {
     /// Deserialize the field data at "opening" time.
     /// This function should implement the deserialization logic for all non
     /// foreign types
@@ -72,8 +72,8 @@ pub(crate) trait FieldDeclaration {
     /// * `type_pools` - all type pools -- usd to read a specific instance
     /// * `instances` - instances that have this field
     ///
-    /// see deserialize()
-    fn read(
+    /// see force_read()
+    fn lazy_read(
         &self,
         block_reader: &Vec<FileReader>,
         string_pool: &StringBlock,
@@ -98,8 +98,8 @@ pub(crate) trait FieldDeclaration {
     /// * `type_pools` - all type pools -- usd to read a specific instance
     /// * `instances` - instances that have this field
     ///
-    /// see read()
-    fn deserialize(
+    /// see lazy_read()
+    fn force_read(
         &mut self,
         block_reader: &Vec<FileReader>,
         string_pool: &StringBlock,
@@ -108,11 +108,16 @@ pub(crate) trait FieldDeclaration {
         instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillFail>;
 
+    /// # Returns
     /// name of the field
     fn name(&self) -> &Rc<SkillString>;
+    /// # Returns
     /// id of the field -- this is the index into the Pool vector this field
     /// is stored in
     fn field_id(&self) -> usize;
+    /// # Returns
+    /// type information of the field
+    fn field_type(&self) -> &FieldType;
 
     /// # Arguments
     /// * `chunk` - to be deserialized
@@ -158,4 +163,23 @@ pub(crate) trait FieldDeclaration {
         writer: &mut FileWriter,
         iter: dynamic_instances::Iter,
     ) -> Result<(), SkillFail>;
+}
+
+/// Bulls*** struct that is used to hide trait functions ...
+///
+/// Attributes can't be extracted because of borrowing rules
+pub struct FieldDeclaration {
+    pub(crate) io: Box<FieldIO>,
+}
+
+impl FieldDeclaration {
+    pub(crate) fn new(io: Box<FieldIO>) -> FieldDeclaration {
+        FieldDeclaration { io }
+    }
+
+    /// # Returns
+    /// name of the field
+    pub fn name(&self) -> &Rc<SkillString> {
+        self.io.name()
+    }
 }

@@ -25,7 +25,7 @@ abstract class FakeMain extends GeneralOutputMaker {
   */
 final class Main extends FakeMain
                  with SkillFileMaker
-                 with PoolsMaker
+                 with TypesMaker
                  with LibMaker
                  with PtrMaker
                  with DependenciesMaker

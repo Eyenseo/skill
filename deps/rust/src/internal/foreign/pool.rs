@@ -12,8 +12,8 @@ use SkillFileBuilder;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
-/// Struct that is used to provide Pool special functions. In this case to
-/// make foreign::FieldDeclaration instances and Foreign instances
+/// Used to provide Pool special functions. In this case to make
+/// foreign::FieldDeclaration instances and Foreign instances
 struct Maker {
     super_pool: Option<Weak<RefCell<PoolProxy>>>,
 }
@@ -42,9 +42,9 @@ impl PoolPartsMaker for Maker {
         // FieldDeclaration
         Ok((
             true,
-            Box::new(RefCell::new(foreign::FieldDeclaration::new(
-                field_name, index, field_type,
-            ))),
+            Box::new(RefCell::new(FieldDeclaration::new(Box::new(
+                foreign::FieldIO::new(field_name, index, field_type),
+            )))),
         ))
     }
 
@@ -68,8 +68,8 @@ impl PoolPartsMaker for Maker {
     }
 }
 
-/// struct that manages all Foreign instances
-pub(crate) struct Pool {
+/// Manages all Foreign instances
+pub struct Pool {
     pool: internal::Pool,
 }
 
@@ -82,6 +82,14 @@ impl Pool {
         Pool {
             pool: internal::Pool::new(name, type_id, Box::new(Maker::new(super_pool))),
         }
+    }
+
+    /// Used to explicitly deserialize foreign fields or obtain field information
+    ///
+    /// # Returns
+    /// All FieldDeclarations that this type has
+    pub fn fields(&self) -> &Vec<Box<RefCell<FieldDeclaration>>> {
+        self.pool.fields()
     }
 }
 

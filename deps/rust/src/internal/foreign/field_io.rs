@@ -41,26 +41,22 @@ impl<'a> Iterator for SingleItemIter<'a> {
 
 /// Struct that contains information about a field declaration of a type that
 /// was not known at compile time.
-pub(crate) struct FieldDeclaration {
-    name: Rc<SkillString>,
-    field_id: usize,
-    foreign_vec_index: usize,
+pub(crate) struct FieldIO {
+    pub(crate) name: Rc<SkillString>,
+    pub(crate) field_id: usize,
+    pub(crate) field_type: FieldType,
     chunks: Vec<FieldChunk>,
-    field_type: FieldType,
+    read: bool,
 }
 
-impl FieldDeclaration {
-    pub(crate) fn new(
-        name: Rc<SkillString>,
-        field_id: usize,
-        field_type: FieldType,
-    ) -> FieldDeclaration {
-        FieldDeclaration {
+impl FieldIO {
+    pub(crate) fn new(name: Rc<SkillString>, field_id: usize, field_type: FieldType) -> FieldIO {
+        FieldIO {
             name,
             field_id,
-            chunks: Vec::new(),
             field_type,
-            foreign_vec_index: std::usize::MAX,
+            chunks: Vec::new(),
+            read: false,
         }
     }
 
@@ -106,12 +102,8 @@ impl FieldDeclaration {
                 BuildInType::ConstTarray(length, box_v) => foreign::FieldData::Array({
                     let mut arr = Vec::with_capacity(*length as usize);
                     for i in 0..*length as usize {
-                        arr[i] = FieldDeclaration::read_foreign_field(
-                            box_v,
-                            reader,
-                            string_pool,
-                            type_pools,
-                        )?;
+                        arr[i] =
+                            FieldIO::read_foreign_field(box_v, reader, string_pool, type_pools)?;
                     }
                     arr
                 }),
@@ -119,7 +111,7 @@ impl FieldDeclaration {
                     let elements = reader.read_v64()? as usize;
                     let mut vec = Vec::with_capacity(elements);
                     for _ in 0..elements {
-                        vec.push(FieldDeclaration::read_foreign_field(
+                        vec.push(FieldIO::read_foreign_field(
                             box_v,
                             reader,
                             string_pool,
@@ -132,7 +124,7 @@ impl FieldDeclaration {
                     let elements = reader.read_v64()? as usize;
                     let mut vec = Vec::with_capacity(elements);
                     for _ in 0..elements {
-                        vec.push(FieldDeclaration::read_foreign_field(
+                        vec.push(FieldIO::read_foreign_field(
                             box_v,
                             reader,
                             string_pool,
@@ -146,7 +138,7 @@ impl FieldDeclaration {
                     let mut set = HashSet::new();
                     set.reserve(elements);
                     for _ in 0..elements {
-                        set.insert(FieldDeclaration::read_foreign_field(
+                        set.insert(FieldIO::read_foreign_field(
                             box_v,
                             reader,
                             string_pool,
@@ -161,18 +153,13 @@ impl FieldDeclaration {
                     map.reserve(elements);
                     for _ in 0..elements {
                         map.insert(
-                            FieldDeclaration::read_foreign_field(
+                            FieldIO::read_foreign_field(
                                 &*key_box_v,
                                 reader,
                                 string_pool,
                                 type_pools,
                             )?,
-                            FieldDeclaration::read_foreign_field(
-                                box_v,
-                                reader,
-                                string_pool,
-                                type_pools,
-                            )?,
+                            FieldIO::read_foreign_field(box_v, reader, string_pool, type_pools)?,
                         );
                     }
                     map
@@ -259,7 +246,7 @@ impl FieldDeclaration {
                 BuildInType::ConstTarray(length, box_v) => for data in iter {
                     match data {
                         foreign::FieldData::Array(array) => {
-                            offset += FieldDeclaration::offset(box_v, array.iter())?
+                            offset += FieldIO::offset(box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -268,7 +255,7 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::Array(array) => {
                             offset += bytes_v64(array.len() as i64)
-                                + FieldDeclaration::offset(box_v, array.iter())?
+                                + FieldIO::offset(box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -277,7 +264,7 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::Array(array) => {
                             offset += bytes_v64(array.len() as i64)
-                                + FieldDeclaration::offset(box_v, array.iter())?
+                                + FieldIO::offset(box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -285,8 +272,8 @@ impl FieldDeclaration {
                 BuildInType::Tset(box_v) => for data in iter {
                     match data {
                         foreign::FieldData::Set(set) => {
-                            offset += bytes_v64(set.len() as i64)
-                                + FieldDeclaration::offset(box_v, set.iter())?
+                            offset +=
+                                bytes_v64(set.len() as i64) + FieldIO::offset(box_v, set.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -295,8 +282,8 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::Map(map) => {
                             offset += bytes_v64(map.len() as i64)
-                                + FieldDeclaration::offset(&*key_box_v, map.keys())?
-                                + FieldDeclaration::offset(box_v, map.values())?
+                                + FieldIO::offset(&*key_box_v, map.keys())?
+                                + FieldIO::offset(box_v, map.values())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -433,7 +420,7 @@ impl FieldDeclaration {
                 BuildInType::ConstTarray(_length, box_v) => for data in iter {
                     match data {
                         foreign::FieldData::Array(array) => {
-                            FieldDeclaration::write(writer, box_v, array.iter())?
+                            FieldIO::write(writer, box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -442,7 +429,7 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::Array(array) => {
                             writer.write_v64(array.len() as i64)?;
-                            FieldDeclaration::write(writer, box_v, array.iter())?
+                            FieldIO::write(writer, box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -451,7 +438,7 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::Array(array) => {
                             writer.write_v64(array.len() as i64)?;
-                            FieldDeclaration::write(writer, box_v, array.iter())?
+                            FieldIO::write(writer, box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -460,7 +447,7 @@ impl FieldDeclaration {
                     match data {
                         foreign::FieldData::Set(set) => {
                             writer.write_v64(set.len() as i64)?;
-                            FieldDeclaration::write(writer, box_v, set.iter())?
+                            FieldIO::write(writer, box_v, set.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -470,12 +457,8 @@ impl FieldDeclaration {
                         foreign::FieldData::Map(map) => {
                             writer.write_v64(map.len() as i64)?;
                             for (key, val) in map.iter() {
-                                FieldDeclaration::write(
-                                    writer,
-                                    &*key_box_v,
-                                    SingleItemIter::new(key),
-                                )?;
-                                FieldDeclaration::write(writer, box_v, SingleItemIter::new(val))?;
+                                FieldIO::write(writer, &*key_box_v, SingleItemIter::new(key))?;
+                                FieldIO::write(writer, box_v, SingleItemIter::new(val))?;
                             }
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
@@ -510,8 +493,8 @@ impl FieldDeclaration {
     }
 }
 
-impl io::FieldDeclaration for FieldDeclaration {
-    fn read(
+impl io::FieldIO for FieldIO {
+    fn lazy_read(
         &self,
         block_reader: &Vec<FileReader>,
         string_pool: &StringBlock,
@@ -522,7 +505,7 @@ impl io::FieldDeclaration for FieldDeclaration {
         Ok(())
     }
 
-    fn deserialize(
+    fn force_read(
         &mut self,
         block_reader: &Vec<FileReader>,
         string_pool: &StringBlock,
@@ -530,14 +513,14 @@ impl io::FieldDeclaration for FieldDeclaration {
         type_pools: &Vec<Rc<RefCell<PoolProxy>>>,
         instances: &[Ptr<SkillObject>],
     ) -> Result<(), SkillFail> {
-        if self.foreign_vec_index != std::usize::MAX {
+        if self.read {
             return Ok(());
         }
 
         debug!(
             target: "SkillWriting",
             "~~~Deserialize field {}",
-            self.name.as_str(),
+            self.name,
         );
         let mut block_index = 0;
 
@@ -566,27 +549,15 @@ impl io::FieldDeclaration for FieldDeclaration {
                                     Some(obj) => {
                                         let mut obj = obj.borrow_mut();
 
-                                        if self.foreign_vec_index == std::usize::MAX {
-                                            self.foreign_vec_index = obj.foreign_fields_mut().len();
-                                        } else if self.foreign_vec_index
-                                            != obj.foreign_fields_mut().len()
-                                        {
-                                            return Err(SkillFail::internal(
-                                                InternalFail::InconsistentForeignIndex {
-                                                    old: self.foreign_vec_index,
-                                                    new: obj.foreign_fields_mut().len(),
-                                                },
-                                            ));
-                                        }
-
-                                        obj.foreign_fields_mut().push(
-                                            FieldDeclaration::read_foreign_field(
+                                        obj.foreign_fields_mut().insert(
+                                            self.name.clone(),
+                                            FieldIO::read_foreign_field(
                                                 &self.field_type,
                                                 &mut reader,
                                                 string_pool,
                                                 type_pools,
                                             )?,
-                                        )
+                                        );
                                     }
                                     None => return Err(SkillFail::internal(InternalFail::BadCast)),
                                 }
@@ -614,27 +585,15 @@ impl io::FieldDeclaration for FieldDeclaration {
                                 Some(obj) => {
                                     let mut obj = obj.borrow_mut();
 
-                                    if self.foreign_vec_index == std::usize::MAX {
-                                        self.foreign_vec_index = obj.foreign_fields_mut().len();
-                                    } else if self.foreign_vec_index
-                                        != obj.foreign_fields_mut().len()
-                                    {
-                                        return Err(SkillFail::internal(
-                                            InternalFail::InconsistentForeignIndex {
-                                                old: self.foreign_vec_index,
-                                                new: obj.foreign_fields_mut().len(),
-                                            },
-                                        ));
-                                    }
-
-                                    obj.foreign_fields_mut().push(
-                                        FieldDeclaration::read_foreign_field(
+                                    obj.foreign_fields_mut().insert(
+                                        self.name.clone(),
+                                        FieldIO::read_foreign_field(
                                             &self.field_type,
                                             &mut reader,
                                             string_pool,
                                             type_pools,
                                         )?,
-                                    )
+                                    );
                                 }
                                 None => return Err(SkillFail::internal(InternalFail::BadCast)),
                             }
@@ -653,6 +612,9 @@ impl io::FieldDeclaration for FieldDeclaration {
     }
     fn field_id(&self) -> usize {
         self.field_id
+    }
+    fn field_type(&self) -> &FieldType {
+        &self.field_type
     }
     fn compress_chunks(&mut self, total_count: usize) {
         self.chunks = Vec::with_capacity(1);
@@ -677,7 +639,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::User(obj) => {
                             if let Some(obj) = obj {
                                 if let Some(obj) = obj.upgrade() {
@@ -706,7 +668,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::I64(val) => offset += bytes_v64(*val),
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -717,7 +679,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::String(val) => {
                             if let Some(val) = val {
                                 offset += bytes_v64(val.get_id() as i64)
@@ -732,9 +694,9 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::Array(array) => {
-                            offset += FieldDeclaration::offset(box_v, array.iter())?;
+                            offset += FieldIO::offset(box_v, array.iter())?;
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -743,10 +705,10 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::Array(array) => {
                             offset += bytes_v64(array.len() as i64)
-                                + FieldDeclaration::offset(box_v, array.iter())?;
+                                + FieldIO::offset(box_v, array.iter())?;
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -755,10 +717,10 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::Array(array) => {
                             offset += bytes_v64(array.len() as i64)
-                                + FieldDeclaration::offset(box_v, array.iter())?;
+                                + FieldIO::offset(box_v, array.iter())?;
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -767,10 +729,10 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::Set(set) => {
-                            offset += bytes_v64(set.len() as i64)
-                                + FieldDeclaration::offset(box_v, set.iter())?;
+                            offset +=
+                                bytes_v64(set.len() as i64) + FieldIO::offset(box_v, set.iter())?;
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -779,11 +741,11 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::Map(map) => {
                             offset += bytes_v64(map.len() as i64)
-                                + FieldDeclaration::offset(&*key_box_v, map.keys())?
-                                + FieldDeclaration::offset(box_v, map.values())?;
+                                + FieldIO::offset(&*key_box_v, map.keys())?
+                                + FieldIO::offset(box_v, map.values())?;
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -793,7 +755,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                 let obj = obj.cast::<foreign::Foreign>().unwrap();
                 let obj = obj.borrow(); // borrowing madness
 
-                match &obj.foreign_fields()[self.foreign_vec_index] {
+                match &obj.foreign_fields()[&self.name] {
                     foreign::FieldData::User(obj) => {
                         if let Some(obj) = obj {
                             if let Some(obj) = obj.upgrade() {
@@ -821,6 +783,11 @@ impl io::FieldDeclaration for FieldDeclaration {
         iter: dynamic_instances::Iter,
         offset: usize,
     ) -> Result<usize, SkillFail> {
+        debug!(
+            target: "SkillWriting",
+            "~~~~Write Field Meta Data for Field:{}",
+            self.name,
+        );
         writer.write_v64(self.field_id as i64)?;
         writer.write_v64(self.name.get_id() as i64)?;
         writer.write_field_type(&self.field_type)?;
@@ -844,6 +811,11 @@ impl io::FieldDeclaration for FieldDeclaration {
         writer: &mut FileWriter,
         iter: dynamic_instances::Iter,
     ) -> Result<(), SkillFail> {
+        debug!(
+            target: "SkillWriting",
+            "~~~~Write Field Data for Field:{}",
+            self.name,
+        );
         let mut writer = match self.chunks.first().unwrap() {
             FieldChunk::Declaration(ref chunk) => writer.rel_view(chunk.begin, chunk.end)?,
             FieldChunk::Continuation(_) => Err(SkillFail::internal(InternalFail::OnlyOneChunk))?,
@@ -859,7 +831,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::User(obj) => {
                             if let Some(obj) = obj {
                                 if let Some(obj) = obj.upgrade() {
@@ -887,7 +859,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::Bool(val) => writer.write_bool(*val)?,
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
@@ -896,7 +868,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::I8(val) => writer.write_i8(*val)?,
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
@@ -905,7 +877,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::I16(val) => writer.write_i16(*val)?,
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
@@ -914,7 +886,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::I32(val) => writer.write_i32(*val)?,
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
@@ -923,7 +895,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::I64(val) => writer.write_i64(*val)?,
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     };
@@ -932,7 +904,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::I64(val) => writer.write_v64(*val)?,
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -941,7 +913,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::F32(val) => writer.write_f32(*val)?,
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -950,7 +922,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::F64(val) => writer.write_f64(*val)?,
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -959,7 +931,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::String(val) => {
                             if let Some(val) = val {
                                 writer.write_v64(val.get_id() as i64)?
@@ -974,9 +946,9 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::Array(array) => {
-                            FieldDeclaration::write(&mut writer, box_v, array.iter())?
+                            FieldIO::write(&mut writer, box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -985,10 +957,10 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::Array(array) => {
                             writer.write_v64(array.len() as i64)?;
-                            FieldDeclaration::write(&mut writer, box_v, array.iter())?
+                            FieldIO::write(&mut writer, box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -997,10 +969,10 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::Array(array) => {
                             writer.write_v64(array.len() as i64)?;
-                            FieldDeclaration::write(&mut writer, box_v, array.iter())?
+                            FieldIO::write(&mut writer, box_v, array.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -1009,10 +981,10 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::Set(set) => {
                             writer.write_v64(set.len() as i64)?;
-                            FieldDeclaration::write(&mut writer, box_v, set.iter())?
+                            FieldIO::write(&mut writer, box_v, set.iter())?
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
@@ -1021,20 +993,12 @@ impl io::FieldDeclaration for FieldDeclaration {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
-                    match &obj.foreign_fields()[self.foreign_vec_index] {
+                    match &obj.foreign_fields()[&self.name] {
                         foreign::FieldData::Map(map) => {
                             writer.write_v64(map.len() as i64)?;
                             for (key, val) in map.iter() {
-                                FieldDeclaration::write(
-                                    &mut writer,
-                                    &*key_box_v,
-                                    SingleItemIter::new(key),
-                                )?;
-                                FieldDeclaration::write(
-                                    &mut writer,
-                                    box_v,
-                                    SingleItemIter::new(val),
-                                )?;
+                                FieldIO::write(&mut writer, &*key_box_v, SingleItemIter::new(key))?;
+                                FieldIO::write(&mut writer, box_v, SingleItemIter::new(val))?;
                             }
                         }
                         _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
@@ -1045,7 +1009,7 @@ impl io::FieldDeclaration for FieldDeclaration {
                 let obj = obj.cast::<foreign::Foreign>().unwrap();
                 let obj = obj.borrow(); // borrowing madness
 
-                match &obj.foreign_fields()[self.foreign_vec_index] {
+                match &obj.foreign_fields()[&self.name] {
                     foreign::FieldData::User(obj) => {
                         if let Some(obj) = obj {
                             if let Some(obj) = obj.upgrade() {

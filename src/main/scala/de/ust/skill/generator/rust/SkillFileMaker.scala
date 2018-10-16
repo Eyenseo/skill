@@ -364,7 +364,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §
        §        // Load foreign fields
        §        for pool in self.type_pool.pools().iter() {
-       §            pool.borrow().pool().deserialize(self)?;
+       §            pool.borrow().pool().force_initialize(self)?;
        §        }
        §
        §        // check

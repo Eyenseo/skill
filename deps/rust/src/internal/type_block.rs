@@ -422,7 +422,7 @@ impl TypeBlock {
             );
             pool.borrow()
                 .pool()
-                .initialize(reader, strings, &self.pools)?;
+                .lazy_initialize(reader, strings, &self.pools)?;
         }
         Ok(())
     }

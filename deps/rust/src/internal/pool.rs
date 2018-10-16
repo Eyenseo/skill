@@ -179,7 +179,7 @@ impl Pool {
         let (foreign, field) =
             self.parts_maker
                 .make_field(index, field_name, field_type, string_pool)?;
-        field.borrow_mut().add_chunk(chunk);
+        field.borrow_mut().io.add_chunk(chunk);
         self.fields.push(field);
         if foreign {
             self.foreign_fields = true;
@@ -193,15 +193,15 @@ impl Pool {
     /// * `block_reader` - vector where each element is a reader for a specific block
     /// * `string_pool` - string access
     /// * `type_pools` - all type pools -- usd to read a specific instance
-    pub(crate) fn initialize(
+    pub(crate) fn lazy_initialize(
         &self,
         block_reader: &Vec<FileReader>,
         string_pool: &StringBlock,
         type_pools: &Vec<Rc<RefCell<PoolProxy>>>,
     ) -> Result<(), SkillFail> {
+        let instances = self.instances.borrow();
         for f in self.fields.iter() {
-            let instances = self.instances.borrow();
-            f.borrow().read(
+            f.borrow().io.lazy_read(
                 block_reader,
                 string_pool,
                 &self.blocks,
@@ -218,7 +218,7 @@ impl Pool {
     /// * `block_reader` - vector where each element is a reader for a specific block
     /// * `string_pool` - string access
     /// * `type_pools` - all type pools -- usd to read a specific instance
-    pub(crate) fn deserialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail> {
+    pub(crate) fn force_initialize(&self, skill_file: &SkillFile) -> Result<(), SkillFail> {
         debug!(
             target: "SkillWriting",
             "~~~Deserialize foreign data for {}", self.name.as_str(),
@@ -227,10 +227,10 @@ impl Pool {
         let block_reader = skill_file.block_reader();
         let string_pool = skill_file.strings().string_block();
         let string_pool = string_pool.borrow();
+        let instances = self.instances.borrow();
 
         for f in self.fields.iter() {
-            let instances = self.instances.borrow();
-            f.borrow_mut().deserialize(
+            f.borrow_mut().io.force_read(
                 &block_reader,
                 &string_pool,
                 &self.blocks,
@@ -293,8 +293,8 @@ impl Pool {
     ) -> Result<(), SkillFail> {
         for f in &mut self.fields.iter() {
             let mut f = f.borrow_mut();
-            if f.field_id() == field_id {
-                f.add_chunk(chunk);
+            if f.io.field_id() == field_id {
+                f.io.add_chunk(chunk);
                 return Ok(());
             }
         }
@@ -541,7 +541,7 @@ impl Pool {
     pub(crate) fn compress_field_chunks(&mut self) {
         let total_count = self.get_global_cached_count();
         for f in self.fields.iter() {
-            f.borrow_mut().compress_chunks(total_count);
+            f.borrow_mut().io.compress_chunks(total_count);
         }
     }
 
@@ -598,7 +598,7 @@ impl Pool {
             self.fields.len(),
         );
         for f in self.fields.iter() {
-            offset = f.borrow_mut().write_meta(writer, iter.clone(), offset)?;
+            offset = f.borrow_mut().io.write_meta(writer, iter.clone(), offset)?;
         }
         Ok(offset)
     }
@@ -617,7 +617,7 @@ impl Pool {
             self.fields.len(),
         );
         for f in self.fields.iter() {
-            f.borrow().write_data(writer, iter.clone())?;
+            f.borrow().io.write_data(writer, iter.clone())?;
         }
         Ok(())
     }

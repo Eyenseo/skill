@@ -18,7 +18,7 @@ import scala.collection.mutable.ArrayBuffer
   *
   * @author Roland Jaeger
   */
-trait PoolsMaker extends GeneralOutputMaker {
+trait TypesMaker extends GeneralOutputMaker {
   abstract override def make {
     super.make
 
@@ -151,7 +151,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §pub struct ${name(base)} {
        §    z_skill_id: Cell<usize>,
        §    z_skill_type_id: usize,
-       §    z_foreign_data: Vec<foreign::FieldData>,
+       §    z_foreign_data: HashMap<Rc<SkillString>, foreign::FieldData>,
        §    ${
       (for (t ← getAllSupers(base)) yield {
         (for (f ← t.getFields.asScala.filterNot(_.isConstant)) yield {
@@ -306,7 +306,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        ${name(base)} {
        §            z_skill_id: Cell::new(skill_id),
        §            z_skill_type_id: skill_type_id,
-       §            z_foreign_data: Vec::default(),
+       §            z_foreign_data: HashMap::default(),
        §            ${
       ((for (f ← base.getAllFields.asScala.filterNot(_.isConstant)) yield {
         e"""${name(f)}: ${defaultValue(f)},
@@ -395,10 +395,10 @@ trait PoolsMaker extends GeneralOutputMaker {
       }
     }
        §impl foreign::ForeignObject for ${name(base)} {
-       §    fn foreign_fields(&self) -> &Vec<foreign::FieldData> {
+       §    fn foreign_fields(&self) -> &HashMap<Rc<SkillString>, foreign::FieldData> {
        §        &self.z_foreign_data
        §    }
-       §    fn foreign_fields_mut(&mut self) -> &mut Vec<foreign::FieldData> {
+       §    fn foreign_fields_mut(&mut self) -> &mut HashMap<Rc<SkillString>, foreign::FieldData> {
        §        &mut self.z_foreign_data
        §    }
        §}
@@ -512,10 +512,12 @@ trait PoolsMaker extends GeneralOutputMaker {
                  §}?;
                  §Ok((
                  §    false,
-                 §    Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
-                 §        field_name,
-                 §        index,
-                 §        field_type,
+                 §    Box::new(RefCell::new(FieldDeclaration::new(
+                 §        Box::new(${fieldIO(base, f)}::new(
+                 §            field_name,
+                 §            index,
+                 §            field_type,
+                 §        )),
                  §    ))),
                  §))
                  §""".stripMargin('§')
@@ -531,11 +533,13 @@ trait PoolsMaker extends GeneralOutputMaker {
                  §}?;
                  §Ok((
                  §    false,
-                 §    Box::new(RefCell::new(${fieldDeclaration(base, f)}::new(
-                 §        field_name,
-                 §        index,
-                 §        field_type,
-                 §        object_readers,
+                 §    Box::new(RefCell::new(FieldDeclaration::new(
+                 §        Box::new(${fieldIO(base, f)}::new(
+                 §            field_name,
+                 §            index,
+                 §            field_type,
+                 §            object_readers,
+                 §        )),
                  §    ))),
                  §))
                  §""".stripMargin('§')
@@ -592,10 +596,12 @@ trait PoolsMaker extends GeneralOutputMaker {
        §            }
        §            Ok((
        §                true,
-       §                Box::new(RefCell::new(foreign::FieldDeclaration::new(
-       §                    field_name,
-       §                    index,
-       §                    field_type
+       §                Box::new(RefCell::new(FieldDeclaration::new(
+       §                    Box::new(foreign::FieldIO::new(
+       §                        field_name,
+       §                        index,
+       §                        field_type,
+       §                    )),
        §                ))),
        §            ))
        §        }
@@ -829,10 +835,12 @@ trait PoolsMaker extends GeneralOutputMaker {
                §    let index = self.pool.fields().len() + 1;
                §    let name = string_pool.lit().${name(ft)};
                §    self.pool.fields_mut().push(Box::new(RefCell::new(
-               §        ${fieldDeclaration(base, ft)}::new(
-               §            string_pool.add(name),
-               §            index,
-               §            ${mapTypeToMagicDef(ft)},${
+               §        FieldDeclaration::new(
+               §            Box::new(${fieldIO(base, ft)}::new(
+               §                string_pool.add(name),
+               §                index,
+               §                ${mapTypeToMagicDef(ft)},
+               §                ${
               val userTypes = collectUserTypes(ft.getType)
               if (userTypes.nonEmpty) {
                 e"""
@@ -852,6 +860,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                 ""
               }
             }
+               §            )),
                §        )
                §    )));
                §}
@@ -878,9 +887,7 @@ trait PoolsMaker extends GeneralOutputMaker {
                  allSuperInterfaces(base).flatMap(t ⇒ t.getFields.asScala).filterNot(_.isAuto)) {
       ret.append(
                   e"""//----------------------------------------
-                     §// ${base.getName.camel() + field.getName.capital()}FieldDeclaration aka ${
-                    fieldDeclaration(base, field)
-                  }
+                     §// ${base.getName.camel() + field.getName.capital()}FieldIO aka ${fieldIO(base, field)}
                      §//----------------------------------------
                      §${genFieldDeclarationType(base, field)}
                      §
@@ -896,7 +903,7 @@ trait PoolsMaker extends GeneralOutputMaker {
 
   private final def genFieldDeclarationType(base: UserType,
                                             field: Field): String = {
-    e"""struct ${fieldDeclaration(base, field)} {
+    e"""struct ${fieldIO(base, field)} {
        §    name: Rc<SkillString>,
        §    field_id: usize, // Index into the pool fields vector
        §    field_type: FieldType,
@@ -916,13 +923,13 @@ trait PoolsMaker extends GeneralOutputMaker {
                                             field: Field): String = {
     val userType = collectUserTypes(field.getType)
     if (userType.isEmpty) {
-      e"""impl ${fieldDeclaration(base, field)} {
+      e"""impl ${fieldIO(base, field)} {
          §    fn new(
          §        name: Rc<SkillString>,
          §        field_id: usize,
          §        field_type: FieldType,
-         §    ) -> ${fieldDeclaration(base, field)} {
-         §        ${fieldDeclaration(base, field)} {
+         §    ) -> ${fieldIO(base, field)} {
+         §        ${fieldIO(base, field)} {
          §            name,
          §            field_id,
          §            field_type,
@@ -931,14 +938,14 @@ trait PoolsMaker extends GeneralOutputMaker {
          §    }
          §}""".stripMargin('§')
     } else {
-      e"""impl ${fieldDeclaration(base, field)} {
+      e"""impl ${fieldIO(base, field)} {
          §    fn new(
          §        name: Rc<SkillString>,
          §        field_id: usize,
          §        field_type: FieldType,
          §        object_reader: Vec<Weak<RefCell<PoolProxy>>>
-         §    ) -> ${fieldDeclaration(base, field)} {
-         §        ${fieldDeclaration(base, field)} {
+         §    ) -> ${fieldIO(base, field)} {
+         §        ${fieldIO(base, field)} {
          §            name,
          §            field_id,
          §            field_type,
@@ -952,8 +959,8 @@ trait PoolsMaker extends GeneralOutputMaker {
 
   private final def genFieldDeclarationImplFieldDeclaration(base: UserType,
                                                             f: Field): String = {
-    e"""impl FieldDeclaration for ${fieldDeclaration(base, f)} {
-       §    fn read(
+    e"""impl FieldIO for ${fieldIO(base, f)} {
+       §    fn lazy_read(
        §        &self,
        §        block_reader: &Vec<FileReader>,
        §        string_pool: &StringBlock,
@@ -1067,7 +1074,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        Ok(())
        §    }
        §
-       §    fn deserialize(
+       §    fn force_read(
        §        &mut self,
        §        block_reader: &Vec<FileReader>,
        §        string_pool: &StringBlock,
@@ -1086,6 +1093,9 @@ trait PoolsMaker extends GeneralOutputMaker {
        §    }
        §    fn field_id(&self) -> usize {
        §        self.field_id
+       §    }
+       §    fn field_type(&self) -> &FieldType {
+       §        &self.field_type
        §    }
        §
        §    fn compress_chunks(&mut self, total_count: usize) {
@@ -1136,7 +1146,7 @@ trait PoolsMaker extends GeneralOutputMaker {
        §        writer: &mut FileWriter,
        §        iter: dynamic_instances::Iter
        §    ) -> Result<(), SkillFail> {
-       §       debug!(
+       §        debug!(
        §            target:"SkillWriting",
        §            "~~~~Write Field Data for Field:{}",
        §            self.name.as_ref(),

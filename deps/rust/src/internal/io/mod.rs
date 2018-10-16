@@ -11,8 +11,9 @@ pub(crate) mod magic;
 
 pub(crate) use self::base_reader::*;
 pub(crate) use self::base_writer::*;
+pub use self::field_declaration::FieldDeclaration;
 pub(crate) use self::field_declaration::{
-    Block, ContinuationFieldChunk, DeclarationFieldChunk, FieldChunk, FieldDeclaration,
+    Block, ContinuationFieldChunk, DeclarationFieldChunk, FieldChunk, FieldIO,
 };
 pub(crate) use self::file_reader::FileReader;
 pub(crate) use self::file_writer::FileWriter;

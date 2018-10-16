@@ -11,7 +11,7 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 /// Used to manage field values that where not known at compile time
-pub(crate) enum FieldData {
+pub enum FieldData {
     Bool(bool),
     I8(i8),
     I16(i16),

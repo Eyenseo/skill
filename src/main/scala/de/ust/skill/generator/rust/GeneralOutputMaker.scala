@@ -170,8 +170,7 @@ trait GeneralOutputMaker extends Generator {
 
   protected def interface(t: Type): String = escaped(t.getName.capital)
 
-  protected def fieldDeclaration(t: Type, f: Field): String = escaped(t.getName.capital + f.getName.capital()) +
-                                                              "FieldDeclaration"
+  protected def fieldIO(t: Type, f: Field): String = escaped(t.getName.capital + f.getName.capital()) + "FieldIO"
 
   protected def readName(t: Type): String = t match {
     case t: GroundType ⇒ t.getName.lower

@@ -7,21 +7,24 @@ use common::internal::*;
 use common::*;
 
 use std::cell::Cell;
+use std::collections::HashMap;
+use std::rc::Rc;
 
 /// Struct that is used to represent instances of types that where not known
 /// at generation time and that do not have a known super type
 #[derive(Default, Debug)]
 #[repr(C)]
-pub(crate) struct Foreign {
+pub struct Foreign {
     // NOTE be sure to change PoolMaker::genTypeStruct too!
     skill_id: Cell<usize>,
     skill_type_id: usize,
-    foreign_data: Vec<foreign::FieldData>,
+    foreign_fields: HashMap<Rc<SkillString>, foreign::FieldData>,
 }
+
 /// Accessor trait
-pub(crate) trait ForeignObject: SkillObject {
-    fn foreign_fields(&self) -> &Vec<foreign::FieldData>;
-    fn foreign_fields_mut(&mut self) -> &mut Vec<foreign::FieldData>;
+pub trait ForeignObject: SkillObject {
+    fn foreign_fields(&self) -> &HashMap<Rc<SkillString>, foreign::FieldData>;
+    fn foreign_fields_mut(&mut self) -> &mut HashMap<Rc<SkillString>, foreign::FieldData>;
 }
 
 impl Foreign {
@@ -29,17 +32,17 @@ impl Foreign {
         Foreign {
             skill_id: Cell::new(skill_id),
             skill_type_id,
-            foreign_data: Vec::default(),
+            foreign_fields: HashMap::default(),
         }
     }
 }
 
 impl ForeignObject for Foreign {
-    fn foreign_fields(&self) -> &Vec<foreign::FieldData> {
-        &self.foreign_data
+    fn foreign_fields(&self) -> &HashMap<Rc<SkillString>, foreign::FieldData> {
+        &self.foreign_fields
     }
-    fn foreign_fields_mut(&mut self) -> &mut Vec<foreign::FieldData> {
-        &mut self.foreign_data
+    fn foreign_fields_mut(&mut self) -> &mut HashMap<Rc<SkillString>, foreign::FieldData> {
+        &mut self.foreign_fields
     }
 }
 
