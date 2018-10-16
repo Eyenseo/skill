@@ -195,122 +195,140 @@ impl FieldIO {
                 BuildInType::ConstTi32(_) => {}
                 BuildInType::ConstTi64(_) => {}
                 BuildInType::ConstTv64(_) => {}
-                BuildInType::Tannotation => for data in iter {
-                    match data {
-                        foreign::FieldData::User(obj) => {
-                            if let Some(obj) = obj {
-                                // Utter madness
-                                if let Some(obj) = obj.upgrade() {
-                                    let obj = obj.borrow();
-                                    if obj.to_delete() {
-                                        offset += 2;
+                BuildInType::Tannotation => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::User(obj) => {
+                                if let Some(obj) = obj {
+                                    // Utter madness
+                                    if let Some(obj) = obj.upgrade() {
+                                        let obj = obj.borrow();
+                                        if obj.to_delete() {
+                                            offset += 2;
+                                        } else {
+                                            offset += bytes_v64(obj.skill_type_id() as i64)
+                                                + bytes_v64(obj.get_skill_id() as i64);
+                                        }
                                     } else {
-                                        offset += bytes_v64(obj.skill_type_id() as i64)
-                                            + bytes_v64(obj.get_skill_id() as i64);
+                                        offset += 2;
                                     }
                                 } else {
                                     offset += 2;
                                 }
-                            } else {
-                                offset += 2;
                             }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
-                },
+                }
                 BuildInType::Tbool => offset = iter.count(),
                 BuildInType::Ti8 => offset = iter.count(),
                 BuildInType::Ti16 => offset = 2 * iter.count(),
                 BuildInType::Ti32 => offset = 4 * iter.count(),
                 BuildInType::Ti64 => offset = 8 * iter.count(),
-                BuildInType::Tv64 => for data in iter {
-                    match data {
-                        foreign::FieldData::I64(val) => offset += bytes_v64(*val),
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                BuildInType::Tv64 => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::I64(val) => offset += bytes_v64(*val),
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
                     }
-                },
+                }
                 BuildInType::Tf32 => offset = 4 * iter.count(),
                 BuildInType::Tf64 => offset = 8 * iter.count(),
-                BuildInType::Tstring => for data in iter {
-                    match data {
-                        foreign::FieldData::String(val) => {
-                            if let Some(val) = val {
-                                offset += bytes_v64(val.get_id() as i64)
-                            } else {
-                                offset += 1
-                            }
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::ConstTarray(length, box_v) => for data in iter {
-                    match data {
-                        foreign::FieldData::Array(array) => {
-                            offset += FieldIO::offset(box_v, array.iter())?
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tarray(box_v) => for data in iter {
-                    match data {
-                        foreign::FieldData::Array(array) => {
-                            offset += bytes_v64(array.len() as i64)
-                                + FieldIO::offset(box_v, array.iter())?
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tlist(box_v) => for data in iter {
-                    match data {
-                        foreign::FieldData::Array(array) => {
-                            offset += bytes_v64(array.len() as i64)
-                                + FieldIO::offset(box_v, array.iter())?
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tset(box_v) => for data in iter {
-                    match data {
-                        foreign::FieldData::Set(set) => {
-                            offset +=
-                                bytes_v64(set.len() as i64) + FieldIO::offset(box_v, set.iter())?
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tmap(key_box_v, box_v) => for data in iter {
-                    match data {
-                        foreign::FieldData::Map(map) => {
-                            offset += bytes_v64(map.len() as i64)
-                                + FieldIO::offset(&*key_box_v, map.keys())?
-                                + FieldIO::offset(box_v, map.values())?
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-            },
-            FieldType::User(_pool) => for data in iter {
-                match data {
-                    foreign::FieldData::User(obj) => {
-                        if let Some(obj) = obj {
-                            // Utter mandness
-                            if let Some(obj) = obj.upgrade() {
-                                let obj = obj.borrow();
-                                if obj.to_delete() {
-                                    offset += 1;
+                BuildInType::Tstring => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::String(val) => {
+                                if let Some(val) = val {
+                                    offset += bytes_v64(val.get_id() as i64)
                                 } else {
-                                    offset += bytes_v64(obj.get_skill_id() as i64);
+                                    offset += 1
+                                }
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::ConstTarray(length, box_v) => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::Array(array) => {
+                                offset += FieldIO::offset(box_v, array.iter())?
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tarray(box_v) => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::Array(array) => {
+                                offset += bytes_v64(array.len() as i64)
+                                    + FieldIO::offset(box_v, array.iter())?
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tlist(box_v) => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::Array(array) => {
+                                offset += bytes_v64(array.len() as i64)
+                                    + FieldIO::offset(box_v, array.iter())?
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tset(box_v) => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::Set(set) => {
+                                offset += bytes_v64(set.len() as i64)
+                                    + FieldIO::offset(box_v, set.iter())?
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tmap(key_box_v, box_v) => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::Map(map) => {
+                                offset += bytes_v64(map.len() as i64)
+                                    + FieldIO::offset(&*key_box_v, map.keys())?
+                                    + FieldIO::offset(box_v, map.values())?
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+            },
+            FieldType::User(_pool) => {
+                for data in iter {
+                    match data {
+                        foreign::FieldData::User(obj) => {
+                            if let Some(obj) = obj {
+                                // Utter mandness
+                                if let Some(obj) = obj.upgrade() {
+                                    let obj = obj.borrow();
+                                    if obj.to_delete() {
+                                        offset += 1;
+                                    } else {
+                                        offset += bytes_v64(obj.get_skill_id() as i64);
+                                    }
+                                } else {
+                                    offset += 1;
                                 }
                             } else {
                                 offset += 1;
                             }
-                        } else {
-                            offset += 1;
                         }
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
-                    _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                 }
-            },
+            }
         }
         Ok(offset)
     }
@@ -329,165 +347,197 @@ impl FieldIO {
                 BuildInType::ConstTi32(_) => {}
                 BuildInType::ConstTi64(_) => {}
                 BuildInType::ConstTv64(_) => {}
-                BuildInType::Tannotation => for data in iter {
-                    match data {
-                        foreign::FieldData::User(obj) => {
-                            if let Some(obj) = obj {
-                                // Utter mandness
-                                if let Some(obj) = obj.upgrade() {
-                                    let obj = obj.borrow();
+                BuildInType::Tannotation => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::User(obj) => {
+                                if let Some(obj) = obj {
+                                    // Utter mandness
+                                    if let Some(obj) = obj.upgrade() {
+                                        let obj = obj.borrow();
 
-                                    if obj.to_delete() {
-                                        writer.write_i8(0)?;
-                                        writer.write_i8(0)?;
+                                        if obj.to_delete() {
+                                            writer.write_i8(0)?;
+                                            writer.write_i8(0)?;
+                                        } else {
+                                            writer.write_v64((obj.skill_type_id() - 31) as i64)?;
+                                            writer.write_v64(obj.get_skill_id() as i64)?;
+                                        }
                                     } else {
-                                        writer.write_v64((obj.skill_type_id() - 31) as i64)?;
-                                        writer.write_v64(obj.get_skill_id() as i64)?;
+                                        writer.write_i8(0)?;
+                                        writer.write_i8(0)?;
                                     }
                                 } else {
                                     writer.write_i8(0)?;
                                     writer.write_i8(0)?;
                                 }
-                            } else {
-                                writer.write_i8(0)?;
-                                writer.write_i8(0)?;
                             }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                         }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
-                },
-                BuildInType::Tbool => for data in iter {
-                    match data {
-                        foreign::FieldData::Bool(val) => writer.write_bool(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
-                BuildInType::Ti8 => for data in iter {
-                    match data {
-                        foreign::FieldData::I8(val) => writer.write_i8(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
-                BuildInType::Ti16 => for data in iter {
-                    match data {
-                        foreign::FieldData::I16(val) => writer.write_i16(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
-                BuildInType::Ti32 => for data in iter {
-                    match data {
-                        foreign::FieldData::I32(val) => writer.write_i32(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
-                BuildInType::Ti64 => for data in iter {
-                    match data {
-                        foreign::FieldData::I64(val) => writer.write_i64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
-                BuildInType::Tv64 => for data in iter {
-                    match data {
-                        foreign::FieldData::I64(val) => writer.write_v64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                }
+                BuildInType::Tbool => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::Bool(val) => writer.write_bool(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        };
                     }
-                },
-                BuildInType::Tf32 => for data in iter {
-                    match data {
-                        foreign::FieldData::F32(val) => writer.write_f32(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                }
+                BuildInType::Ti8 => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::I8(val) => writer.write_i8(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        };
                     }
-                },
-                BuildInType::Tf64 => for data in iter {
-                    match data {
-                        foreign::FieldData::F64(val) => writer.write_f64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                }
+                BuildInType::Ti16 => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::I16(val) => writer.write_i16(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        };
                     }
-                },
+                }
+                BuildInType::Ti32 => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::I32(val) => writer.write_i32(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        };
+                    }
+                }
+                BuildInType::Ti64 => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::I64(val) => writer.write_i64(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        };
+                    }
+                }
+                BuildInType::Tv64 => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::I64(val) => writer.write_v64(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tf32 => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::F32(val) => writer.write_f32(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tf64 => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::F64(val) => writer.write_f64(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
 
-                BuildInType::Tstring => for data in iter {
-                    match data {
-                        foreign::FieldData::String(val) => {
-                            if let Some(val) = val {
-                                writer.write_v64(val.get_id() as i64)?
-                            } else {
-                                writer.write_i8(0)?
-                            }
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::ConstTarray(_length, box_v) => for data in iter {
-                    match data {
-                        foreign::FieldData::Array(array) => {
-                            FieldIO::write(writer, box_v, array.iter())?
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tarray(box_v) => for data in iter {
-                    match data {
-                        foreign::FieldData::Array(array) => {
-                            writer.write_v64(array.len() as i64)?;
-                            FieldIO::write(writer, box_v, array.iter())?
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tlist(box_v) => for data in iter {
-                    match data {
-                        foreign::FieldData::Array(array) => {
-                            writer.write_v64(array.len() as i64)?;
-                            FieldIO::write(writer, box_v, array.iter())?
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tset(box_v) => for data in iter {
-                    match data {
-                        foreign::FieldData::Set(set) => {
-                            writer.write_v64(set.len() as i64)?;
-                            FieldIO::write(writer, box_v, set.iter())?
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tmap(key_box_v, box_v) => for data in iter {
-                    match data {
-                        foreign::FieldData::Map(map) => {
-                            writer.write_v64(map.len() as i64)?;
-                            for (key, val) in map.iter() {
-                                FieldIO::write(writer, &*key_box_v, SingleItemIter::new(key))?;
-                                FieldIO::write(writer, box_v, SingleItemIter::new(val))?;
-                            }
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-            },
-            FieldType::User(_pool) => for data in iter {
-                match data {
-                    foreign::FieldData::User(obj) => {
-                        if let Some(obj) = obj {
-                            // Utter madness
-                            if let Some(obj) = obj.upgrade() {
-                                let obj = obj.borrow();
-
-                                if obj.to_delete() {
-                                    writer.write_i8(0)?;
+                BuildInType::Tstring => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::String(val) => {
+                                if let Some(val) = val {
+                                    writer.write_v64(val.get_id() as i64)?
                                 } else {
-                                    writer.write_v64(obj.get_skill_id() as i64)?;
+                                    writer.write_i8(0)?
+                                }
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::ConstTarray(_length, box_v) => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::Array(array) => {
+                                FieldIO::write(writer, box_v, array.iter())?
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tarray(box_v) => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::Array(array) => {
+                                writer.write_v64(array.len() as i64)?;
+                                FieldIO::write(writer, box_v, array.iter())?
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tlist(box_v) => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::Array(array) => {
+                                writer.write_v64(array.len() as i64)?;
+                                FieldIO::write(writer, box_v, array.iter())?
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tset(box_v) => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::Set(set) => {
+                                writer.write_v64(set.len() as i64)?;
+                                FieldIO::write(writer, box_v, set.iter())?
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tmap(key_box_v, box_v) => {
+                    for data in iter {
+                        match data {
+                            foreign::FieldData::Map(map) => {
+                                writer.write_v64(map.len() as i64)?;
+                                for (key, val) in map.iter() {
+                                    FieldIO::write(writer, &*key_box_v, SingleItemIter::new(key))?;
+                                    FieldIO::write(writer, box_v, SingleItemIter::new(val))?;
+                                }
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+            },
+            FieldType::User(_pool) => {
+                for data in iter {
+                    match data {
+                        foreign::FieldData::User(obj) => {
+                            if let Some(obj) = obj {
+                                // Utter madness
+                                if let Some(obj) = obj.upgrade() {
+                                    let obj = obj.borrow();
+
+                                    if obj.to_delete() {
+                                        writer.write_i8(0)?;
+                                    } else {
+                                        writer.write_v64(obj.get_skill_id() as i64)?;
+                                    }
+                                } else {
+                                    writer.write_i8(0)?;
                                 }
                             } else {
                                 writer.write_i8(0)?;
                             }
-                        } else {
-                            writer.write_i8(0)?;
                         }
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
-                    _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                 }
-            },
+            }
         }
         Ok(())
     }
@@ -635,7 +685,140 @@ impl io::FieldIO for FieldIO {
                 BuildInType::ConstTi32(_) => {}
                 BuildInType::ConstTi64(_) => {}
                 BuildInType::ConstTv64(_) => {}
-                BuildInType::Tannotation => for obj in iter {
+                BuildInType::Tannotation => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::User(obj) => {
+                                if let Some(obj) = obj {
+                                    if let Some(obj) = obj.upgrade() {
+                                        if obj.borrow().to_delete() {
+                                            offset += 2;
+                                        } else {
+                                            offset += bytes_v64(obj.borrow().skill_type_id() as i64)
+                                                + bytes_v64(obj.borrow().get_skill_id() as i64);
+                                        }
+                                    } else {
+                                        offset += 2
+                                    }
+                                } else {
+                                    offset += 2
+                                }
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tbool => offset = iter.count(),
+                BuildInType::Ti8 => offset = iter.count(),
+                BuildInType::Ti16 => offset = 2 * iter.count(),
+                BuildInType::Ti32 => offset = 4 * iter.count(),
+                BuildInType::Ti64 => offset = 8 * iter.count(),
+                BuildInType::Tv64 => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::I64(val) => offset += bytes_v64(*val),
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tf32 => offset = 4 * iter.count(),
+                BuildInType::Tf64 => offset = 8 * iter.count(),
+                BuildInType::Tstring => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::String(val) => {
+                                if let Some(val) = val {
+                                    offset += bytes_v64(val.get_id() as i64)
+                                } else {
+                                    offset += 1
+                                }
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::ConstTarray(length, box_v) => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::Array(array) => {
+                                offset += FieldIO::offset(box_v, array.iter())?;
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tarray(box_v) => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::Array(array) => {
+                                offset += bytes_v64(array.len() as i64)
+                                    + FieldIO::offset(box_v, array.iter())?;
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tlist(box_v) => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::Array(array) => {
+                                offset += bytes_v64(array.len() as i64)
+                                    + FieldIO::offset(box_v, array.iter())?;
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tset(box_v) => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::Set(set) => {
+                                offset += bytes_v64(set.len() as i64)
+                                    + FieldIO::offset(box_v, set.iter())?;
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tmap(key_box_v, box_v) => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::Map(map) => {
+                                offset += bytes_v64(map.len() as i64)
+                                    + FieldIO::offset(&*key_box_v, map.keys())?
+                                    + FieldIO::offset(box_v, map.values())?;
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+            },
+            FieldType::User(_pool) => {
+                for obj in iter {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
@@ -644,136 +827,21 @@ impl io::FieldIO for FieldIO {
                             if let Some(obj) = obj {
                                 if let Some(obj) = obj.upgrade() {
                                     if obj.borrow().to_delete() {
-                                        offset += 2;
+                                        offset += 1;
                                     } else {
-                                        offset += bytes_v64(obj.borrow().skill_type_id() as i64)
-                                            + bytes_v64(obj.borrow().get_skill_id() as i64);
+                                        offset += bytes_v64(obj.borrow().get_skill_id() as i64);
                                     }
                                 } else {
-                                    offset += 2
-                                }
-                            } else {
-                                offset += 2
-                            }
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tbool => offset = iter.count(),
-                BuildInType::Ti8 => offset = iter.count(),
-                BuildInType::Ti16 => offset = 2 * iter.count(),
-                BuildInType::Ti32 => offset = 4 * iter.count(),
-                BuildInType::Ti64 => offset = 8 * iter.count(),
-                BuildInType::Tv64 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::I64(val) => offset += bytes_v64(*val),
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tf32 => offset = 4 * iter.count(),
-                BuildInType::Tf64 => offset = 8 * iter.count(),
-                BuildInType::Tstring => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::String(val) => {
-                            if let Some(val) = val {
-                                offset += bytes_v64(val.get_id() as i64)
-                            } else {
-                                offset += 1
-                            }
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::ConstTarray(length, box_v) => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::Array(array) => {
-                            offset += FieldIO::offset(box_v, array.iter())?;
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tarray(box_v) => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::Array(array) => {
-                            offset += bytes_v64(array.len() as i64)
-                                + FieldIO::offset(box_v, array.iter())?;
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tlist(box_v) => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::Array(array) => {
-                            offset += bytes_v64(array.len() as i64)
-                                + FieldIO::offset(box_v, array.iter())?;
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tset(box_v) => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::Set(set) => {
-                            offset +=
-                                bytes_v64(set.len() as i64) + FieldIO::offset(box_v, set.iter())?;
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tmap(key_box_v, box_v) => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::Map(map) => {
-                            offset += bytes_v64(map.len() as i64)
-                                + FieldIO::offset(&*key_box_v, map.keys())?
-                                + FieldIO::offset(box_v, map.values())?;
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-            },
-            FieldType::User(_pool) => for obj in iter {
-                let obj = obj.cast::<foreign::Foreign>().unwrap();
-                let obj = obj.borrow(); // borrowing madness
-
-                match &obj.foreign_fields()[&self.name] {
-                    foreign::FieldData::User(obj) => {
-                        if let Some(obj) = obj {
-                            if let Some(obj) = obj.upgrade() {
-                                if obj.borrow().to_delete() {
                                     offset += 1;
-                                } else {
-                                    offset += bytes_v64(obj.borrow().get_skill_id() as i64);
                                 }
                             } else {
                                 offset += 1;
                             }
-                        } else {
-                            offset += 1;
                         }
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
-                    _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                 }
-            },
+            }
         }
         Ok(offset)
     }
@@ -827,7 +895,220 @@ impl io::FieldIO for FieldIO {
                 BuildInType::ConstTi32(_) => {}
                 BuildInType::ConstTi64(_) => {}
                 BuildInType::ConstTv64(_) => {}
-                BuildInType::Tannotation => for obj in iter {
+                BuildInType::Tannotation => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::User(obj) => {
+                                if let Some(obj) = obj {
+                                    if let Some(obj) = obj.upgrade() {
+                                        let obj = obj.borrow(); // borrowing madness
+                                        if obj.to_delete() {
+                                            writer.write_i8(0)?;
+                                            writer.write_i8(0)?;
+                                        } else {
+                                            writer.write_v64((obj.skill_type_id() - 31) as i64)?;
+                                            writer.write_v64(obj.get_skill_id() as i64)?;
+                                        }
+                                    } else {
+                                        writer.write_i8(0)?;
+                                        writer.write_i8(0)?;
+                                    }
+                                } else {
+                                    writer.write_i8(0)?;
+                                    writer.write_i8(0)?;
+                                }
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tbool => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::Bool(val) => writer.write_bool(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        };
+                    }
+                }
+                BuildInType::Ti8 => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::I8(val) => writer.write_i8(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        };
+                    }
+                }
+                BuildInType::Ti16 => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::I16(val) => writer.write_i16(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        };
+                    }
+                }
+                BuildInType::Ti32 => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::I32(val) => writer.write_i32(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        };
+                    }
+                }
+                BuildInType::Ti64 => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::I64(val) => writer.write_i64(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        };
+                    }
+                }
+                BuildInType::Tv64 => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::I64(val) => writer.write_v64(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tf32 => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::F32(val) => writer.write_f32(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tf64 => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::F64(val) => writer.write_f64(*val)?,
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tstring => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::String(val) => {
+                                if let Some(val) = val {
+                                    writer.write_v64(val.get_id() as i64)?
+                                } else {
+                                    writer.write_i8(0)?
+                                }
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::ConstTarray(_length, box_v) => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::Array(array) => {
+                                FieldIO::write(&mut writer, box_v, array.iter())?
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tarray(box_v) => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::Array(array) => {
+                                writer.write_v64(array.len() as i64)?;
+                                FieldIO::write(&mut writer, box_v, array.iter())?
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tlist(box_v) => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::Array(array) => {
+                                writer.write_v64(array.len() as i64)?;
+                                FieldIO::write(&mut writer, box_v, array.iter())?
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tset(box_v) => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::Set(set) => {
+                                writer.write_v64(set.len() as i64)?;
+                                FieldIO::write(&mut writer, box_v, set.iter())?
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+                BuildInType::Tmap(key_box_v, box_v) => {
+                    for obj in iter {
+                        let obj = obj.cast::<foreign::Foreign>().unwrap();
+                        let obj = obj.borrow(); // borrowing madness
+
+                        match &obj.foreign_fields()[&self.name] {
+                            foreign::FieldData::Map(map) => {
+                                writer.write_v64(map.len() as i64)?;
+                                for (key, val) in map.iter() {
+                                    FieldIO::write(
+                                        &mut writer,
+                                        &*key_box_v,
+                                        SingleItemIter::new(key),
+                                    )?;
+                                    FieldIO::write(&mut writer, box_v, SingleItemIter::new(val))?;
+                                }
+                            }
+                            _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
+                        }
+                    }
+                }
+            },
+            FieldType::User(_pool) => {
+                for obj in iter {
                     let obj = obj.cast::<foreign::Foreign>().unwrap();
                     let obj = obj.borrow(); // borrowing madness
 
@@ -836,200 +1117,23 @@ impl io::FieldIO for FieldIO {
                             if let Some(obj) = obj {
                                 if let Some(obj) = obj.upgrade() {
                                     let obj = obj.borrow(); // borrowing madness
+
                                     if obj.to_delete() {
                                         writer.write_i8(0)?;
-                                        writer.write_i8(0)?;
                                     } else {
-                                        writer.write_v64((obj.skill_type_id() - 31) as i64)?;
                                         writer.write_v64(obj.get_skill_id() as i64)?;
                                     }
                                 } else {
                                     writer.write_i8(0)?;
-                                    writer.write_i8(0)?;
-                                }
-                            } else {
-                                writer.write_i8(0)?;
-                                writer.write_i8(0)?;
-                            }
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tbool => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::Bool(val) => writer.write_bool(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
-                BuildInType::Ti8 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::I8(val) => writer.write_i8(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
-                BuildInType::Ti16 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::I16(val) => writer.write_i16(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
-                BuildInType::Ti32 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::I32(val) => writer.write_i32(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
-                BuildInType::Ti64 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::I64(val) => writer.write_i64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    };
-                },
-                BuildInType::Tv64 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::I64(val) => writer.write_v64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tf32 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::F32(val) => writer.write_f32(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tf64 => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::F64(val) => writer.write_f64(*val)?,
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tstring => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::String(val) => {
-                            if let Some(val) = val {
-                                writer.write_v64(val.get_id() as i64)?
-                            } else {
-                                writer.write_i8(0)?
-                            }
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::ConstTarray(_length, box_v) => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::Array(array) => {
-                            FieldIO::write(&mut writer, box_v, array.iter())?
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tarray(box_v) => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::Array(array) => {
-                            writer.write_v64(array.len() as i64)?;
-                            FieldIO::write(&mut writer, box_v, array.iter())?
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tlist(box_v) => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::Array(array) => {
-                            writer.write_v64(array.len() as i64)?;
-                            FieldIO::write(&mut writer, box_v, array.iter())?
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tset(box_v) => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::Set(set) => {
-                            writer.write_v64(set.len() as i64)?;
-                            FieldIO::write(&mut writer, box_v, set.iter())?
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-                BuildInType::Tmap(key_box_v, box_v) => for obj in iter {
-                    let obj = obj.cast::<foreign::Foreign>().unwrap();
-                    let obj = obj.borrow(); // borrowing madness
-
-                    match &obj.foreign_fields()[&self.name] {
-                        foreign::FieldData::Map(map) => {
-                            writer.write_v64(map.len() as i64)?;
-                            for (key, val) in map.iter() {
-                                FieldIO::write(&mut writer, &*key_box_v, SingleItemIter::new(key))?;
-                                FieldIO::write(&mut writer, box_v, SingleItemIter::new(val))?;
-                            }
-                        }
-                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
-                    }
-                },
-            },
-            FieldType::User(_pool) => for obj in iter {
-                let obj = obj.cast::<foreign::Foreign>().unwrap();
-                let obj = obj.borrow(); // borrowing madness
-
-                match &obj.foreign_fields()[&self.name] {
-                    foreign::FieldData::User(obj) => {
-                        if let Some(obj) = obj {
-                            if let Some(obj) = obj.upgrade() {
-                                let obj = obj.borrow(); // borrowing madness
-
-                                if obj.to_delete() {
-                                    writer.write_i8(0)?;
-                                } else {
-                                    writer.write_v64(obj.get_skill_id() as i64)?;
                                 }
                             } else {
                                 writer.write_i8(0)?;
                             }
-                        } else {
-                            writer.write_i8(0)?;
                         }
+                        _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                     }
-                    _ => Err(SkillFail::internal(InternalFail::WrongForeignField))?,
                 }
-            },
+            }
         }
         Ok(())
     }

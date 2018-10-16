@@ -30,7 +30,7 @@ pub enum InternalFail {
         display = "Unordered type block; previous ID:{} < current ID:{} with type: {}",
         previous,
         current,
-        name,
+        name
     )]
     UnorderedTypeBlock {
         previous: usize,
@@ -40,7 +40,7 @@ pub enum InternalFail {
     #[fail(
         display = "Found bad base pool offset of:{} super lbpo:{}",
         local_bpo,
-        super_local_bpo,
+        super_local_bpo
     )]
     BadBasePoolOffset {
         local_bpo: usize,
@@ -49,7 +49,7 @@ pub enum InternalFail {
     #[fail(
         display = "Found bad field id; previous ID:{}, current ID:{}",
         previous,
-        current,
+        current
     )]
     BadFieldID { previous: usize, current: usize },
     #[fail(display = "Range restriction on non numeric type")]
@@ -178,11 +178,11 @@ pub enum InternalFail {
         type_name
     )]
     UnknownConstantField { field: String, type_name: String },
-    #[fail(display = "Type and field names cant be null.",)]
+    #[fail(display = "Type and field names cant be null.")]
     TypeOrFieldNameNull,
-    #[fail(display = "Pool is missing the type pools",)]
+    #[fail(display = "Pool is missing the type pools")]
     MissingTypePools,
-    #[fail(display = "Pool is missing the block reader",)]
+    #[fail(display = "Pool is missing the block reader")]
     MissingBlockReader,
 }
 
@@ -191,13 +191,13 @@ pub enum UserFail {
     #[fail(
         display = "The file '{}' couldn't be created because:{}.",
         file,
-        why,
+        why
     )]
     FailedToCreateFile { file: String, why: String },
     #[fail(
         display = "The file '{}' couldn't be opened because:{}.",
         file,
-        why,
+        why
     )]
     FailedToOpenFile { file: String, why: String },
     #[fail(display = "The ID:{} is reserved", id)]

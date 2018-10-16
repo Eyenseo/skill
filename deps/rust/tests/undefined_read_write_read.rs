@@ -94,17 +94,21 @@ mod tests {
                 Ok(())
             }() {
                 Ok(_) => (),
-                Err(e) => if let Some(bt) = e.backtrace() {
+                Err(e) => {
+                    if let Some(bt) = e.backtrace() {
+                        panic!("{}\n{}", e, bt)
+                    } else {
+                        panic!("{}", e)
+                    }
+                }
+            },
+            Err(e) => {
+                if let Some(bt) = e.backtrace() {
                     panic!("{}\n{}", e, bt)
                 } else {
                     panic!("{}", e)
-                },
-            },
-            Err(e) => if let Some(bt) = e.backtrace() {
-                panic!("{}\n{}", e, bt)
-            } else {
-                panic!("{}", e)
-            },
+                }
+            }
         }
 
         let a_id = 1;
@@ -152,17 +156,21 @@ mod tests {
                 Ok(())
             }() {
                 Ok(_) => (),
-                Err(e) => if let Some(bt) = e.backtrace() {
+                Err(e) => {
+                    if let Some(bt) = e.backtrace() {
+                        panic!("{}\n{}", e, bt)
+                    } else {
+                        panic!("{}", e)
+                    }
+                }
+            },
+            Err(e) => {
+                if let Some(bt) = e.backtrace() {
                     panic!("{}\n{}", e, bt)
                 } else {
                     panic!("{}", e)
-                },
-            },
-            Err(e) => if let Some(bt) = e.backtrace() {
-                panic!("{}\n{}", e, bt)
-            } else {
-                panic!("{}", e)
-            },
+                }
+            }
         }
     }
 }

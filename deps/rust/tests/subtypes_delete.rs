@@ -179,17 +179,21 @@ mod tests {
                 Ok(())
             }() {
                 Ok(_) => {}
-                Err(e) => if let Some(bt) = e.backtrace() {
+                Err(e) => {
+                    if let Some(bt) = e.backtrace() {
+                        panic!("{}\n{}", e, bt)
+                    } else {
+                        panic!("{}", e)
+                    }
+                }
+            },
+            Err(e) => {
+                if let Some(bt) = e.backtrace() {
                     panic!("{}\n{}", e, bt)
                 } else {
                     panic!("{}", e)
-                },
-            },
-            Err(e) => if let Some(bt) = e.backtrace() {
-                panic!("{}\n{}", e, bt)
-            } else {
-                panic!("{}", e)
-            },
+                }
+            }
         };
 
         // NOTE a_1 is deleted which would have been 1 so now a_2 is 1
@@ -308,17 +312,21 @@ mod tests {
                         d.clone().cast::<SkillObject>(),
                     );
                 }
-                Err(e) => if let Some(bt) = e.backtrace() {
+                Err(e) => {
+                    if let Some(bt) = e.backtrace() {
+                        panic!("{}\n{}", e, bt)
+                    } else {
+                        panic!("{}", e)
+                    }
+                }
+            },
+            Err(e) => {
+                if let Some(bt) = e.backtrace() {
                     panic!("{}\n{}", e, bt)
                 } else {
                     panic!("{}", e)
-                },
-            },
-            Err(e) => if let Some(bt) = e.backtrace() {
-                panic!("{}\n{}", e, bt)
-            } else {
-                panic!("{}", e)
-            },
+                }
+            }
         };
     }
 
@@ -371,17 +379,21 @@ mod tests {
                 Ok(())
             }() {
                 Ok(_) => {}
-                Err(e) => if let Some(bt) = e.backtrace() {
+                Err(e) => {
+                    if let Some(bt) = e.backtrace() {
+                        panic!("{}\n{}", e, bt)
+                    } else {
+                        panic!("{}", e)
+                    }
+                }
+            },
+            Err(e) => {
+                if let Some(bt) = e.backtrace() {
                     panic!("{}\n{}", e, bt)
                 } else {
                     panic!("{}", e)
-                },
-            },
-            Err(e) => if let Some(bt) = e.backtrace() {
-                panic!("{}\n{}", e, bt)
-            } else {
-                panic!("{}", e)
-            },
+                }
+            }
         };
     }
 
@@ -693,17 +705,21 @@ mod tests {
                 Ok(())
             }() {
                 Ok(_) => {}
-                Err(e) => if let Some(bt) = e.backtrace() {
+                Err(e) => {
+                    if let Some(bt) = e.backtrace() {
+                        panic!("{}\n{}", e, bt)
+                    } else {
+                        panic!("{}", e)
+                    }
+                }
+            },
+            Err(e) => {
+                if let Some(bt) = e.backtrace() {
                     panic!("{}\n{}", e, bt)
                 } else {
                     panic!("{}", e)
-                },
-            },
-            Err(e) => if let Some(bt) = e.backtrace() {
-                panic!("{}\n{}", e, bt)
-            } else {
-                panic!("{}", e)
-            },
+                }
+            }
         };
 
         assert_eq!(b_id, 1); // NOTE a is not around anymore so b should have id 1
@@ -776,17 +792,21 @@ mod tests {
                         d.clone().cast::<SkillObject>(),
                     );
                 }
-                Err(e) => if let Some(bt) = e.backtrace() {
+                Err(e) => {
+                    if let Some(bt) = e.backtrace() {
+                        panic!("{}\n{}", e, bt)
+                    } else {
+                        panic!("{}", e)
+                    }
+                }
+            },
+            Err(e) => {
+                if let Some(bt) = e.backtrace() {
                     panic!("{}\n{}", e, bt)
                 } else {
                     panic!("{}", e)
-                },
-            },
-            Err(e) => if let Some(bt) = e.backtrace() {
-                panic!("{}\n{}", e, bt)
-            } else {
-                panic!("{}", e)
-            },
+                }
+            }
         };
     }
 
@@ -838,17 +858,21 @@ mod tests {
                 Ok(())
             }() {
                 Ok(_) => {}
-                Err(e) => if let Some(bt) = e.backtrace() {
+                Err(e) => {
+                    if let Some(bt) = e.backtrace() {
+                        panic!("{}\n{}", e, bt)
+                    } else {
+                        panic!("{}", e)
+                    }
+                }
+            },
+            Err(e) => {
+                if let Some(bt) = e.backtrace() {
                     panic!("{}\n{}", e, bt)
                 } else {
                     panic!("{}", e)
-                },
-            },
-            Err(e) => if let Some(bt) = e.backtrace() {
-                panic!("{}\n{}", e, bt)
-            } else {
-                panic!("{}", e)
-            },
+                }
+            }
         };
     }
 }

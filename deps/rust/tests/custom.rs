@@ -83,17 +83,21 @@ mod tests {
                 Ok(())
             }() {
                 Ok(_) => {}
-                Err(e) => if let Some(bt) = e.backtrace() {
+                Err(e) => {
+                    if let Some(bt) = e.backtrace() {
+                        panic!("{}\n{}", e, bt)
+                    } else {
+                        panic!("{}", e)
+                    }
+                }
+            },
+            Err(e) => {
+                if let Some(bt) = e.backtrace() {
                     panic!("{}\n{}", e, bt)
                 } else {
                     panic!("{}", e)
-                },
-            },
-            Err(e) => if let Some(bt) = e.backtrace() {
-                panic!("{}\n{}", e, bt)
-            } else {
-                panic!("{}", e)
-            },
+                }
+            }
         };
 
         match SkillFile::open(
@@ -110,17 +114,21 @@ mod tests {
                     // assert fields
                     assert_eq!(c.borrow().get_any().is_none(), true);
                 }
-                Err(e) => if let Some(bt) = e.backtrace() {
+                Err(e) => {
+                    if let Some(bt) = e.backtrace() {
+                        panic!("{}\n{}", e, bt)
+                    } else {
+                        panic!("{}", e)
+                    }
+                }
+            },
+            Err(e) => {
+                if let Some(bt) = e.backtrace() {
                     panic!("{}\n{}", e, bt)
                 } else {
                     panic!("{}", e)
-                },
-            },
-            Err(e) => if let Some(bt) = e.backtrace() {
-                panic!("{}\n{}", e, bt)
-            } else {
-                panic!("{}", e)
-            },
+                }
+            }
         };
     }
 }

@@ -455,17 +455,21 @@ mod tests {
                     Ok(())
                 }() {
                     Ok(_) => {}
-                    Err(e) => if let Some(bt) = e.backtrace() {
+                    Err(e) => {
+                        if let Some(bt) = e.backtrace() {
+                            panic!("{}\n{}", e, bt)
+                        } else {
+                            panic!("{}", e)
+                        }
+                    }
+                },
+                Err(e) => {
+                    if let Some(bt) = e.backtrace() {
                         panic!("{}\n{}", e, bt)
                     } else {
                         panic!("{}", e)
-                    },
-                },
-                Err(e) => if let Some(bt) = e.backtrace() {
-                    panic!("{}\n{}", e, bt)
-                } else {
-                    panic!("{}", e)
-                },
+                    }
+                }
             };
         }
 
@@ -483,17 +487,21 @@ mod tests {
                     Ok(())
                 }() {
                     Ok(_) => (),
-                    Err(e) => if let Some(bt) = e.backtrace() {
+                    Err(e) => {
+                        if let Some(bt) = e.backtrace() {
+                            panic!("{}\n{}", e, bt)
+                        } else {
+                            panic!("{}", e)
+                        }
+                    }
+                },
+                Err(e) => {
+                    if let Some(bt) = e.backtrace() {
                         panic!("{}\n{}", e, bt)
                     } else {
                         panic!("{}", e)
-                    },
-                },
-                Err(e) => if let Some(bt) = e.backtrace() {
-                    panic!("{}\n{}", e, bt)
-                } else {
-                    panic!("{}", e)
-                },
+                    }
+                }
             };
         }
 
@@ -794,18 +802,22 @@ mod tests {
                                 Some(sf.strings_mut().add("Hello World!"))
                             );
                         }
-                        Err(e) => if let Some(bt) = e.backtrace() {
-                            panic!("{}\n{}", e, bt)
-                        } else {
-                            panic!("{}", e)
-                        },
+                        Err(e) => {
+                            if let Some(bt) = e.backtrace() {
+                                panic!("{}\n{}", e, bt)
+                            } else {
+                                panic!("{}", e)
+                            }
+                        }
                     }
                 }
-                Err(e) => if let Some(bt) = e.backtrace() {
-                    panic!("{}\n{}", e, bt)
-                } else {
-                    panic!("{}", e)
-                },
+                Err(e) => {
+                    if let Some(bt) = e.backtrace() {
+                        panic!("{}\n{}", e, bt)
+                    } else {
+                        panic!("{}", e)
+                    }
+                }
             };
         }
     }
