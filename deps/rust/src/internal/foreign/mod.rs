@@ -1,7 +1,3 @@
-/*
- * @author Roland Jaeger
- */
-
 mod field_data;
 mod field_io;
 mod object;

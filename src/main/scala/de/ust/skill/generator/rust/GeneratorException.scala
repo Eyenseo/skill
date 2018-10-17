@@ -7,7 +7,5 @@ package de.ust.skill.generator.rust
 
 /**
   * Used for everything that makes the Rust Generator blow up
-  *
-  * @author Roland Jaeger
   */
 class GeneratorException(message: String) extends Exception(message);

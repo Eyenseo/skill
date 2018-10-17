@@ -1,7 +1,3 @@
-/*
- * @author Roland Jaeger
- */
-
 use common::error::*;
 use common::internal::io::base_writer::*;
 use common::internal::io::magic::*;

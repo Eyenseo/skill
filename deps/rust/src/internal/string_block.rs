@@ -1,7 +1,3 @@
-/*
- * @author Roland Jaeger
- */
-
 use common::error::*;
 use common::internal::io::magic::bytes_v64;
 use common::internal::io::*;

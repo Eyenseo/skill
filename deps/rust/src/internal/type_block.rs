@@ -1,7 +1,3 @@
-/*
- * @author Roland Jaeger
- */
-
 use common::error::*;
 use common::internal::foreign;
 use common::internal::io::*;

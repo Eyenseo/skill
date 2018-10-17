@@ -1,7 +1,3 @@
-/*
- * @author Roland Jaeger
- */
-
 use failure::{Backtrace, Fail};
 
 #[derive(Fail, Debug)]

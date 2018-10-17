@@ -1,6 +1,3 @@
-/*
- * @author Roland Jaeger
- */
 
 
 #[macro_use]

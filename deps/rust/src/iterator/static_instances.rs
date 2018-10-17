@@ -1,7 +1,3 @@
-/*
- * @author Roland Jaeger
- */
-
 use common::internal::*;
 use common::*;
 

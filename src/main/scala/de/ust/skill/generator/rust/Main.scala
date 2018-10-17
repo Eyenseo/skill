@@ -20,8 +20,6 @@ abstract class FakeMain extends GeneralOutputMaker {
 
 /**
   * Main Generator mixin for Rust
-  *
-  * @author Roland Jaeger
   */
 final class Main extends FakeMain
                  with SkillFileMaker
@@ -99,7 +97,7 @@ final class Main extends FakeMain
 
   override def setOption(option: String, value: String) {
     option match {
-      case unknown           ⇒ throw new GeneratorException(s"unknown Argument: $unknown")
+      case unknown ⇒ throw new GeneratorException(s"unknown Argument: $unknown")
     }
   }
 

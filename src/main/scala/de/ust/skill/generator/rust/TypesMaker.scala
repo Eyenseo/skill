@@ -15,8 +15,6 @@ import scala.collection.mutable.ArrayBuffer
   * Generator for the Pools, Types and FieldDeclarations
   *
   * Because of Rust modules this is slightly more convenient than multiple files
-  *
-  * @author Roland Jaeger
   */
 trait TypesMaker extends GeneralOutputMaker {
   abstract override def make {

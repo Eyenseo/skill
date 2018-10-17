@@ -15,8 +15,6 @@ import scala.collection.JavaConverters._
   * In comparison to C++ this keeper is only kept because of faster comparisons
   *
   * # NOTE it is possible to remove this class by giving the types a string literal
-  *
-  * @author Roland Jaeger
   */
 trait LiteralKeeper extends GeneralOutputMaker {
   abstract override def make {

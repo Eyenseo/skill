@@ -1,6 +1,3 @@
-/*
- * @author Roland Jaeger
- */
 
 mod literal_keeper; // NOTE this is generated - though it doesn't have to
 mod pool;

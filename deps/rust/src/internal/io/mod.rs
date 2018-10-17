@@ -1,7 +1,3 @@
-/*
- * @author Roland Jaeger
- */
-
 mod base_reader;
 mod base_writer;
 mod field_declaration;

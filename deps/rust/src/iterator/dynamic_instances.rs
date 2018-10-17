@@ -1,7 +1,3 @@
-/*
- * @author Roland Jaeger
- */
-
 use common::error::*;
 use common::internal::*;
 use common::iterator::type_hierarchy;

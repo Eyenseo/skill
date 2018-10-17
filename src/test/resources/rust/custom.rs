@@ -1,7 +1,3 @@
-/*
- * @author Roland Jaeger
- */
-
 #![feature(test)]
 #![feature(nll)]
 
@@ -46,9 +42,8 @@ mod tests {
 
         let mut c_id = 0;
 
-        match SkillFile::create(
-            "api_custom_accept_custom_6993977d-76a6-4ea6-9996-861de3589b68.sf",
-        ) {
+        match SkillFile::create("api_custom_accept_custom_6993977d-76a6-4ea6-9996-861de3589b68.sf")
+        {
             Ok(mut sf) => match || -> Result<(), SkillFail> {
                 sf.check()?;
                 // create objects

@@ -12,8 +12,6 @@ import scala.collection.mutable.ArrayBuffer
 
 /**
   * Generator for the vtable lookup table
-  *
-  * @author Roland Jaeger
   */
 trait PtrMaker extends GeneralOutputMaker {
 
