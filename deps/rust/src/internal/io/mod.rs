@@ -1,3 +1,5 @@
+//! This module contains types and functions that are used to handle generic reading
+//! and writing of user types
 mod base_reader;
 mod base_writer;
 mod field_declaration;

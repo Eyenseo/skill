@@ -1,5 +1,13 @@
+//! Error management through failure
+//!
+//! There are three enums:
+//! - `InternalFail` means that an error was caused by something internal. This should not happen.
+//! - `UserFail` means that the user is most probably at fault by using the binding wrong.
+//! - `SkillFail` contains a value of either an is used to collapse the verbosity of the different errors into a single type.
+
 use failure::{Backtrace, Fail};
 
+/// Indicates that an error was caused by something internal. This should not happen.
 #[derive(Fail, Debug)]
 pub enum InternalFail {
     // TODO sort the errors
@@ -7,7 +15,7 @@ pub enum InternalFail {
     UnexpectedEndOfInput,
     #[fail(display = "The read string was too short, probably because the input ended to early.")]
     StringTooShort,
-    #[fail(display = "deserialization faild because:{}", why)]
+    #[fail(display = "deserialization failed because:{}", why)]
     StringDeserialization { why: String },
 
     #[fail(display = "The type '{}' was declared more than once.", name)]
@@ -151,7 +159,7 @@ pub enum InternalFail {
     OnlyOneChunk,
 
     #[fail(
-        display = "The field '{}' is supposed to be an auto field but the file containes data for it.",
+        display = "The field '{}' is supposed to be an auto field but the file contains data for it.",
         field
     )]
     AutoNotAuto { field: String },
@@ -182,6 +190,7 @@ pub enum InternalFail {
     MissingBlockReader,
 }
 
+/// Indicates that the user is most probably at fault by using the binding wrong.
 #[derive(Fail, Debug)]
 pub enum UserFail {
     #[fail(
@@ -219,14 +228,15 @@ pub enum UserFail {
     UnknownField { name: String },
 }
 
+/// Collapses the verbosity of the different of `InternalFail` and `UserFail` errors into a single type.
 #[derive(Fail, Debug)]
 pub enum SkillFail {
-    #[fail(display = "An internal error occured: {}", cause)]
+    #[fail(display = "An internal error occurred: {}", cause)]
     Internal {
         cause: InternalFail,
         backtrace: failure::Backtrace,
     },
-    #[fail(display = "An user caused error occured: {}", cause)]
+    #[fail(display = "An user caused error occurred: {}", cause)]
     User {
         cause: UserFail,
         backtrace: failure::Backtrace,

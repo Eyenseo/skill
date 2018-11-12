@@ -7,6 +7,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 
+/// Wrapper around [`String`] that enables serialisation
 #[derive(Debug, Default)]
 pub struct SkillString {
     // NOTE this is bad! but since we want to modify id without having to rely on RefCell

@@ -7,6 +7,14 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 /// Used to manage field values that where not known at compile time
+///
+/// ```
+/// let data = FieldData::Bool(true);
+/// match data {
+///     FieldData::Bool(val) => {} // Do something interesting
+///     _ => {} // Ignore unexpected types
+/// }
+/// ```
 pub enum FieldData {
     Bool(bool),
     I8(i8),

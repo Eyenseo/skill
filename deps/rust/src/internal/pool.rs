@@ -72,32 +72,32 @@ pub(crate) struct Pool {
     // NOTE PoolPartsMaker is needed for specification specific functions
     parts_maker: Box<PoolPartsMaker>,
     string_block: Rc<RefCell<StringBlock>>,
-    instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
     // type hierarchy array of "old" instances
-    own_new_instances: Vec<Ptr<SkillObject>>,
+    instances: Rc<RefCell<Vec<Ptr<SkillObject>>>>,
     // only of the specific UserType
+    own_new_instances: Vec<Ptr<SkillObject>>,
     fields: Vec<Box<RefCell<FieldDeclaration>>>,
     name: Rc<SkillString>,
     type_id: usize,
     blocks: Vec<Block>,
     super_pool: Option<Weak<RefCell<PoolProxy>>>,
     sub_pools: Vec<Weak<RefCell<PoolProxy>>>,
+    // used for iterators
     base_pool: Option<Weak<RefCell<PoolProxy>>>,
     // used for iterators
     next_pool: Option<Weak<RefCell<PoolProxy>>>,
-    // used for iterators
-    static_count: usize,
     // instances of the specific UserType
-    dynamic_count: usize,
+    static_count: usize,
     // instances of type hierarchy
-    cached_count: usize,
+    dynamic_count: usize,
     // cached dynamic count
-    deleted_count: usize,
+    cached_count: usize,
     // instances that will be deleted at flush / write
+    deleted_count: usize,
     type_hierarchy_height: usize,
     invariant: bool,
-    foreign_fields: bool,
     // needed for late initialization of foreign fields
+    foreign_fields: bool,
     block_reader: Weak<RefCell<Vec<FileReader>>>,
     type_pools: Weak<Vec<Rc<RefCell<PoolProxy>>>>,
 }
@@ -205,7 +205,7 @@ impl Pool {
         self.type_pools = Rc::downgrade(type_pools);
     }
 
-    /// initializes the fields after reading the skill binary file - necessary for all non foreign fields
+    /// Initializes the fields after reading the skill binary file - necessary for all non foreign fields
     pub(crate) fn lazy_initialize_fields(&self) -> Result<(), SkillFail> {
         let type_pools = Weak::upgrade(&self.type_pools)
             .ok_or(SkillFail::internal(InternalFail::MissingTypePools))?;
@@ -227,7 +227,7 @@ impl Pool {
         Ok(())
     }
 
-    /// initializes the fields after before writing the skill binary file - necessary for foreign fields
+    /// Initializes the fields after before writing the skill binary file - necessary for foreign fields
     pub fn initialize_all_fields(&self) -> Result<(), SkillFail> {
         debug!(
             target: "SkillWriting",
@@ -249,6 +249,11 @@ impl Pool {
                 &type_pools,
                 &instances,
             )?;
+        }
+        if let Some(pool) = self.super_pool.as_ref() {
+            if let Some(pool) = pool.upgrade() {
+                return pool.borrow().pool().initialize_all_fields();
+            }
         }
         Ok(())
     }
@@ -576,13 +581,24 @@ impl Pool {
             }
         }
     }
+
+    /// Used by iterators
+    ///
+    /// # Returns
+    /// The next pool in the type hierarchy
     pub(crate) fn get_next_pool(&self) -> Option<Weak<RefCell<PoolProxy>>> {
         self.next_pool.clone()
     }
+
+    /// Used by iterators
+    ///
+    /// # Returns
+    /// The height of the hierarchy
     pub(crate) fn type_hierarchy_height(&self) -> usize {
         self.type_hierarchy_height
     }
 
+    /// Collapses the field chunks into one
     pub(crate) fn compress_field_chunks(&mut self) {
         let total_count = self.get_global_cached_count();
         for f in self.fields.iter() {

@@ -5,6 +5,7 @@ use common::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// Pool that manages [`SkillString`]s
 pub struct StringPool {
     string_block: Rc<RefCell<StringBlock>>,
 }
@@ -40,6 +41,8 @@ impl StringPool {
         self.string_block.borrow_mut().compress()
     }
 
+    /// # Arguments
+    /// * `size` - Extends the reserved space for strings by the given amount
     pub fn extend(&mut self, size: usize) {
         self.string_block.borrow_mut().extend(size);
     }

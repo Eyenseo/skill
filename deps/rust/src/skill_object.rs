@@ -2,6 +2,9 @@ use common::error::*;
 
 pub(crate) const DELETE: usize = std::usize::MAX;
 
+/// Used to provide an interface to specify that a object is marked for deletion
+///
+/// # Note
 /// This is a shotgun to the foot, this has to be crate local but that is not possible in Rust
 /// - congratulations
 pub trait Deletable {

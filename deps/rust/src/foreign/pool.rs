@@ -8,8 +8,8 @@ use SkillFileBuilder;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
-/// Used to provide Pool special functions. In this case to make
-/// foreign::FieldDeclaration instances and Foreign instances
+/// Used to provide [`Pool`]'s special functions. In this case to make
+/// [`foreign::FieldDeclaration`] instances and [`foreign::Foreign`] instances
 struct Maker {
     super_pool: Option<Weak<RefCell<PoolProxy>>>,
 }
@@ -64,7 +64,7 @@ impl PoolPartsMaker for Maker {
     }
 }
 
-/// Manages all Foreign instances
+/// Manages all [foreign][`foreign::Foreign`] instances.
 pub struct Pool {
     pool: internal::Pool,
 }
@@ -89,22 +89,35 @@ impl Pool {
     /// Used to explicitly deserialize foreign fields or obtain field information
     ///
     /// # Returns
-    /// All FieldDeclarations that this type has
+    /// All field declaration that this type has
     pub fn fields(&self) -> &Vec<Box<RefCell<FieldDeclaration>>> {
         self.pool.fields()
     }
 
+    /// Used to initialize a specific field of a type hierarchy
+    ///
+    /// # Arguments
+    /// * `name` - Name of the field to initialize
     pub fn initialize_field(&self, name: &str) -> Result<(), SkillFail> {
-        // NOTE name is required to be a value to break borrow cycles
         self.pool.initialize_field(&name)
     }
+
+    /// Used to initialize all fields of a type hierarchy
     pub fn initialize_all(&self) -> Result<(), SkillFail> {
         self.pool.initialize_all_fields()
     }
+
+    /// # Returns
+    /// Name of this type
     pub fn name(&self) -> &Rc<SkillString> {
         self.pool.name()
     }
 
+    /// # Arguments
+    /// * `index` - Index/ID of the instance to obtain
+    ///
+    /// # Returns
+    /// User type instance of given id/index
     pub fn get(&self, index: usize) -> Result<Ptr<foreign::Foreign>, SkillFail> {
         match self.pool.read_object(index) {
             Ok(obj) => {

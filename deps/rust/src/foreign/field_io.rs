@@ -1,5 +1,5 @@
 use common::error::*;
-use common::internal::foreign::object::ForeignObject;
+use common::foreign::object::ForeignObject;
 use common::internal::io::*;
 use common::internal::*;
 use common::iterator::dynamic_instances;
@@ -11,7 +11,7 @@ use std::rc::Rc;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-/// Helper Iterator to reduce code duplication
+/// Internal helper iterator to reduce code duplication
 struct SingleItemIter<'a> {
     item: Option<&'a foreign::FieldData>,
 }
@@ -42,7 +42,7 @@ pub(crate) struct FieldIO {
     pub(crate) field_id: usize,
     pub(crate) field_type: FieldType,
     chunks: Vec<FieldChunk>,
-    read: bool,
+    read: bool, // flag that is set once the data is deserialized and ready for the user
 }
 
 impl FieldIO {
@@ -328,6 +328,7 @@ impl FieldIO {
         }
         Ok(offset)
     }
+
     fn write<'a, T>(
         writer: &mut FileWriter,
         field_type: &FieldType,

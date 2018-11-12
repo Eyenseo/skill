@@ -18,11 +18,12 @@ const BUFFER_SIZE: usize = 4096;
 /// enum that contains the different types of outputs
 #[derive(Debug)]
 enum Out<'v> {
-    Buffer(Box<[u8]>),
     // Buffer for small writes
-    MMap(MmapMut),
+    Buffer(Box<[u8]>),
     // mmap directly into the file
-    View(&'v mut [u8]), // view to jump over bits
+    MMap(MmapMut),
+    // view to jump over bits
+    View(&'v mut [u8]),
 }
 
 // The kind of output doesn't matter, all provide a slice / array to write into

@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 /// Type to manage strings
-// NOTE this has to be reworked so it really is one StringBlock per block - that is needed fpr multi block writing
+// NOTE this has to be reworked so it really is one StringBlock per block - that is needed for multi block writing
 #[derive(Default, Debug)]
 pub(crate) struct StringBlock {
     pool: Vec<Rc<SkillString>>,

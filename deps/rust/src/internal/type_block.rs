@@ -1,5 +1,5 @@
 use common::error::*;
-use common::internal::foreign;
+use common::foreign;
 use common::internal::io::*;
 use common::internal::*;
 use common::iterator::*;
@@ -8,7 +8,7 @@ use common::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-/// Type to read and write types and thier instances
+/// Type to read and write types and their instances
 // NOTE this has to be reworked so it really is one StringBlock per block - that is needed fpr multi block writing
 #[derive(Default)]
 pub(crate) struct TypeBlock {
@@ -133,7 +133,9 @@ impl TypeBlock {
                     }));
                 }
             }
+
             {
+                // local base pool offset calculation
                 let mut local_bpo = if let Some(base_pool) = type_pool.borrow().pool().get_base() {
                     base_pool
                         .upgrade()
@@ -179,6 +181,7 @@ impl TypeBlock {
                 let tmp = type_pool.get_global_static_count() + instances;
                 type_pool.set_global_static_count(tmp);
             }
+
             let field_declarations = reader.read_v64()? as usize;
             block_local_pools.push((type_pool, field_declarations));
         }

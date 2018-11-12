@@ -7,7 +7,9 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 /// Struct that is used to represent instances of types that where not known
-/// at generation time and that do not have a known super type
+/// at generation time and that do not have a known super type.
+///
+/// Its main use is to implement [`foreign::ForeignObject`] that allows to access [field data][`foreign::FieldData`] of fields that were not known at generation time.
 #[derive(Default, Debug)]
 #[repr(C)]
 pub struct Foreign {
@@ -17,9 +19,16 @@ pub struct Foreign {
     foreign_fields: HashMap<Rc<SkillString>, foreign::FieldData>,
 }
 
-/// Accessor trait
+/// Accessor trait for all fields that where not known at generation time.
+///
+/// Users can use this trait's functions to obtain [field data][`foreign::FieldData`] of these
+/// foreign fields to work with them.
 pub trait ForeignObject: SkillObject {
+    /// # Returns
+    /// Map of field identifiers to immutable [field data][`foreign::FieldData`]
     fn foreign_fields(&self) -> &HashMap<Rc<SkillString>, foreign::FieldData>;
+    /// # Returns
+    /// Map of field identifiers to mutable [field data][`foreign::FieldData`]
     fn foreign_fields_mut(&mut self) -> &mut HashMap<Rc<SkillString>, foreign::FieldData>;
 }
 

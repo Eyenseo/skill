@@ -57,7 +57,7 @@ trait LibMaker extends GeneralOutputMaker {
                   §pub mod common;
                   §
                   §mod skill_file;
-                  §pub mod ptr;
+                  §pub(crate) mod ptr;
                   §
                   §pub(crate) use self::skill_file::SkillFileBuilder;
                   §pub use self::skill_file::FileMode;

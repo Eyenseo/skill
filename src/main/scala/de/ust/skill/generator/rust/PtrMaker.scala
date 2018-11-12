@@ -38,7 +38,7 @@ trait PtrMaker extends GeneralOutputMaker {
 
     ret.append(
                 e"""use common::*;
-                   §use common::internal::foreign;
+                   §use common::foreign;
                    §use common::ptr::VTable;
                    §use common::ptr::TraitObject;
                    §use common::ptr::CastAble;
