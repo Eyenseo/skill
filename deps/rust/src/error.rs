@@ -228,7 +228,7 @@ pub enum UserFail {
     UnknownField { name: String },
 }
 
-/// Collapses the verbosity of the different of `InternalFail` and `UserFail` errors into a single type.
+/// Collapses the verbosity of the different of [`InternalFail`] and [`UserFail`] errors into a single type.
 #[derive(Fail, Debug)]
 pub enum SkillFail {
     #[fail(display = "An internal error occurred: {}", cause)]
@@ -244,12 +244,22 @@ pub enum SkillFail {
 }
 
 impl SkillFail {
+    /// # Arguments
+    /// * `cause` - Cause of the fail
+    ///
+    /// # Returns
+    /// Wrapped Fail
     pub fn internal(cause: InternalFail) -> SkillFail {
         SkillFail::Internal {
             cause,
             backtrace: Backtrace::new(),
         }
     }
+    /// # Arguments
+    /// * `cause` - Cause of the fail
+    ///
+    /// # Returns
+    /// Wrapped Fail
     pub fn user(cause: UserFail) -> SkillFail {
         SkillFail::User {
             cause,

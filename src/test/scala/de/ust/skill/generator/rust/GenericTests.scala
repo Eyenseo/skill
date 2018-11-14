@@ -56,28 +56,28 @@ class GenericTests extends common.GenericTests {
 
   val skipGeneration = Array(
                               // "age",
-                              // "annotation",
-                              // "auto",
-                              // "basicTypes",
-                              // "constants",
-                              // "container",
-                              // "custom",
-                              // "empty",
-                              // "enums", // TODO - is this really successful?
-                              // "escaping",
-                              // "fancy",
-                              // "floats",
-                              // "graph",
-                              // "graphInterface", // TODO - is this really successful?
-                              // "hintsAll", // TODO - is this really successful?
-                              // "map3",
-                              // "number",
-                              // "restrictionsAll",
-                              // "restrictionsCore",
-                              // "subtypes",
-                              // "unicode",
-                              // "unknown",
-                              // "user",
+                               "annotation",
+                               "auto",
+                               "basicTypes",
+                               "constants",
+                               "container",
+                               "custom",
+                               "empty",
+                               "enums", // TODO - is this really successful?
+                               "escaping",
+                               "fancy",
+                               "floats",
+                               "graph",
+                               "graphInterface", // TODO - is this really successful?
+                               "hintsAll", // TODO - is this really successful?
+                               "map3",
+                               "number",
+                               "restrictionsAll",
+                               "restrictionsCore",
+                               "subtypes",
+                               "unicode",
+                               "unknown",
+                               "user",
                               "",
                             )
 

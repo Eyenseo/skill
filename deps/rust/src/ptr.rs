@@ -119,6 +119,10 @@ mod diggsey {
 
 pub(crate) use self::diggsey::*;
 
+/// Needed to obtain the correct index into the vtable lookup table to perform the casts.
+///
+/// Users should not touch this as this only works with the generator and the visibility
+/// of the trait itself is the result of poor choices by Rust's visibility rules
 pub trait CastAble {
     /// # Returns
     /// id / index into the vtable lookup table

@@ -138,6 +138,10 @@ trait PtrMaker extends GeneralOutputMaker {
     val maps = makeInheritanceMap()
 
     e"""lazy_static! {
+       §    /// Lookup table for valid casts that [`common::Ptr`] may perform
+       §    /// First dimension is the original/true type, the second one is the
+       §    /// vtable of the companion trait to the struct. If no vtable is present
+       §    /// the cast is invalid
        §    pub(crate) static ref VALID_CASTS: [[Option<VTable>; ${
       IR.size + IRInterfaces.size + 2
     }]; ${
@@ -166,12 +170,13 @@ trait PtrMaker extends GeneralOutputMaker {
   // CastAbles
   //----------------------------------------
   private final def genCastAbles(): String = {
-    e"""impl CastAble for foreign::Foreign {
+    e"""// CastAble implementations are needed to access the valid cast array.
+       §impl CastAble for foreign::Foreign {
        §    fn cast_id() -> usize {
        §        ${IR.size}
        §    }
        §}
-       § §impl CastAble for SkillObject {
+       §impl CastAble for SkillObject {
        §    fn cast_id() -> usize {
        §        ${IR.size + IRInterfaces.size + 1}
        §    }

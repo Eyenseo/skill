@@ -26,13 +26,20 @@ trait LibMaker extends GeneralOutputMaker {
     val out = files.open("src/lib.rs")
 
     out.write(
-               e"""// FIXME remove
+               e"""//! Generated crate for $packageName.
+                  §//! Apart from the modules generated from your configuration there is also the `common` module,
+                  §//! that contains modules and types that are available for all bindings.
+                  §//!
+                  §//! # See also
+                  §//! - [`SkillFile`]
+                  §//! - [`common::Ptr`]
+                  §//! - [`common::SkillString`]
+                  §//! - [`common::error::SkillFail`]
+                  §
                   §#![allow(unused_imports)]
                   §#![allow(unused_variables)]
                   §#![allow(unused_mut)]
                   §#![allow(dead_code)]
-                  §
-                  §#![recursion_limit="128"]
                   §
                   §#![feature(nll)]
                   §#![feature(coerce_unsized)]

@@ -9,7 +9,7 @@ import java.io.File
 import java.nio.file.Files
 
 /**
-  * Copies the dependencies that cant be a separate crate because of the vtable lookup table
+  * Copies the dependencies that can't be a separate crate because of the vtable lookup table for Ptr<T>
   */
 trait DependenciesMaker extends GeneralOutputMaker {
 

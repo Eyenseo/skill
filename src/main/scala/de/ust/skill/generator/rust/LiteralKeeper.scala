@@ -64,9 +64,12 @@ trait LiteralKeeper extends GeneralOutputMaker {
   }.trim
 
   def genLiteralKeeperStruct(): String = {
-    e"""#[derive(Debug)]
+    e"""/// The LiteralKeeper keeps all [`common::SkillString`]s that are used as literals.
+       §/// The main objective is to improve the performance of comparisons at deserialization
+       §/// time as well as to prevent pruning of [`common::SkillString`]s that are part of the type system
+       §#[derive(Debug)]
        §pub(crate) struct LiteralKeeper {
-       §   ${
+       §   ${ // Generate all literal strings as attributes
       (for (s ← allStrings._1; name = getName(s)) yield {
         e"""pub(crate) $name: &'static str,
            §""".stripMargin('§')
@@ -84,6 +87,11 @@ trait LiteralKeeper extends GeneralOutputMaker {
 
   def genLiteralKeeperImpl(): String = {
     e"""impl LiteralKeeper {
+       §    /// # Arguments
+       §    /// * `lit` - string to check if it is a literal
+       §    ///
+       §    /// # Returns
+       §    /// A literal string, if the given String is a literal or `None`
        §    pub(crate) fn get(&mut self, lit: &Rc<SkillString>) -> Option<Rc<SkillString>> {
        §        if let Some(s) = self.set.get(lit) {
        §            Some(s.clone())
@@ -92,6 +100,8 @@ trait LiteralKeeper extends GeneralOutputMaker {
        §        }
        §    }
        §
+       §    /// # Returns
+       §    /// `Set` that contains all literals that the `LiteralKeeper` knows
        §    pub(crate) fn get_set(&self) -> &HashSet<Rc<SkillString>> {
        §        &self.set
        §    }
@@ -103,7 +113,7 @@ trait LiteralKeeper extends GeneralOutputMaker {
     e"""impl Default for LiteralKeeper {
        §    fn default() -> LiteralKeeper {
        §        let mut lit = LiteralKeeper {
-       §            ${
+       §            ${ // Generate all literal string initialisations
       (for (s ← allStrings._1; name = getName(s)) yield {
         e"""$name: "$s",
            §""".stripMargin('§')
@@ -116,7 +126,7 @@ trait LiteralKeeper extends GeneralOutputMaker {
     }
        §            set: HashSet::with_capacity(${allStrings._1.size + allStrings._2.size}),
        §        };
-       §        ${
+       §        ${// Generate all literal strings set
       (for (s ← allStrings._1; name = getName(s)) yield {
         e"""lit.set.insert(Rc::new(SkillString::from(Cow::from(lit.$name))));
            §""".stripMargin('§')
@@ -133,6 +143,10 @@ trait LiteralKeeper extends GeneralOutputMaker {
        §""".stripMargin('§')
   }.trim
 
+  /**
+    * @param name Raw string to find the Name for, to generate a snake_cased version
+    * @return snake_cased version of the given string
+    */
   private final def getName(name: String): String = {
     // TODO this shouldn't be needed and the names should be provided not in string from
 
