@@ -25,7 +25,9 @@ trait TypesMaker extends GeneralOutputMaker {
       val out = files.open(s"src/${field(base)}.rs")
 
       out.write(
-                 e"""${genUsage(base)}
+                 e"""//! Module for user defined type ${base.getName} aka ${name(base)}
+                    §
+                    §${genUsage(base)}
                     §
                     §${genType(base)}
                     §
@@ -119,7 +121,6 @@ trait TypesMaker extends GeneralOutputMaker {
     e"""//----------------------------------------
        §// ${base.getName} aka ${name(base)}
        §//----------------------------------------
-       §
        §${genTypeTrait(base)}
        §
        §""".stripMargin('§')
@@ -143,7 +144,11 @@ trait TypesMaker extends GeneralOutputMaker {
 
   private final def genTypeStruct(base: UserType): String = {
     // NOTE be sure to change foreign::ForeignObject too!
-    e"""#[derive(Default, Debug)]
+    e"""/// This struct represents the user defiened type ${base.getName}
+       §///
+       §/// Use [`${traitName(base)}`] to implement methods that should be visible
+       §/// for derived types.
+       §#[derive(Default, Debug)]
        §#[repr(C)]
        §pub struct ${name(base)} {
        §    z_skill_id: Cell<usize>,
@@ -178,7 +183,12 @@ trait TypesMaker extends GeneralOutputMaker {
       com += "\n"
     }
 
-    e"""${com}pub trait ${traitName(base)}: ${
+    e"""/// This trait represents the user defined type ${base.getName}
+       §///
+       §/// This trait should be generally preferred to implement methods over
+       §/// the accompanying struct [`${name(base)}`] as derived types will inherit /
+       §/// be able to call methods implement for their parent traits
+       §${com}pub trait ${traitName(base)}: ${
       var supers = (base.getSuperInterfaces.asScala.toList ::: List(base.getSuperType)).filterNot(_ == null)
 
       base match {
@@ -252,7 +262,9 @@ trait TypesMaker extends GeneralOutputMaker {
   }.trim
 
   private final def genGetSetImpl(field: Field): String = {
-    e"""fn get_${name(field)}(&self) -> ${
+    e"""/// # Returns
+       §/// Value of user defiened field ${field.getName.getSkillName}
+       §fn get_${name(field)}(&self) -> ${
       if (field.getType.isInstanceOf[ReferenceType] || field.getType.isInstanceOf[ContainerType]) {
         "&" + mapType(field.getType)
       } else {
@@ -278,6 +290,8 @@ trait TypesMaker extends GeneralOutputMaker {
       if (!field.isConstant &&
           (field.getType.isInstanceOf[ReferenceType] || field.getType.isInstanceOf[ContainerType])) {
         e"""
+           §/// # Returns
+           §/// Value of user defined field ${field.getName.getSkillName} with mutable access
            §fn get_${name(field)}_mut(&mut self) -> &mut ${mapType(field.getType)} {
            §    &mut self.${name(field)}
            §}""".stripMargin('§')
@@ -287,6 +301,8 @@ trait TypesMaker extends GeneralOutputMaker {
     }${
       if (!field.isConstant) {
         e"""
+           §/// # Arguments
+           §/// * `value` - the value that shall be asrigned to the user defined field ${field.getName.getSkillName}
            §fn set_${name(field)}(&mut self, value: ${mapType(field.getType)}) {
            §    self.${name(field)} = value;
            §}""".stripMargin('§')
@@ -465,6 +481,9 @@ trait TypesMaker extends GeneralOutputMaker {
     e"""//----------------------------------------
        §// ${base.getName}PoolPartsMaker aka ${poolPartsMaker(base)}
        §//----------------------------------------
+       §/// This type is a helper for the [`${pool(base)}`]
+       §///
+       §/// The type is needed for binding internal code reuse
        §#[derive(Default)]
        §pub(crate) struct ${poolPartsMaker(base)} {
        §    type_name: Rc<SkillString>,
@@ -750,7 +769,8 @@ trait TypesMaker extends GeneralOutputMaker {
   }.trim
 
   private final def genPoolStruct(base: UserType): String = {
-    e"""pub struct ${storagePool(base)} {
+    e"""/// This pool is responsible for the management of instances of type ${base.getName} aka [`${name(base)}`]
+       §pub struct ${storagePool(base)} {
        §    pool: Pool,
        §    string_pool: Rc<RefCell<StringBlock>>,
        §}""".stripMargin('§')
@@ -774,6 +794,11 @@ trait TypesMaker extends GeneralOutputMaker {
        §        }
        §    }
        §
+       §    /// # Arguments
+       §    /// * `index` - Index/ID of the object to retrieve
+       §    ///
+       §    /// # Returns
+       §    /// Instance of given index
        §    pub fn get(&self, index: usize) -> Result<Ptr<${name(base)}>, SkillFail> {
        §        match self.pool.read_object(index) {
        §            Ok(obj) => {
@@ -789,6 +814,10 @@ trait TypesMaker extends GeneralOutputMaker {
        §        }
        §    }
        §
+       §    /// Adds a new instance of type [`${name(base)}`] to the pool
+       §    ///
+       §    /// # Returns
+       §    /// The newly added instance
        §    pub fn add(&mut self) -> Ptr<${name(base)}> {
        §        let ret = Ptr::new(${name(base)}::new(0, self.pool.get_type_id()));
        §        self.pool.add(ret.clone());
@@ -803,13 +832,21 @@ trait TypesMaker extends GeneralOutputMaker {
        §        self.pool.fields()
        §    }
        §
+       §    /// Used to explicitly deserialize foreign fields
+       §    ///
+       §    /// # Arguments
+       §    /// * `name` - Name of the field to deserialise
        §    pub fn initialize_field(&self, name: &str) -> Result<(), SkillFail> {
-       §        // NOTE name is required to be a value to break borrow cycles
        §        self.pool.initialize_field(&name)
        §    }
+       §
+       §    /// Used to explicitly deserialize aii foreign fields
        §    pub fn initialize_all(&self) -> Result<(), SkillFail> {
        §        self.pool.initialize_all_fields()
        §    }
+       §
+       §    /// # Returns [`${name(base)}`]
+       §    /// The name of managed object's type
        §    pub fn name(&self) -> &Rc<SkillString> {
        §        self.pool.name()
        §    }
@@ -856,7 +893,7 @@ trait TypesMaker extends GeneralOutputMaker {
                §            Box::new(${fieldIO(base, ft)}::new(
                §                string_pool.add(name),
                §                index,
-               §                ${mapTypeToMagicDef(ft)},
+               §                ${mapTypeToMagicInit(ft)},
                §                ${
               val userTypes = collectUserTypes(ft.getType)
               if (userTypes.nonEmpty) {
@@ -906,11 +943,11 @@ trait TypesMaker extends GeneralOutputMaker {
                   e"""//----------------------------------------
                      §// ${base.getName.camel() + field.getName.capital()}FieldIO aka ${fieldIO(base, field)}
                      §//----------------------------------------
-                     §${genFieldDeclarationType(base, field)}
+                     §${genFieldIOType(base, field)}
                      §
-                     §${genFieldDeclarationImpl(base, field)}
+                     §${genFieldIOImpl(base, field)}
                      §
-                     §${genFieldDeclarationImplFieldDeclaration(base, field)}
+                     §${genFieldIOImplFieldDeclaration(base, field)}
                      §
                      §""".stripMargin('§')
                 )
@@ -918,9 +955,10 @@ trait TypesMaker extends GeneralOutputMaker {
     ret.mkString.trim
   }
 
-  private final def genFieldDeclarationType(base: UserType,
-                                            field: Field): String = {
-    e"""struct ${fieldIO(base, field)} {
+  private final def genFieldIOType(base: UserType,
+                                   field: Field): String = {
+    e"""/// Struct that manages user defined fields with [`FieldDeclaration`] instances
+       §struct ${fieldIO(base, field)} {
        §    name: Rc<SkillString>,
        §    field_id: usize, // Index into the pool fields vector
        §    field_type: FieldType,
@@ -936,8 +974,8 @@ trait TypesMaker extends GeneralOutputMaker {
        §}""".stripMargin('§')
   }
 
-  private final def genFieldDeclarationImpl(base: UserType,
-                                            field: Field): String = {
+  private final def genFieldIOImpl(base: UserType,
+                                   field: Field): String = {
     val userType = collectUserTypes(field.getType)
     if (userType.isEmpty) {
       e"""impl ${fieldIO(base, field)} {
@@ -974,8 +1012,8 @@ trait TypesMaker extends GeneralOutputMaker {
     }
   }
 
-  private final def genFieldDeclarationImplFieldDeclaration(base: UserType,
-                                                            f: Field): String = {
+  private final def genFieldIOImplFieldDeclaration(base: UserType,
+                                                   f: Field): String = {
     e"""impl FieldIO for ${fieldIO(base, f)} {
        §    fn lazy_read(
        §        &self,
@@ -1019,7 +1057,7 @@ trait TypesMaker extends GeneralOutputMaker {
            §                        ${
           if (f.isConstant) {
             e"""let val = ${
-              genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
+              genFieldIOImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
             };
                §if unsafe {
                §    std::mem::transmute::<${
@@ -1044,7 +1082,7 @@ trait TypesMaker extends GeneralOutputMaker {
             e"""match obj.cast::<${name(base)}>() {
                §    Some(obj) =>
                §        obj.borrow_mut().set_${name(f)}(${
-              genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
+              genFieldIOImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
             }),
                §    None => return Err(SkillFail::internal(InternalFail::BadCast)),
                §}""".stripMargin('§')
@@ -1076,7 +1114,7 @@ trait TypesMaker extends GeneralOutputMaker {
            §                    match obj.cast::<${name(base)}>() {
            §                        Some(obj) =>
            §                            obj.borrow_mut().set_${name(f)}(${
-          genFieldDeclarationImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
+          genFieldIOImplFieldDeclarationRead(f.getType, Stream.iterate(0)(_ + 1).iterator)
         }),
            §                        None => return Err(SkillFail::internal(InternalFail::BadCast)),
            §                    }
@@ -1126,7 +1164,7 @@ trait TypesMaker extends GeneralOutputMaker {
        §            }));
        §    }
        §    fn offset(&self, iter: dynamic_instances::Iter) -> Result<usize, SkillFail> {
-       §        ${genFieldDeclarationImplFieldDeclarationOffset(base, f)}
+       §        ${genFieldIOImplFieldDeclarationOffset(base, f)}
        §    }
        §    fn write_meta(&mut self, writer: &mut FileWriter, iter: dynamic_instances::Iter, offset: usize) -> Result<usize, SkillFail> {
        §        debug!(
@@ -1176,14 +1214,14 @@ trait TypesMaker extends GeneralOutputMaker {
        §            let tmp = i.cast::<${name(base)}>().unwrap();
        §            let tmp = tmp.borrow(); // borrowing madness
        §            let val = tmp.get_${field(f)}();
-       §            ${genFieldDeclarationImplFieldDeclarationWrite(f.getType)}
+       §            ${genFieldIOImplFieldDeclarationWrite(f.getType)}
        §        }
        §        Ok(())
        §    }
        §}""".stripMargin('§')
   }
 
-  private final def genFieldDeclarationImplFieldDeclarationOffset(base: Type, f: Field): String = {
+  private final def genFieldIOImplFieldDeclarationOffset(base: Type, f: Field): String = {
     f.getType match {
       case ft: GroundType              ⇒
         ft.getSkillName match {
@@ -1250,7 +1288,7 @@ trait TypesMaker extends GeneralOutputMaker {
            §    let tmp = i.cast::<${name(base)}>().unwrap();
            §    let tmp = tmp.borrow(); // borrowing madness
            §    for val in tmp.get_${field(f)}().iter() {
-           §        offset += ${genFieldDeclarationImplFieldDeclarationOffsetInner(ft.getBaseType)};
+           §        offset += ${genFieldIOImplFieldDeclarationOffsetInner(ft.getBaseType)};
            §    }
            §}
            §Ok(offset)
@@ -1262,7 +1300,7 @@ trait TypesMaker extends GeneralOutputMaker {
            §    let tmp = tmp.borrow(); // borrowing madness
            §    offset += bytes_v64(tmp.get_${field(f)}().len() as i64);
            §    for val in tmp.get_${field(f)}().iter() {
-           §        offset += ${genFieldDeclarationImplFieldDeclarationOffsetInner(ft.getBaseType)};
+           §        offset += ${genFieldIOImplFieldDeclarationOffsetInner(ft.getBaseType)};
            §    }
            §}
            §Ok(offset)
@@ -1273,7 +1311,7 @@ trait TypesMaker extends GeneralOutputMaker {
            §    let tmp = i.cast::<${name(base)}>().unwrap();
            §    let tmp = tmp.borrow(); // borrowing madness
            §    let val = tmp.get_${field(f)}();
-           §    ${genFieldDeclarationImplFieldDeclarationOffsetMap(ft.getBaseTypes.asScala.toList)}
+           §    ${genFieldIOImplFieldDeclarationOffsetMap(ft.getBaseTypes.asScala.toList)}
            §}
            §Ok(offset)
            §""".stripMargin('§')
@@ -1342,7 +1380,7 @@ trait TypesMaker extends GeneralOutputMaker {
     }
   }.trim
 
-  private final def genFieldDeclarationImplFieldDeclarationOffsetInner(base: Type): String = {
+  private final def genFieldIOImplFieldDeclarationOffsetInner(base: Type): String = {
     base match {
       case t: GroundType              ⇒
         t.getSkillName match {
@@ -1389,7 +1427,7 @@ trait TypesMaker extends GeneralOutputMaker {
         e"""{
            §    let mut offset = 0;
            §    for val in val {
-           §        offset += ${genFieldDeclarationImplFieldDeclarationOffsetInner(t.getBaseType)};
+           §        offset += ${genFieldIOImplFieldDeclarationOffsetInner(t.getBaseType)};
            §    }
            §    offset
            §}
@@ -1399,7 +1437,7 @@ trait TypesMaker extends GeneralOutputMaker {
            §    let mut offset = 0;
            §    offset += bytes_v64(val.len() as i64);
            §    for val in val {
-           §        offset += ${genFieldDeclarationImplFieldDeclarationOffsetInner(t.getBaseType)};
+           §        offset += ${genFieldIOImplFieldDeclarationOffsetInner(t.getBaseType)};
            §    }
            §    offset
            §}
@@ -1407,7 +1445,7 @@ trait TypesMaker extends GeneralOutputMaker {
       case t: MapType                 ⇒
         e"""{
            §    let mut offset = 0;
-           §    ${genFieldDeclarationImplFieldDeclarationOffsetMap(t.getBaseTypes.asScala.toList)}
+           §    ${genFieldIOImplFieldDeclarationOffsetMap(t.getBaseTypes.asScala.toList)}
            §}
            §offset
            §""".stripMargin('§')
@@ -1458,7 +1496,7 @@ trait TypesMaker extends GeneralOutputMaker {
   }.trim
 
 
-  private final def genFieldDeclarationImplFieldDeclarationOffsetMap(tts: List[Type]): String = {
+  private final def genFieldIOImplFieldDeclarationOffsetMap(tts: List[Type]): String = {
     val (key, remainder) = tts.splitAt(1)
 
     if (remainder.size > 1) {
@@ -1466,9 +1504,9 @@ trait TypesMaker extends GeneralOutputMaker {
          §for (key, val) in val.iter() {
          §    {
          §        let val = key;
-         §        offset += ${genFieldDeclarationImplFieldDeclarationOffsetInner(key.head)};
+         §        offset += ${genFieldIOImplFieldDeclarationOffsetInner(key.head)};
          §    }
-         §    ${genFieldDeclarationImplFieldDeclarationOffsetMap(remainder)}
+         §    ${genFieldIOImplFieldDeclarationOffsetMap(remainder)}
          §}
          §""".stripMargin('§')
     } else {
@@ -1476,15 +1514,15 @@ trait TypesMaker extends GeneralOutputMaker {
          §for (key, val) in val.iter() {
          §    {
          §        let val = key;
-         §        offset += ${genFieldDeclarationImplFieldDeclarationOffsetInner(key.head)};
+         §        offset += ${genFieldIOImplFieldDeclarationOffsetInner(key.head)};
          §    }
-         §    offset += ${genFieldDeclarationImplFieldDeclarationOffsetInner(remainder.head)};
+         §    offset += ${genFieldIOImplFieldDeclarationOffsetInner(remainder.head)};
          §}
          §""".stripMargin('§')
     }
   }.trim
 
-  private final def genFieldDeclarationImplFieldDeclarationWrite(ft: Type): String = {
+  private final def genFieldIOImplFieldDeclarationWrite(ft: Type): String = {
     ft match {
       case ft: GroundType              ⇒
         ft.getSkillName match {
@@ -1545,17 +1583,17 @@ trait TypesMaker extends GeneralOutputMaker {
         }
       case ft: ConstantLengthArrayType ⇒
         e"""for val in val.iter() {
-           §    ${genFieldDeclarationImplFieldDeclarationWriteInner(ft.getBaseType)};
+           §    ${genFieldIOImplFieldDeclarationWriteInner(ft.getBaseType)};
            §}
            §""".stripMargin('§')
       case ft: SingleBaseTypeContainer ⇒
         e"""writer.write_v64(val.len() as i64)?;
            §for val in val.iter() {
-           §    ${genFieldDeclarationImplFieldDeclarationWriteInner(ft.getBaseType)};
+           §    ${genFieldIOImplFieldDeclarationWriteInner(ft.getBaseType)};
            §}
            §""".stripMargin('§')
       case ft: MapType                 ⇒
-        genFieldDeclarationImplFieldDeclarationWriteMap(ft.getBaseTypes.asScala.toList)
+        genFieldIOImplFieldDeclarationWriteMap(ft.getBaseTypes.asScala.toList)
       case _: UserType                 ⇒
         e"""match val {
            §    Some(ref val) => match val.upgrade() {
@@ -1613,7 +1651,7 @@ trait TypesMaker extends GeneralOutputMaker {
     }
   }.trim
 
-  private final def genFieldDeclarationImplFieldDeclarationWriteInner(ft: Type): String = {
+  private final def genFieldIOImplFieldDeclarationWriteInner(ft: Type): String = {
     ft match {
       case ft: GroundType              ⇒
         ft.getSkillName match {
@@ -1674,17 +1712,17 @@ trait TypesMaker extends GeneralOutputMaker {
         }
       case ft: ConstantLengthArrayType ⇒
         e"""for val in val.iter() {
-           §    ${genFieldDeclarationImplFieldDeclarationWrite(ft.getBaseType)};
+           §    ${genFieldIOImplFieldDeclarationWrite(ft.getBaseType)};
            §}
            §""".stripMargin('§')
       case ft: SingleBaseTypeContainer ⇒
         e"""writer.write_v64(val.len() as i64)?;
            §for val in val.iter() {
-           §    ${genFieldDeclarationImplFieldDeclarationWrite(ft.getBaseType)};
+           §    ${genFieldIOImplFieldDeclarationWrite(ft.getBaseType)};
            §}
            §""".stripMargin('§')
       case ft: MapType                 ⇒
-        genFieldDeclarationImplFieldDeclarationWriteMap(ft.getBaseTypes.asScala.toList)
+        genFieldIOImplFieldDeclarationWriteMap(ft.getBaseTypes.asScala.toList)
       case _: UserType                 ⇒
         e"""match val {
            §    Some(ref val) => match val.upgrade() {
@@ -1742,7 +1780,7 @@ trait TypesMaker extends GeneralOutputMaker {
     }
   }.trim
 
-  private final def genFieldDeclarationImplFieldDeclarationWriteMap(tts: List[Type]): String = {
+  private final def genFieldIOImplFieldDeclarationWriteMap(tts: List[Type]): String = {
     val (key, remainder) = tts.splitAt(1)
 
     if (remainder.size > 1) {
@@ -1750,9 +1788,9 @@ trait TypesMaker extends GeneralOutputMaker {
          §for (key, val) in val.iter() {
          §    {
          §        let val = key;
-         §        ${genFieldDeclarationImplFieldDeclarationWriteInner(key.head)};
+         §        ${genFieldIOImplFieldDeclarationWriteInner(key.head)};
          §    }
-         §    ${genFieldDeclarationImplFieldDeclarationWriteMap(remainder)}
+         §    ${genFieldIOImplFieldDeclarationWriteMap(remainder)}
          §}
          §""".stripMargin('§')
     } else {
@@ -1760,16 +1798,16 @@ trait TypesMaker extends GeneralOutputMaker {
          §for (key, val) in val.iter() {
          §    {
          §        let val = key;
-         §        ${genFieldDeclarationImplFieldDeclarationWriteInner(key.head)};
+         §        ${genFieldIOImplFieldDeclarationWriteInner(key.head)};
          §    }
-         §    ${genFieldDeclarationImplFieldDeclarationWriteInner(remainder.head)}
+         §    ${genFieldIOImplFieldDeclarationWriteInner(remainder.head)}
          §}
          §""".stripMargin('§')
     }
   }.trim
 
-  private final def genFieldDeclarationImplFieldDeclarationRead(base: Type,
-                                                                user: Iterator[Int]): String = {
+  private final def genFieldIOImplFieldDeclarationRead(base: Type,
+                                                       user: Iterator[Int]): String = {
     base match {
       case t: GroundType
         if t.getName.lower().equals("string")     ⇒
@@ -1797,7 +1835,7 @@ trait TypesMaker extends GeneralOutputMaker {
         e"""{
            §    let mut arr:${mapType(t)} = ${defaultValue(t)};
            §    for i in 0..${t.getLength} {
-           §        arr[i] = ${genFieldDeclarationImplFieldDeclarationRead(t.getBaseType, user)};
+           §        arr[i] = ${genFieldIOImplFieldDeclarationRead(t.getBaseType, user)};
            §    }
            §    arr
            §}
@@ -1808,7 +1846,7 @@ trait TypesMaker extends GeneralOutputMaker {
            §    let mut vec = Vec::new();
            §    vec.reserve(elements);
            §    for _ in 0..elements {
-           §        vec.push(${genFieldDeclarationImplFieldDeclarationRead(t.getBaseType, user)});
+           §        vec.push(${genFieldIOImplFieldDeclarationRead(t.getBaseType, user)});
            §    }
            §    vec
            §}
@@ -1818,7 +1856,7 @@ trait TypesMaker extends GeneralOutputMaker {
            §    let elements = reader.read_v64()? as usize;
            §    let mut list = LinkedList::new();
            §    for _ in 0..elements {
-           §        list.push_back(${genFieldDeclarationImplFieldDeclarationRead(t.getBaseType, user)});
+           §        list.push_back(${genFieldIOImplFieldDeclarationRead(t.getBaseType, user)});
            §    }
            §    list
            §}
@@ -1829,13 +1867,13 @@ trait TypesMaker extends GeneralOutputMaker {
            §    let mut set = HashSet::new();
            §    set.reserve(elements);
            §    for _ in 0..elements {
-           §        set.insert(${genFieldDeclarationImplFieldDeclarationRead(t.getBaseType, user)});
+           §        set.insert(${genFieldIOImplFieldDeclarationRead(t.getBaseType, user)});
            §    }
            §    set
            §}
            §""".stripMargin('§')
       case t: MapType                             ⇒
-        genFieldDeclarationImplFieldDeclarationReadMap(t.getBaseTypes.asScala.toList, user)
+        genFieldIOImplFieldDeclarationReadMap(t.getBaseTypes.asScala.toList, user)
       case t: UserType                            ⇒
         e"""{
            §    let object = reader.read_v64()? as usize;
@@ -1899,7 +1937,7 @@ trait TypesMaker extends GeneralOutputMaker {
   }.trim
 
 
-  private final def genFieldDeclarationImplFieldDeclarationReadMap(tts: List[Type], user: Iterator[Int]): String = {
+  private final def genFieldIOImplFieldDeclarationReadMap(tts: List[Type], user: Iterator[Int]): String = {
     val (key, remainder) = tts.splitAt(1)
 
     if (remainder.nonEmpty) {
@@ -1909,17 +1947,20 @@ trait TypesMaker extends GeneralOutputMaker {
          §    map.reserve(elements);
          §    for _ in 0..elements {
          §        map.insert(
-         §            ${genFieldDeclarationImplFieldDeclarationRead(key.head, user)},
-         §            ${genFieldDeclarationImplFieldDeclarationReadMap(remainder, user)},
+         §            ${genFieldIOImplFieldDeclarationRead(key.head, user)},
+         §            ${genFieldIOImplFieldDeclarationReadMap(remainder, user)},
          §        );
          §    }
          §    map
          §}""".stripMargin('§')
     } else {
-      genFieldDeclarationImplFieldDeclarationRead(key.head, user)
+      genFieldIOImplFieldDeclarationRead(key.head, user)
     }
   }
 
+  /**
+    * Maps a type to the BuildInType enum values found in the magic.rs file
+    */
   private final def mapTypeToMagic(t: Type, const: Boolean = false): String = t match {
     case t: GroundType if t.isInteger && const ⇒
       s"BuildInType::ConstT${t.getName.lower}"
@@ -1935,6 +1976,9 @@ trait TypesMaker extends GeneralOutputMaker {
     case _ ⇒ throw new GeneratorException(s"Unknown type $t")
   }
 
+  /**
+    * Maps a type to the BuildInType enum matches
+    */
   private final def mapTypeToMagicMatch(t: Type, const: Boolean = false): String = t match {
     case _: ConstantLengthArrayType                                ⇒
       s"FieldType::BuildIn(${mapTypeToMagic(t)}(length, ref box_v))"
@@ -1956,7 +2000,10 @@ trait TypesMaker extends GeneralOutputMaker {
 
   }
 
-  private final def mapTypeToMagicDef(f: Field): String = {
+  /**
+    * Maps a type to the BuildInType enum initialisation
+    */
+  private final def mapTypeToMagicInit(f: Field): String = {
     if (f.isConstant) {
       f.getType match {
         case t: GroundType if t.isInteger ⇒
@@ -1969,26 +2016,29 @@ trait TypesMaker extends GeneralOutputMaker {
           throw new GeneratorException("Non integer const field");
       }
     } else {
-      mapTypeToMagicDef(f.getType)
+      mapTypeToMagicInit(f.getType)
     }
   }
 
-  private final def mapTypeToMagicDef(t: Type): String = t match {
+  /**
+    * Maps a type to the BuildInType enum initialisation
+    */
+  private final def mapTypeToMagicInit(t: Type): String = t match {
     case t: ConstantLengthArrayType ⇒
       e"""FieldType::BuildIn(${mapTypeToMagic(t)}(
          §    ${t.getLength},
          §    Box::new(
-         §        ${mapTypeToMagicDef(t.getBaseType)}
+         §        ${mapTypeToMagicInit(t.getBaseType)}
          §    ),
          §))""".stripMargin('§')
     case t: MapType                 ⇒
       e"""FieldType::BuildIn(${mapTypeToMagic(t)}(
-         §    ${mapTypeToMagicDefMap(t, t.getBaseTypes.asScala.toList)}
+         §    ${mapTypeToMagicInitMap(t, t.getBaseTypes.asScala.toList)}
          §))""".stripMargin('§').trim
     case t: SingleBaseTypeContainer ⇒
       e"""FieldType::BuildIn(${mapTypeToMagic(t)}(
          §    Box::new(
-         §        ${mapTypeToMagicDef(t.getBaseType)}
+         §        ${mapTypeToMagicInit(t.getBaseType)}
          §    ),
          §))""".stripMargin('§')
     case t: UserType                ⇒
@@ -2011,23 +2061,23 @@ trait TypesMaker extends GeneralOutputMaker {
       e"FieldType::BuildIn(${mapTypeToMagic(t)})"
   }
 
-  private final def mapTypeToMagicDefMap(t: Type, tts: List[Type]): String = {
+  private final def mapTypeToMagicInitMap(t: Type, tts: List[Type]): String = {
     val (key, remainder) = tts.splitAt(1)
 
     if (remainder.size > 1) {
       e"""Box::new(
-         §    ${mapTypeToMagicDef(key.head)}
+         §    ${mapTypeToMagicInit(key.head)}
          §),
          §Box::new(FieldType::BuildIn(${mapTypeToMagic(t)}(
-         §    ${mapTypeToMagicDefMap(t, remainder)},
+         §    ${mapTypeToMagicInitMap(t, remainder)},
          §)))
          §""".stripMargin('§').trim
     } else {
       e"""Box::new(
-         §    ${mapTypeToMagicDef(key.head)}
+         §    ${mapTypeToMagicInit(key.head)}
          §),
          §Box::new(
-         §    ${mapTypeToMagicDef(remainder.head)}
+         §    ${mapTypeToMagicInit(remainder.head)}
          §)
          §""".stripMargin('§').trim
     }
@@ -2059,6 +2109,9 @@ trait TypesMaker extends GeneralOutputMaker {
     }
   }
 
+  /**
+    * Maps a type to a user readable string
+    */
   private final def mapTypeToUser(t: Type, const: Boolean = false): String = t match {
     case t: ConstantLengthArrayType            ⇒ s"${t.getLength}[${mapTypeToUser(t.getBaseType)}]"
     case t: VariableLengthArrayType            ⇒ s"v[${mapTypeToUser(t.getBaseType)}]"

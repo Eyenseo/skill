@@ -73,7 +73,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
   // FileModes
   //----------------------------------------
   private final def genFileModes(): String = {
-    e"""#[derive(PartialEq)]
+    e"""/// Used to specify whether a file may be overwritten or may be opened readable only
+       §#[derive(PartialEq)]
        §pub enum FileMode{
        §    R,
        §    RW,
@@ -95,7 +96,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
   }
 
   private final def genSkillFileStruct(): String = {
-    e"""pub struct SkillFile {
+    e"""/// The main entry point of the binding
+       §pub struct SkillFile {
        §    file: Rc<RefCell<std::fs::File>>,
        §    mode: FileMode,
        §    block_reader: Rc<RefCell<Vec<FileReader>>>,
@@ -120,33 +122,49 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        &self.type_pool
        §    }
        §
+       §    /// # Returns
+       §    /// immutable access to the [`StringPool`]
        §    pub fn strings(&self) -> &StringPool {
        §        &self.string_pool
        §    }
+       §    /// # Returns
+       §    /// mutable access to the [`StringPool`]
        §    pub fn strings_mut(&mut self) -> &mut StringPool {
        §        &mut self.string_pool
        §    }
        §
+       §    /// # Returns
+       §    /// vector of all [`foreign::Pool`]s
        §    pub fn foreign_pools(&self) -> &Vec<Rc<RefCell<foreign::Pool>>> {
        §        &self.foreign_pools
        §    }
        §
        §    ${
       (for (base ← IR) yield {
-        e"""pub fn ${pool(base)}(&self) -> std::cell::Ref<${storagePool(base)}> {
+        e"""/// # Returns
+           §/// immutable access to the [`${storagePool(base)}`]
+           §pub fn ${pool(base)}(&self) -> std::cell::Ref<${storagePool(base)}> {
            §    self.${pool(base)}.borrow()
            §}
+           §/// # Returns
+           §/// mutable access to the [`${storagePool(base)}`]
            §pub fn ${pool(base)}_mut(&self) -> std::cell::RefMut<${storagePool(base)}> {
            §    self.${pool(base)}.borrow_mut()
            §}
+           §/// # Returns
+           §/// iterator over static instances of type [`${name(base)}`]
            §pub fn ${pool(base)}_static_instances(&self) -> static_instances::Iter {
            §    static_instances::Iter::new(self.${pool(base)}.clone())
            §}
+           §/// # Returns
+           §/// iterator over dynamic instances of type [`${name(base)}`]
            §pub fn ${pool(base)}_dynamic_instances(&self)
            §    -> Result<dynamic_instances::Iter, SkillFail>
            §{
            §    dynamic_instances::Iter::new(self.${pool(base)}.clone())
            §}
+           §/// # Returns
+           §/// iterator over dynamic instances in type order of type [`${name(base)}`]
            §pub fn ${pool(base)}_type_order_instances(&self)
            §    -> Result<type_order_instances::Iter, SkillFail>
            §{
@@ -156,7 +174,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
            §""".stripMargin('§')
       }).mkString.trim
     }
-       §
+       §    /// # Arguments
+       §    /// * `instance` - instance to be marked for deletion
        §    pub fn delete(&self, instance: WeakPtr<SkillObject>) -> Result<(), SkillFail> {
        §        match instance.upgrade() {
        §            Some(instance) => {
@@ -171,7 +190,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        }
        §        Ok(())
        §    }
-       §
+       §    /// # Arguments
+       §    /// * `instance` - instance to be marked for deletion
        §    pub fn delete_strong(&self, instance: Ptr<SkillObject>) -> Result<(), SkillFail> {
        §        // NOTE parameter + (base_array || new_instances)
        §        if instance.weak_count() != 0 || instance.strong_count() > 2 {
@@ -181,8 +201,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        proxy.pool_mut().delete(instance);
        §        Ok(())
        §    }
-       §
-       §    /// This will delete an instance without checking if somewhere in the state another instance uses this one
+       §    /// # Arguments
+       §    /// * `instance` - instance to be marked for deletion without checking if it is used somewhere else
        §    pub fn delete_force(&self, instance: WeakPtr<SkillObject>) {
        §        match instance.upgrade() {
        §            Some(instance) => {
@@ -193,6 +213,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        }
        §    }
        §
+       §    /// # Returns
+       §    /// [`SkillFile`] instance that contains the data from the file
        §    pub fn open(file: &str, mode: FileMode) -> Result<Self, SkillFail> {
        §        debug!(
        §            target: "SkillParsing",
@@ -287,6 +309,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        Ok(sf)
        §    }
        §
+       §    /// # Returns
+       §    /// [`SkillFile`] instance that can be written to file
        §    pub fn create(file: &str) -> Result<Self, SkillFail> {
        §        debug!(
        §            target: "SkillWriting",
@@ -336,6 +360,11 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        Ok(sf)
        §    }
        §
+       §    /// Compresses the managed data
+       §    ///
+       §    /// * unused [`SkillString`] instances are freed
+       §    /// * user type instances that have been marked for deletion are freed
+       §    /// * blocks are merged
        §    pub fn compress(&mut self) -> Result<(), SkillFail> {
        §        debug!(
        §            target: "SkillWriting",
@@ -356,6 +385,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        Ok(())
        §    }
        §
+       §    /// compresses the data and writes it to file
        §    pub fn write(&mut self) -> Result<(), SkillFail> {
        §        debug!(
        §            target: "SkillWriting",
@@ -377,6 +407,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §
        §        // reorder
        §        let local_bpos = self.type_pool.compress()?;
+       §        self.string_pool.compress()?;
        §
        §        let mut writer = FileWriter::new(self.file.clone());
        §        self.string_pool.string_block().borrow_mut().write_block(&mut writer)?;
@@ -390,6 +421,7 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        Ok(())
        §    }
        §
+       §    /// compresses the data and writes it to file
        §    pub fn close(mut self) -> Result<(), SkillFail> {${
       "" // TODO check if more has to be done?
     }
@@ -407,6 +439,9 @@ trait SkillFileMaker extends GeneralOutputMaker {
        §        Ok(())
        §    }
        §
+       §    /// checks restrictions
+       §    ///
+       §    /// # Unimpiemented
        §    pub fn check(&self) -> Result<(), SkillFail> {${
       "" // TODO implement check
     }
@@ -431,7 +466,8 @@ trait SkillFileMaker extends GeneralOutputMaker {
   }
 
   private final def genSkillFileBuilderStruct(): String = {
-    e"""pub(crate) struct SkillFileBuilder {
+    e"""/// Helper struct for the creation of [`SkillFile`] instances
+       §pub(crate) struct SkillFileBuilder {
        §    ${
       (for (base ← IR) yield {
         e"""pub(crate) ${pool(base)}: Option<Rc<RefCell<${storagePool(base)}>>>,

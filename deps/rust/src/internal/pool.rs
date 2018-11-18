@@ -372,6 +372,12 @@ impl Pool {
         self.deleted_count += 1;
     }
     /// "Reads" a object from the type hierarchy vector
+    ///
+    /// # Arguments
+    /// * `index` - Index/ID of the object to retrieve
+    ///
+    /// # Returns
+    /// Instance of given index
     pub(crate) fn read_object(&self, index: usize) -> Result<Ptr<SkillObject>, SkillFail> {
         if index == 0 {
             return Err(SkillFail::internal(InternalFail::ReservedID { id: 0 }));
